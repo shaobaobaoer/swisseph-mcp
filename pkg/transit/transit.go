@@ -332,6 +332,38 @@ func CalcTransitEvents(input TransitCalcInput) ([]models.TransitEvent, error) {
 					)
 					allEvents = append(allEvents, events...)
 				}
+				// Sp-Sp: progressed planet vs progressed special points (ASC, MC)
+				if input.SpecialPoints != nil {
+					for _, sp := range input.SpecialPoints.ProgressionsPoints {
+						calcFnPSP := makeProgressionsSpecialPointCalcFn(sp, input.NatalLat, input.NatalLon, input.NatalJD, input.HouseSystem)
+						events := findAspectEventsRQ2(
+							calcFnP, pPlanet, models.ChartProgressions,
+							calcFnPSP, models.PlanetID(sp), models.ChartProgressions,
+							input.StartJD, input.EndJD,
+							input.OrbConfigProgressions, natalHouses, input.NatalJD,
+						)
+						allEvents = append(allEvents, events...)
+					}
+				}
+			}
+		}
+
+		// Sp-Na: progressed special points vs natal (RQ1)
+		if input.EventConfig.IncludeSpNa && input.SpecialPoints != nil {
+			for _, sp := range input.SpecialPoints.ProgressionsPoints {
+				calcFnPSP := makeProgressionsSpecialPointCalcFn(sp, input.NatalLat, input.NatalLon, input.NatalJD, input.HouseSystem)
+				// Progressed special points move very slowly, no stations
+				spIntervals := []MonoInterval{{Start: input.StartJD, End: input.EndJD}}
+				exactCounters := make(map[string]int)
+				for _, ref := range natalRefs {
+					events := findAspectEventsRQ1(
+						calcFnPSP, models.PlanetID(sp), models.ChartProgressions,
+						ref.ID, ref.Longitude, models.ChartNatal,
+						spIntervals, input.OrbConfigProgressions, natalHouses, exactCounters,
+						input.NatalJD,
+					)
+					allEvents = append(allEvents, events...)
+				}
 			}
 		}
 	}
