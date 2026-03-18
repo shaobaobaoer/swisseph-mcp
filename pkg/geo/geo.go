@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -83,9 +84,14 @@ func geocodeNominatim(locationName string) (*models.GeoLocation, error) {
 		return nil, fmt.Errorf("location not found: %s", locationName)
 	}
 
-	var lat, lon float64
-	fmt.Sscanf(results[0].Lat, "%f", &lat)
-	fmt.Sscanf(results[0].Lon, "%f", &lon)
+	lat, err := strconv.ParseFloat(results[0].Lat, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid latitude %q: %w", results[0].Lat, err)
+	}
+	lon, err := strconv.ParseFloat(results[0].Lon, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid longitude %q: %w", results[0].Lon, err)
+	}
 
 	tz := TimezoneFromCoords(lat, lon)
 
