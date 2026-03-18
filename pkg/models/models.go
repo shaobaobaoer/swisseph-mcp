@@ -377,29 +377,26 @@ var ZodiacAbbr = []string{
 	"Sag", "Cap", "Aqu", "Pis",
 }
 
-// SignFromLongitude returns the zodiac sign name for a given ecliptic longitude
-func SignFromLongitude(lon float64) string {
+// signIndex returns the zodiac sign index (0-11) for a given ecliptic longitude
+func signIndex(lon float64) int {
 	idx := int(lon / 30.0)
 	if idx < 0 {
-		idx = 0
+		return 0
 	}
 	if idx > 11 {
-		idx = 11
+		return 11
 	}
-	return ZodiacSigns[idx]
+	return idx
 }
 
+// SignFromLongitude returns the zodiac sign name for a given ecliptic longitude
+func SignFromLongitude(lon float64) string {
+	return ZodiacSigns[signIndex(lon)]
+}
 
 // SignAbbrFromLongitude returns the 3-letter zodiac abbreviation
 func SignAbbrFromLongitude(lon float64) string {
-	idx := int(lon / 30.0)
-	if idx < 0 {
-		idx = 0
-	}
-	if idx > 11 {
-		idx = 11
-	}
-	return ZodiacAbbr[idx]
+	return ZodiacAbbr[signIndex(lon)]
 }
 
 // SignDegreeFromLongitude returns the degree within the sign (0-30)

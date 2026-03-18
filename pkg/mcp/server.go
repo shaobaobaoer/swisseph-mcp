@@ -374,6 +374,14 @@ func errorResponse(id interface{}, code int, msg string) *jsonRPCResponse {
 	}
 }
 
+// orbOrDefault returns the custom orb config if provided, otherwise the fallback
+func orbOrDefault(custom *models.OrbConfig, fallback models.OrbConfig) models.OrbConfig {
+	if custom != nil {
+		return *custom
+	}
+	return fallback
+}
+
 // defaultPlanets is the default planet list used across all handlers
 var defaultPlanets = []models.PlanetID{
 	models.PlanetSun, models.PlanetMoon, models.PlanetMercury,
@@ -469,12 +477,8 @@ func (s *Server) handleCalcSingleChart(args json.RawMessage) (interface{}, error
 	if input.HouseSystem == "" {
 		input.HouseSystem = models.HousePlacidus
 	}
-	orbs := models.DefaultOrbConfig()
-	if input.OrbConfig != nil {
-		orbs = *input.OrbConfig
-	}
-
-	return chart.CalcSingleChart(input.Latitude, input.Longitude, input.JDUT, input.Planets, orbs, input.HouseSystem)
+	return chart.CalcSingleChart(input.Latitude, input.Longitude, input.JDUT, input.Planets,
+		orbOrDefault(input.OrbConfig, models.DefaultOrbConfig()), input.HouseSystem)
 }
 
 func (s *Server) handleCalcDoubleChart(args json.RawMessage) (interface{}, error) {
@@ -504,11 +508,7 @@ func (s *Server) handleCalcDoubleChart(args json.RawMessage) (interface{}, error
 	if input.HouseSystem == "" {
 		input.HouseSystem = models.HousePlacidus
 	}
-	orbs := models.DefaultOrbConfig()
-	if input.OrbConfig != nil {
-		orbs = *input.OrbConfig
-	}
-
+	orbs := orbOrDefault(input.OrbConfig, models.DefaultOrbConfig())
 	innerChart, outerChart, crossAspects, err := chart.CalcDoubleChart(
 		input.InnerLatitude, input.InnerLongitude, input.InnerJDUT, input.InnerPlanets,
 		input.OuterLatitude, input.OuterLongitude, input.OuterJDUT, input.OuterPlanets,
@@ -557,6 +557,38 @@ func (s *Server) handleCalcTransit(args json.RawMessage) (interface{}, error) {
 	}
 }
 
+// directedPlanet holds a planet position from progressions or solar arc
+type directedPlanet struct {
+	PlanetID     models.PlanetID `json:"planet_id"`
+	Longitude    float64         `json:"longitude"`
+	Speed        float64         `json:"speed"`
+	IsRetrograde bool            `json:"is_retrograde,omitempty"`
+	Sign         string          `json:"sign"`
+	SignDegree   float64         `json:"sign_degree"`
+}
+
+// calcDirectedPlanets computes positions for a list of planets using the given calc function
+type planetCalcFunc func(pid models.PlanetID, natalJD, transitJD float64) (float64, float64, error)
+
+func calcDirectedPlanets(planets []models.PlanetID, natalJD, transitJD float64, calc planetCalcFunc) []directedPlanet {
+	var result []directedPlanet
+	for _, pid := range planets {
+		lon, speed, err := calc(pid, natalJD, transitJD)
+		if err != nil {
+			continue
+		}
+		result = append(result, directedPlanet{
+			PlanetID:     pid,
+			Longitude:    lon,
+			Speed:        speed,
+			IsRetrograde: speed < 0,
+			Sign:         models.SignFromLongitude(lon),
+			SignDegree:   models.SignDegreeFromLongitude(lon),
+		})
+	}
+	return result
+}
+
 func (s *Server) handleCalcProgressions(args json.RawMessage) (interface{}, error) {
 	var input struct {
 		NatalJDUT   float64           `json:"natal_jd_ut"`
@@ -566,43 +598,14 @@ func (s *Server) handleCalcProgressions(args json.RawMessage) (interface{}, erro
 	if err := json.Unmarshal(args, &input); err != nil {
 		return nil, err
 	}
-
 	if len(input.Planets) == 0 {
 		input.Planets = defaultPlanets
 	}
 
-	age := progressions.Age(input.NatalJDUT, input.TransitJDUT)
-	progressedJD := progressions.SecondaryProgressionJD(input.NatalJDUT, input.TransitJDUT)
-
-	type progressedPlanet struct {
-		PlanetID     models.PlanetID `json:"planet_id"`
-		Longitude    float64         `json:"longitude"`
-		Speed        float64         `json:"speed"`
-		IsRetrograde bool            `json:"is_retrograde"`
-		Sign         string          `json:"sign"`
-		SignDegree   float64         `json:"sign_degree"`
-	}
-
-	var planets []progressedPlanet
-	for _, pid := range input.Planets {
-		lon, speed, err := progressions.CalcProgressedLongitude(pid, input.NatalJDUT, input.TransitJDUT)
-		if err != nil {
-			continue
-		}
-		planets = append(planets, progressedPlanet{
-			PlanetID:     pid,
-			Longitude:    lon,
-			Speed:        speed,
-			IsRetrograde: speed < 0,
-			Sign:         models.SignFromLongitude(lon),
-			SignDegree:   models.SignDegreeFromLongitude(lon),
-		})
-	}
-
 	return map[string]interface{}{
-		"age":           age,
-		"progressed_jd": progressedJD,
-		"planets":       planets,
+		"age":           progressions.Age(input.NatalJDUT, input.TransitJDUT),
+		"progressed_jd": progressions.SecondaryProgressionJD(input.NatalJDUT, input.TransitJDUT),
+		"planets":       calcDirectedPlanets(input.Planets, input.NatalJDUT, input.TransitJDUT, progressions.CalcProgressedLongitude),
 	}, nil
 }
 
@@ -615,44 +618,19 @@ func (s *Server) handleCalcSolarArc(args json.RawMessage) (interface{}, error) {
 	if err := json.Unmarshal(args, &input); err != nil {
 		return nil, err
 	}
-
 	if len(input.Planets) == 0 {
 		input.Planets = defaultPlanets
 	}
 
-	age := progressions.Age(input.NatalJDUT, input.TransitJDUT)
 	offset, err := progressions.SolarArcOffset(input.NatalJDUT, input.TransitJDUT)
 	if err != nil {
 		return nil, err
 	}
 
-	type solarArcPlanet struct {
-		PlanetID   models.PlanetID `json:"planet_id"`
-		Longitude  float64         `json:"longitude"`
-		Speed      float64         `json:"speed"`
-		Sign       string          `json:"sign"`
-		SignDegree float64         `json:"sign_degree"`
-	}
-
-	var planets []solarArcPlanet
-	for _, pid := range input.Planets {
-		lon, speed, err := progressions.CalcSolarArcLongitude(pid, input.NatalJDUT, input.TransitJDUT)
-		if err != nil {
-			continue
-		}
-		planets = append(planets, solarArcPlanet{
-			PlanetID:   pid,
-			Longitude:  lon,
-			Speed:      speed,
-			Sign:       models.SignFromLongitude(lon),
-			SignDegree: models.SignDegreeFromLongitude(lon),
-		})
-	}
-
 	return map[string]interface{}{
-		"age":              age,
+		"age":              progressions.Age(input.NatalJDUT, input.TransitJDUT),
 		"solar_arc_offset": offset,
-		"planets":          planets,
+		"planets":          calcDirectedPlanets(input.Planets, input.NatalJDUT, input.TransitJDUT, progressions.CalcSolarArcLongitude),
 	}, nil
 }
 
@@ -695,22 +673,7 @@ func (s *Server) buildTransitInput(args json.RawMessage) (transit.TransitCalcInp
 	if input.Timezone == "" {
 		input.Timezone = "UTC"
 	}
-	baseOrbs := models.DefaultOrbConfig()
-	if input.OrbConfig != nil {
-		baseOrbs = *input.OrbConfig
-	}
-	orbsTransit := baseOrbs
-	if input.OrbConfigTransit != nil {
-		orbsTransit = *input.OrbConfigTransit
-	}
-	orbsProgressions := baseOrbs
-	if input.OrbConfigProgressions != nil {
-		orbsProgressions = *input.OrbConfigProgressions
-	}
-	orbsSolarArc := baseOrbs
-	if input.OrbConfigSolarArc != nil {
-		orbsSolarArc = *input.OrbConfigSolarArc
-	}
+	baseOrbs := orbOrDefault(input.OrbConfig, models.DefaultOrbConfig())
 	eventCfg := models.DefaultEventConfig()
 	if input.EventConfig != nil {
 		eventCfg = *input.EventConfig
@@ -730,9 +693,9 @@ func (s *Server) buildTransitInput(args json.RawMessage) (transit.TransitCalcInp
 		SolarArcConfig:        input.SolarArcConfig,
 		SpecialPoints:         input.SpecialPoints,
 		EventConfig:           eventCfg,
-		OrbConfigTransit:      orbsTransit,
-		OrbConfigProgressions: orbsProgressions,
-		OrbConfigSolarArc:     orbsSolarArc,
+		OrbConfigTransit:      orbOrDefault(input.OrbConfigTransit, baseOrbs),
+		OrbConfigProgressions: orbOrDefault(input.OrbConfigProgressions, baseOrbs),
+		OrbConfigSolarArc:     orbOrDefault(input.OrbConfigSolarArc, baseOrbs),
 		HouseSystem:           input.HouseSystem,
 	}, input.Timezone, nil
 }

@@ -550,51 +550,52 @@ func makeSolarArcCalcFn(planet models.PlanetID, natalJD float64) bodyCalcFunc {
 	}
 }
 
+// wrapDelta normalizes an angular delta to [-180, 180)
+func wrapDelta(d float64) float64 {
+	if d > 180 {
+		return d - 360
+	}
+	if d < -180 {
+		return d + 360
+	}
+	return d
+}
+
+// numericalSpeed estimates speed via forward finite difference, handling wrap-around
+func numericalSpeed(lonFn func(float64) (float64, error), jd, dt float64) float64 {
+	lon1, err1 := lonFn(jd)
+	lon2, err2 := lonFn(jd + dt)
+	if err1 != nil || err2 != nil {
+		return 0
+	}
+	return wrapDelta(lon2-lon1) / dt
+}
+
 // makeTransitSpecialPointCalcFn creates a calc function for a dynamic transit special point
 func makeTransitSpecialPointCalcFn(sp models.SpecialPointID, lat, lon float64, hsys models.HouseSystem) bodyCalcFunc {
+	lonFn := func(jd float64) (float64, error) {
+		return chart.CalcSpecialPointLongitude(sp, lat, lon, jd, hsys)
+	}
 	return func(jd float64) (float64, float64, error) {
-		spLon, err := chart.CalcSpecialPointLongitude(sp, lat, lon, jd, hsys)
+		spLon, err := lonFn(jd)
 		if err != nil {
 			return 0, 0, err
 		}
-		// Estimate speed numerically (forward finite difference)
-		dt := 0.01
-		spLon2, err := chart.CalcSpecialPointLongitude(sp, lat, lon, jd+dt, hsys)
-		if err != nil {
-			return spLon, 0, nil
-		}
-		speed := (spLon2 - spLon) / dt
-		// Handle wrap-around
-		if speed > 180 {
-			speed -= 360
-		} else if speed < -180 {
-			speed += 360
-		}
-		return spLon, speed, nil
+		return spLon, numericalSpeed(lonFn, jd, 0.01), nil
 	}
 }
 
 // makeProgressionsSpecialPointCalcFn creates a calc function for a progressed special point
-// Uses the Q1/Solar Arc in RA method for ASC/MC progression (standard Solar Fire method).
 func makeProgressionsSpecialPointCalcFn(sp models.SpecialPointID, lat, lon float64, natalJD float64, hsys models.HouseSystem) bodyCalcFunc {
+	lonFn := func(jd float64) (float64, error) {
+		return progressions.CalcProgressedSpecialPoint(sp, natalJD, jd, lat, lon, hsys)
+	}
 	return func(jd float64) (float64, float64, error) {
-		spLon, err := progressions.CalcProgressedSpecialPoint(sp, natalJD, jd, lat, lon, hsys)
+		spLon, err := lonFn(jd)
 		if err != nil {
 			return 0, 0, err
 		}
-		// Estimate speed numerically
-		dt := 1.0 // 1 day step for numerical derivative (angles move slowly in progressions)
-		spLon2, err := progressions.CalcProgressedSpecialPoint(sp, natalJD, jd+dt, lat, lon, hsys)
-		if err != nil {
-			return spLon, 0, nil
-		}
-		speed := spLon2 - spLon
-		if speed > 180 {
-			speed -= 360
-		} else if speed < -180 {
-			speed += 360
-		}
-		return spLon, speed, nil
+		return spLon, numericalSpeed(lonFn, jd, 1.0), nil
 	}
 }
 

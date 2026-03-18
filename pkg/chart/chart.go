@@ -245,33 +245,27 @@ func calcSpecialPoints(points []models.SpecialPointID, angles models.AnglesInfo,
 	return bodies
 }
 
-// calcLotOfFortune: Day = ASC + Moon - Sun; Night = ASC + Sun - Moon
-func calcLotOfFortune(jdUT, asc float64) float64 {
-	sun, _ := sweph.CalcUT(jdUT, sweph.SE_SUN)
-	moon, _ := sweph.CalcUT(jdUT, sweph.SE_MOON)
-	if sun == nil || moon == nil {
+// calcLot computes an Arabic lot: ASC + bodyA - bodyB (day) or ASC + bodyB - bodyA (night)
+func calcLot(jdUT, asc float64, dayA, dayB int) float64 {
+	a, _ := sweph.CalcUT(jdUT, dayA)
+	b, _ := sweph.CalcUT(jdUT, dayB)
+	if a == nil || b == nil {
 		return 0
 	}
-	// Day chart if Sun is above horizon (simplified: Sun longitude vs ASC)
-	isDaytime := isDayChart(sun.Longitude, asc)
-	if isDaytime {
-		return sweph.NormalizeDegrees(asc + moon.Longitude - sun.Longitude)
+	if isDayChart(a.Longitude, asc) {
+		return sweph.NormalizeDegrees(asc + b.Longitude - a.Longitude)
 	}
-	return sweph.NormalizeDegrees(asc + sun.Longitude - moon.Longitude)
+	return sweph.NormalizeDegrees(asc + a.Longitude - b.Longitude)
+}
+
+// calcLotOfFortune: Day = ASC + Moon - Sun; Night = ASC + Sun - Moon
+func calcLotOfFortune(jdUT, asc float64) float64 {
+	return calcLot(jdUT, asc, sweph.SE_SUN, sweph.SE_MOON)
 }
 
 // calcLotOfSpirit: Day = ASC + Sun - Moon; Night = ASC + Moon - Sun
 func calcLotOfSpirit(jdUT, asc float64) float64 {
-	sun, _ := sweph.CalcUT(jdUT, sweph.SE_SUN)
-	moon, _ := sweph.CalcUT(jdUT, sweph.SE_MOON)
-	if sun == nil || moon == nil {
-		return 0
-	}
-	isDaytime := isDayChart(sun.Longitude, asc)
-	if isDaytime {
-		return sweph.NormalizeDegrees(asc + sun.Longitude - moon.Longitude)
-	}
-	return sweph.NormalizeDegrees(asc + moon.Longitude - sun.Longitude)
+	return calcLot(jdUT, asc, sweph.SE_MOON, sweph.SE_SUN)
 }
 
 // isDayChart checks if Sun is above the horizon (simplified check)
