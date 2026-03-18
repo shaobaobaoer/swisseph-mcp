@@ -148,7 +148,7 @@ func (s *Server) handleInitialize(req *jsonRPCRequest) *jsonRPCResponse {
 			},
 			ServerInfo: serverInfo{
 				Name:    "swisseph-mcp",
-				Version: "1.0.0",
+				Version: "1.1.0",
 			},
 		},
 	}
@@ -373,6 +373,14 @@ func errorResponse(id interface{}, code int, msg string) *jsonRPCResponse {
 	}
 }
 
+// defaultPlanets is the default planet list used across all handlers
+var defaultPlanets = []models.PlanetID{
+	models.PlanetSun, models.PlanetMoon, models.PlanetMercury,
+	models.PlanetVenus, models.PlanetMars, models.PlanetJupiter,
+	models.PlanetSaturn, models.PlanetUranus, models.PlanetNeptune,
+	models.PlanetPluto,
+}
+
 // === Tool handlers ===
 
 func (s *Server) handleCalcPlanetPosition(args json.RawMessage) (interface{}, error) {
@@ -455,12 +463,7 @@ func (s *Server) handleCalcSingleChart(args json.RawMessage) (interface{}, error
 	}
 
 	if len(input.Planets) == 0 {
-		input.Planets = []models.PlanetID{
-			models.PlanetSun, models.PlanetMoon, models.PlanetMercury,
-			models.PlanetVenus, models.PlanetMars, models.PlanetJupiter,
-			models.PlanetSaturn, models.PlanetUranus, models.PlanetNeptune,
-			models.PlanetPluto,
-		}
+		input.Planets = defaultPlanets
 	}
 	if input.HouseSystem == "" {
 		input.HouseSystem = models.HousePlacidus
@@ -491,12 +494,6 @@ func (s *Server) handleCalcDoubleChart(args json.RawMessage) (interface{}, error
 		return nil, err
 	}
 
-	defaultPlanets := []models.PlanetID{
-		models.PlanetSun, models.PlanetMoon, models.PlanetMercury,
-		models.PlanetVenus, models.PlanetMars, models.PlanetJupiter,
-		models.PlanetSaturn, models.PlanetUranus, models.PlanetNeptune,
-		models.PlanetPluto,
-	}
 	if len(input.InnerPlanets) == 0 {
 		input.InnerPlanets = defaultPlanets
 	}
@@ -570,12 +567,7 @@ func (s *Server) handleCalcProgressions(args json.RawMessage) (interface{}, erro
 	}
 
 	if len(input.Planets) == 0 {
-		input.Planets = []models.PlanetID{
-			models.PlanetSun, models.PlanetMoon, models.PlanetMercury,
-			models.PlanetVenus, models.PlanetMars, models.PlanetJupiter,
-			models.PlanetSaturn, models.PlanetUranus, models.PlanetNeptune,
-			models.PlanetPluto,
-		}
+		input.Planets = defaultPlanets
 	}
 
 	age := progressions.Age(input.NatalJDUT, input.TransitJDUT)
@@ -624,12 +616,7 @@ func (s *Server) handleCalcSolarArc(args json.RawMessage) (interface{}, error) {
 	}
 
 	if len(input.Planets) == 0 {
-		input.Planets = []models.PlanetID{
-			models.PlanetSun, models.PlanetMoon, models.PlanetMercury,
-			models.PlanetVenus, models.PlanetMars, models.PlanetJupiter,
-			models.PlanetSaturn, models.PlanetUranus, models.PlanetNeptune,
-			models.PlanetPluto,
-		}
+		input.Planets = defaultPlanets
 	}
 
 	age := progressions.Age(input.NatalJDUT, input.TransitJDUT)
@@ -695,12 +682,6 @@ func (s *Server) buildTransitInput(args json.RawMessage) (transit.TransitCalcInp
 		return transit.TransitCalcInput{}, "", err
 	}
 
-	defaultPlanets := []models.PlanetID{
-		models.PlanetSun, models.PlanetMoon, models.PlanetMercury,
-		models.PlanetVenus, models.PlanetMars, models.PlanetJupiter,
-		models.PlanetSaturn, models.PlanetUranus, models.PlanetNeptune,
-		models.PlanetPluto,
-	}
 	if len(input.NatalPlanets) == 0 {
 		input.NatalPlanets = defaultPlanets
 	}
