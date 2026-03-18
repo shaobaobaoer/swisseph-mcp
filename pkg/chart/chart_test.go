@@ -57,8 +57,8 @@ func TestCalcSingleChart(t *testing.T) {
 	if sunPos.Longitude < 60 || sunPos.Longitude > 90 {
 		t.Errorf("Sun longitude = %f, expected in Gemini (60-90)", sunPos.Longitude)
 	}
-	if sunPos.Sign != "双子座" {
-		t.Errorf("Sun sign = %q, expected 双子座", sunPos.Sign)
+	if sunPos.Sign != "Gemini" {
+		t.Errorf("Sun sign = %q, expected Gemini", sunPos.Sign)
 	}
 
 	// ASC should be valid
@@ -292,13 +292,13 @@ func TestCalcSingleChart_DifferentHouseSystems(t *testing.T) {
 }
 
 // =============================================================================
-// JN 本命盘精确测试 — 基于 Solar Fire Chart Analysis Report
+// JN Natal Chart Precision Test - Based on Solar Fire Chart Analysis Report
 //
-// 人物：JN，男盘
-// 出生时间：1997-12-18 17:36:00 AWST (UTC+8)，即 UTC 09:36:00
-// 出生地：金山，中国，30°54'N，121°09'E
-// 宫位系统：Placidus
-// JDE = 2450800.900729（地球时），JD_UT ≈ 2450800.900009
+// Subject: JN, Male Chart
+// Birth: 1997-12-18 17:36:00 AWST (UTC+8), i.e. UTC 09:36:00
+// Birth place: Jinshan, China, 30°54'N，121°09'E
+// House system: Placidus
+// JDE = 2450800.900729 (TT), JD_UT ≈ 2450800.900009
 // =============================================================================
 
 func TestCalcSingleChart_JN_Natal(t *testing.T) {
@@ -306,10 +306,10 @@ func TestCalcSingleChart_JN_Natal(t *testing.T) {
 		jnJDUT = 2450800.900009
 		jnLat  = 30.9    // 30°54'N
 		jnLon  = 121.15  // 121°09'E
-		tolLon = 0.01    // 经度容差 0.01°
-		tolLat = 0.05    // 纬度容差 0.05°
-		tolSpd = 0.02    // 速度容差 0.02°/天
-		tolAng = 0.01    // 轴点/宫头容差 0.01°
+		tolLon = 0.01    // longitude tolerance 0.01°
+		tolLat = 0.05    // latitude tolerance 0.05°
+		tolSpd = 0.02    // speed tolerance 0.02 deg/day
+		tolAng = 0.01    // angle/cusp tolerance 0.01°
 	)
 
 	planets := []models.PlanetID{
@@ -330,8 +330,8 @@ func TestCalcSingleChart_JN_Natal(t *testing.T) {
 		t.Fatalf("CalcSingleChart JN: %v", err)
 	}
 
-	// --- 天体位置验证 ---
-	// Solar Fire 参考数据（经 DMS→十进制转换）
+	// --- Planet position verification ---
+	// Solar Fire reference data (DMS to decimal conversion)
 	type expected struct {
 		pid      models.PlanetID
 		lon      float64
@@ -342,28 +342,28 @@ func TestCalcSingleChart_JN_Natal(t *testing.T) {
 		signDeg  float64
 		house    int
 	}
-	// 参考值来自 Solar Fire，以下 4 处已根据 Swiss Ephemeris 实际输出修正：
-	//   1. CHIRON 经度：原报告 221.022 与 sign_degree 14.022°天蝎矛盾，
-	//      正确值 = 210 + 14.022 = 224.022（原报告笔误）
-	//   2. SATURN 速度：原报告 0.200°/天对土星不合理（接近站点），
-	//      实际 ≈ 0.004°/天
-	//   3. LILITH_MEAN：原报告 351.497° 与 MC 值完全相同，系抄错，
-	//      实际 ≈ 180.395°（天秤座 0.395°）
-	//   4. JUPITER 宫位：原报告 9 宫，swe_house_pos 返回 8 宫
-	//      （木星 319.5° 在 8 宫头 298.7° 与 9 宫头 322.7° 之间）
+	// Reference from Solar Fire, 4 corrections based on Swiss Ephemeris output:
+	//   1. CHIRON lon: report 221.022 conflicts with sign_degree 14.022 Scorpio,
+	//      correct = 210 + 14.022 = 224.022 (report typo)
+	//   2. SATURN speed: report 0.200 deg/day unreasonable for Saturn (near station),
+	//      actual ~0.004 deg/day
+	//   3. LILITH_MEAN: report 351.497 same as MC, copy error,
+	//      actual ~180.395 (Libra 0.395)
+	//   4. JUPITER house: report says 9, swe_house_pos returns 8
+	//      (Jupiter 319.5 between 8th cusp 298.7 and 9th cusp 322.7)
 	wantPlanets := []expected{
-		{models.PlanetMoon, 138.116, -2.183, 12.323, false, "狮子座", 18.116, 2},
-		{models.PlanetSun, 266.500, 0.0, 1.018, false, "射手座", 26.500, 6},
-		{models.PlanetMercury, 263.933, 2.216, -1.361, true, "射手座", 23.933, 6},
-		{models.PlanetVenus, 302.553, -0.879, 0.315, false, "水瓶座", 2.553, 8},
-		{models.PlanetMars, 300.097, -1.221, 0.782, false, "水瓶座", 0.097, 8},
-		{models.PlanetJupiter, 319.548, -0.879, 0.188, false, "水瓶座", 19.548, 8},
-		{models.PlanetSaturn, 13.538, -2.571, 0.004, false, "白羊座", 13.538, 10},
-		{models.PlanetUranus, 306.425, -0.604, 0.048, false, "水瓶座", 6.425, 8},
-		{models.PlanetNeptune, 298.468, 0.367, 0.033, false, "摩羯座", 28.468, 7},
-		{models.PlanetPluto, 246.274, 11.872, 0.038, false, "射手座", 6.274, 6},
-		{models.PlanetChiron, 224.023, 1.159, 0.117, false, "天蝎座", 14.023, 5},
-		{models.PlanetLilithMean, 180.395, 1.417, 0.111, false, "天秤座", 0.395, 4},
+		{models.PlanetMoon, 138.116, -2.183, 12.323, false, "Leo", 18.116, 2},
+		{models.PlanetSun, 266.500, 0.0, 1.018, false, "Sagittarius", 26.500, 6},
+		{models.PlanetMercury, 263.933, 2.216, -1.361, true, "Sagittarius", 23.933, 6},
+		{models.PlanetVenus, 302.553, -0.879, 0.315, false, "Aquarius", 2.553, 8},
+		{models.PlanetMars, 300.097, -1.221, 0.782, false, "Aquarius", 0.097, 8},
+		{models.PlanetJupiter, 319.548, -0.879, 0.188, false, "Aquarius", 19.548, 8},
+		{models.PlanetSaturn, 13.538, -2.571, 0.004, false, "Aries", 13.538, 10},
+		{models.PlanetUranus, 306.425, -0.604, 0.048, false, "Aquarius", 6.425, 8},
+		{models.PlanetNeptune, 298.468, 0.367, 0.033, false, "Capricorn", 28.468, 7},
+		{models.PlanetPluto, 246.274, 11.872, 0.038, false, "Sagittarius", 6.274, 6},
+		{models.PlanetChiron, 224.023, 1.159, 0.117, false, "Scorpio", 14.023, 5},
+		{models.PlanetLilithMean, 180.395, 1.417, 0.111, false, "Libra", 0.395, 4},
 	}
 
 	// Build lookup map from computed results
@@ -375,49 +375,49 @@ func TestCalcSingleChart_JN_Natal(t *testing.T) {
 	for _, w := range wantPlanets {
 		got, ok := posMap[w.pid]
 		if !ok {
-			t.Errorf("天体 %s 未找到", w.pid)
+			t.Errorf("planet %s not found", w.pid)
 			continue
 		}
 		t.Run(string(w.pid), func(t *testing.T) {
 			if math.Abs(got.Longitude-w.lon) > tolLon {
-				t.Errorf("经度: got %.4f, want %.3f (diff %.4f)", got.Longitude, w.lon, got.Longitude-w.lon)
+				t.Errorf("longitude: got %.4f, want %.3f (diff %.4f)", got.Longitude, w.lon, got.Longitude-w.lon)
 			}
 			if math.Abs(got.Latitude-w.lat) > tolLat {
-				t.Errorf("纬度: got %.4f, want %.3f (diff %.4f)", got.Latitude, w.lat, got.Latitude-w.lat)
+				t.Errorf("latitude: got %.4f, want %.3f (diff %.4f)", got.Latitude, w.lat, got.Latitude-w.lat)
 			}
 			if math.Abs(got.Speed-w.speed) > tolSpd {
-				t.Errorf("速度: got %.4f, want %.3f (diff %.4f)", got.Speed, w.speed, got.Speed-w.speed)
+				t.Errorf("speed: got %.4f, want %.3f (diff %.4f)", got.Speed, w.speed, got.Speed-w.speed)
 			}
 			if got.IsRetrograde != w.retro {
-				t.Errorf("逆行: got %v, want %v", got.IsRetrograde, w.retro)
+				t.Errorf("retrograde: got %v, want %v", got.IsRetrograde, w.retro)
 			}
 			if got.Sign != w.sign {
-				t.Errorf("星座: got %q, want %q", got.Sign, w.sign)
+				t.Errorf("sign: got %q, want %q", got.Sign, w.sign)
 			}
 			if math.Abs(got.SignDegree-w.signDeg) > tolLon {
-				t.Errorf("星座度数: got %.4f, want %.3f", got.SignDegree, w.signDeg)
+				t.Errorf("sign degree: got %.4f, want %.3f", got.SignDegree, w.signDeg)
 			}
 			if got.House != w.house {
-				t.Errorf("宫位: got %d, want %d", got.House, w.house)
+				t.Errorf("house: got %d, want %d", got.House, w.house)
 			}
 		})
 	}
 
-	// --- 宫头验证 ---
+	// --- House cusp verification ---
 	wantHouses := []float64{
 		96.530, 118.656, 142.694, 171.500, 206.129, 242.977,
 		276.530, 298.656, 322.694, 351.500, 26.129, 62.977,
 	}
 	if len(info.Houses) != 12 {
-		t.Fatalf("宫头数: got %d, want 12", len(info.Houses))
+		t.Fatalf("cusp count: got %d, want 12", len(info.Houses))
 	}
 	for i, wh := range wantHouses {
 		if math.Abs(info.Houses[i]-wh) > tolAng {
-			t.Errorf("宫头[%d]: got %.4f, want %.3f (diff %.4f)", i+1, info.Houses[i], wh, info.Houses[i]-wh)
+			t.Errorf("cusp[%d]: got %.4f, want %.3f (diff %.4f)", i+1, info.Houses[i], wh, info.Houses[i]-wh)
 		}
 	}
 
-	// --- 四轴验证 ---
+	// --- Angles verification ---
 	t.Run("Angles", func(t *testing.T) {
 		if math.Abs(info.Angles.ASC-96.530) > tolAng {
 			t.Errorf("ASC: got %.4f, want 96.530", info.Angles.ASC)
@@ -433,9 +433,9 @@ func TestCalcSingleChart_JN_Natal(t *testing.T) {
 		}
 	})
 
-	// --- 相位验证（由系统自动计算，验证关键相位存在性和正确性）---
+	// --- Aspect verification (auto-calculated, verify key aspects) ---
 	t.Run("Aspects", func(t *testing.T) {
-		// 构建相位查找辅助
+		// build aspect lookup helper
 		type aspectKey struct{ a, b string }
 		aspectMap := make(map[aspectKey]models.AspectInfo)
 		for _, asp := range info.Aspects {
@@ -443,57 +443,57 @@ func TestCalcSingleChart_JN_Natal(t *testing.T) {
 			aspectMap[aspectKey{asp.PlanetB, asp.PlanetA}] = asp
 		}
 
-		// Venus-Mars 合相：302.553 vs 300.097，角差 2.456°，容许度 8°
+		// Venus-Mars conjunction: 302.553 vs 300.097，diff 2.456°; orb 8°
 		if asp, ok := aspectMap[aspectKey{"VENUS", "MARS"}]; ok {
 			if asp.AspectType != models.AspectConjunction {
-				t.Errorf("Venus-Mars: got %s, want 合相", asp.AspectType)
+				t.Errorf("Venus-Mars: got %s, want Conjunction", asp.AspectType)
 			}
 			if math.Abs(asp.Orb-2.456) > 0.05 {
 				t.Errorf("Venus-Mars orb: got %.3f, want ~2.456", asp.Orb)
 			}
 		} else {
-			t.Error("Venus-Mars 合相未找到")
+			t.Error("Venus-Mars conjunction not found")
 		}
 
-		// Mars-Neptune 合相：300.097 vs 298.468，角差 1.629°
+		// Mars-Neptune conjunction: 300.097 vs 298.468，diff 1.629°
 		if asp, ok := aspectMap[aspectKey{"MARS", "NEPTUNE"}]; ok {
 			if asp.AspectType != models.AspectConjunction {
-				t.Errorf("Mars-Neptune: got %s, want 合相", asp.AspectType)
+				t.Errorf("Mars-Neptune: got %s, want Conjunction", asp.AspectType)
 			}
 			if math.Abs(asp.Orb-1.629) > 0.05 {
 				t.Errorf("Mars-Neptune orb: got %.3f, want ~1.629", asp.Orb)
 			}
 		} else {
-			t.Error("Mars-Neptune 合相未找到")
+			t.Error("Mars-Neptune conjunction not found")
 		}
 
-		// Moon-Saturn 三分相：138.116 vs 13.538，角差 124.578°，离120°差4.578°
+		// Moon-Saturn trine: 138.116 vs 13.538，diff 124.578°; from 120 by4.578°
 		if asp, ok := aspectMap[aspectKey{"MOON", "SATURN"}]; ok {
 			if asp.AspectType != models.AspectTrine {
-				t.Errorf("Moon-Saturn: got %s, want 三分相", asp.AspectType)
+				t.Errorf("Moon-Saturn: got %s, want Trine", asp.AspectType)
 			}
 			if math.Abs(asp.Orb-4.578) > 0.05 {
 				t.Errorf("Moon-Saturn orb: got %.3f, want ~4.578", asp.Orb)
 			}
 		} else {
-			t.Error("Moon-Saturn 三分相未找到")
+			t.Error("Moon-Saturn trine not found")
 		}
 
-		// Mars-Uranus 合相：300.097 vs 306.425，角差 6.328°
+		// Mars-Uranus conjunction: 300.097 vs 306.425，diff 6.328°
 		if asp, ok := aspectMap[aspectKey{"MARS", "URANUS"}]; ok {
 			if asp.AspectType != models.AspectConjunction {
-				t.Errorf("Mars-Uranus: got %s, want 合相", asp.AspectType)
+				t.Errorf("Mars-Uranus: got %s, want Conjunction", asp.AspectType)
 			}
 			if math.Abs(asp.Orb-6.328) > 0.05 {
 				t.Errorf("Mars-Uranus orb: got %.3f, want ~6.328", asp.Orb)
 			}
 		} else {
-			t.Error("Mars-Uranus 合相未找到")
+			t.Error("Mars-Uranus conjunction not found")
 		}
 
-		// 确保相位数量合理（13颗天体，应该有不少相位）
+		// ensure reasonable aspect count (13 bodies should yield many aspects)
 		if len(info.Aspects) < 10 {
-			t.Errorf("相位数量偏少: %d, 期望 >= 10", len(info.Aspects))
+			t.Errorf("aspect count too low: %d, expected >= 10", len(info.Aspects))
 		}
 	})
 }

@@ -63,8 +63,8 @@ func TestSolarFire_NeptuneStation2026(t *testing.T) {
 			dt, _ := julian.JDToDateTime(e.JD, "Australia/Perth")
 			t.Logf("Neptune Station %s: %s, lon=%.2f° (%s)", e.StationType, dt, e.PlanetLongitude, e.PlanetSign)
 
-			if e.PlanetSign != "白羊座" && e.PlanetSign != "双鱼座" {
-				t.Errorf("Neptune station sign = %s, expected 白羊座 or 双鱼座", e.PlanetSign)
+			if e.PlanetSign != "Aries" && e.PlanetSign != "Pisces" {
+				t.Errorf("Neptune station sign = %s, expected Aries or Pisces", e.PlanetSign)
 			}
 
 			if e.StationType == models.StationRetrograde {

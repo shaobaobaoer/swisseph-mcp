@@ -75,7 +75,7 @@ func TestHandleToolsList(t *testing.T) {
 
 func TestHandleGeocode(t *testing.T) {
 	s := NewServer(".")
-	args, _ := json.Marshal(map[string]string{"location_name": "北京"})
+	args, _ := json.Marshal(map[string]string{"location_name": "Beijing"})
 	params, _ := json.Marshal(callToolParams{Name: "geocode", Arguments: args})
 	req := &jsonRPCRequest{
 		JSONRPC: "2.0",

@@ -26,16 +26,16 @@ func main() {
 	defer sweph.Close()
 
 	fmt.Println("========================================")
-	fmt.Println("  Swisseph MCP 功能测试")
+	fmt.Println("  Swisseph MCP Functional Test")
 	fmt.Println("========================================")
 
 	// Test 1: Geocode
-	fmt.Println("\n--- 测试 2.1: 地点名称 → 经纬度 ---")
-	loc, err := geo.Geocode("北京")
+	fmt.Println("\n--- Test 2.1: Geocode location to coordinates ---")
+	loc, err := geo.Geocode("Beijing")
 	if err != nil {
 		fmt.Printf("  ERROR: %v\n", err)
 	} else {
-		fmt.Printf("  北京: lat=%.4f, lon=%.4f, tz=%s, name=%s\n",
+		fmt.Printf("  Beijing: lat=%.4f, lon=%.4f, tz=%s, name=%s\n",
 			loc.Latitude, loc.Longitude, loc.Timezone, loc.DisplayName)
 	}
 
@@ -48,7 +48,7 @@ func main() {
 	}
 
 	// Test 2: DateTime to JD
-	fmt.Println("\n--- 测试 2.2: 公历时间 → 儒略日 ---")
+	fmt.Println("\n--- Test 2.2: Datetime to Julian Day ---")
 	jdResult, err := julian.DateTimeToJD("1990-06-15T08:30:00+08:00", models.CalendarGregorian)
 	if err != nil {
 		fmt.Printf("  ERROR: %v\n", err)
@@ -59,7 +59,7 @@ func main() {
 	}
 
 	// Test 2b: JD to DateTime
-	fmt.Println("\n--- 测试 2.2b: 儒略日 → 公历时间 ---")
+	fmt.Println("\n--- Test 2.2b: Julian Day to Datetime ---")
 	dt, err := julian.JDToDateTime(jdResult.JDUT, "Asia/Shanghai")
 	if err != nil {
 		fmt.Printf("  ERROR: %v\n", err)
@@ -68,7 +68,7 @@ func main() {
 	}
 
 	// Test 3: Single Chart
-	fmt.Println("\n--- 测试 3.1.1: 单盘计算 ---")
+	fmt.Println("\n--- Test 3.1.1: Single Chart Calculation ---")
 	planets := []models.PlanetID{
 		models.PlanetSun, models.PlanetMoon, models.PlanetMercury,
 		models.PlanetVenus, models.PlanetMars, models.PlanetJupiter,
@@ -84,35 +84,35 @@ func main() {
 	if err != nil {
 		fmt.Printf("  ERROR: %v\n", err)
 	} else {
-		fmt.Printf("  出生盘 (1990-06-15 08:30 北京)\n")
+		fmt.Printf("  Natal chart (1990-06-15 08:30 Beijing)\n")
 		fmt.Printf("  ASC: %.2f° (%s)\n", chartInfo.Angles.ASC, models.SignFromLongitude(chartInfo.Angles.ASC))
 		fmt.Printf("  MC:  %.2f° (%s)\n", chartInfo.Angles.MC, models.SignFromLongitude(chartInfo.Angles.MC))
-		fmt.Println("  行星位置:")
+		fmt.Println("  Planet positions:")
 		for _, p := range chartInfo.Planets {
 			retro := ""
 			if p.IsRetrograde {
 				retro = " (R)"
 			}
-			fmt.Printf("    %-10s %6.2f° %s %5.2f°  宫%d%s\n",
+			fmt.Printf("    %-10s %6.2f° %s %5.2f°  House%d%s\n",
 				p.PlanetID, p.Longitude, p.Sign, p.SignDegree, p.House, retro)
 		}
-		fmt.Printf("  相位数量: %d\n", len(chartInfo.Aspects))
+		fmt.Printf("  Aspect count: %d\n", len(chartInfo.Aspects))
 		for i, a := range chartInfo.Aspects {
 			if i >= 5 {
-				fmt.Printf("    ... (共 %d 个相位)\n", len(chartInfo.Aspects))
+				fmt.Printf("    ... (total %d aspects)\n", len(chartInfo.Aspects))
 				break
 			}
-			applying := "离相"
+			applying := "separating"
 			if a.IsApplying {
-				applying = "入相"
+				applying = "applying"
 			}
-			fmt.Printf("    %s %s %s (容许度 %.2f°, %s)\n",
+			fmt.Printf("    %s %s %s (orb %.2f°, %s)\n",
 				a.PlanetA, a.AspectType, a.PlanetB, a.Orb, applying)
 		}
 	}
 
 	// Test 4: Double Chart
-	fmt.Println("\n--- 测试 3.1.2: 双盘计算 ---")
+	fmt.Println("\n--- Test 3.1.2: Double Chart Calculation ---")
 	transitJD, _ := julian.DateTimeToJD("2024-01-01T12:00:00+08:00", models.CalendarGregorian)
 	innerChart, outerChart, crossAspects, err := chart.CalcDoubleChart(
 		39.9042, 116.4074, jdResult.JDUT, planets,
@@ -125,43 +125,43 @@ func main() {
 	if err != nil {
 		fmt.Printf("  ERROR: %v\n", err)
 	} else {
-		fmt.Printf("  内圈行星: %d, 外圈行星: %d\n", len(innerChart.Planets), len(outerChart.Planets))
-		fmt.Printf("  跨盘相位数量: %d\n", len(crossAspects))
+		fmt.Printf("  Inner planets: %d, Outer planets: %d\n", len(innerChart.Planets), len(outerChart.Planets))
+		fmt.Printf("  Cross Aspect count: %d\n", len(crossAspects))
 		for i, ca := range crossAspects {
 			if i >= 5 {
-				fmt.Printf("    ... (共 %d 个跨盘相位)\n", len(crossAspects))
+				fmt.Printf("    ... (total %d cross aspects)\n", len(crossAspects))
 				break
 			}
-			fmt.Printf("    内圈%s %s 外圈%s (容许度 %.2f°)\n",
+			fmt.Printf("    Inner %s %s Outer %s (orb %.2f°)\n",
 				ca.InnerBody, ca.AspectType, ca.OuterBody, ca.Orb)
 		}
 	}
 
 	// Test 5: Progressions engine
-	fmt.Println("\n--- 测试: 次限推运引擎 ---")
+	fmt.Println("\n--- Test: Secondary Progressions Engine ---")
 	// At age ~34 (2024-01-01), check progressed Sun position
 	pLon, pSpeed, err := progressions.CalcProgressedLongitude(models.PlanetSun, jdResult.JDUT, transitJD.JDUT)
 	if err != nil {
 		fmt.Printf("  ERROR: %v\n", err)
 	} else {
 		age := progressions.Age(jdResult.JDUT, transitJD.JDUT)
-		fmt.Printf("  年龄: %.3f\n", age)
-		fmt.Printf("  推运太阳: %.4f° %s (速度 %.6f°/天)\n",
+		fmt.Printf("  Age: %.3f\n", age)
+		fmt.Printf("  Progressed Sun: %.4f° %s (speed %.6f°/day)\n",
 			pLon, models.SignFromLongitude(pLon), pSpeed)
 	}
 
 	// Solar Arc
-	fmt.Println("\n--- 测试: 太阳弧方向引擎 ---")
+	fmt.Println("\n--- Test: Solar Arc Direction Engine ---")
 	saLon, saSpeed, err := progressions.CalcSolarArcLongitude(models.PlanetMars, jdResult.JDUT, transitJD.JDUT)
 	if err != nil {
 		fmt.Printf("  ERROR: %v\n", err)
 	} else {
-		fmt.Printf("  太阳弧火星: %.4f° %s (速度 %.6f°/天)\n",
+		fmt.Printf("  Solar Arc Mars: %.4f° %s (speed %.6f°/day)\n",
 			saLon, models.SignFromLongitude(saLon), saSpeed)
 	}
 
 	// Test 6: Transit Tr-Na only (quick, 30 days)
-	fmt.Println("\n--- 测试 3.2.1: 推运计算 (Tr-Na, 30天) ---")
+	fmt.Println("\n--- Test 3.2.1: Transit Calculation (Tr-Na, 30day) ---")
 	startJD := transitJD.JDUT
 	endJD := startJD + 30.0
 
@@ -189,13 +189,13 @@ func main() {
 	if err != nil {
 		fmt.Printf("  ERROR: %v\n", err)
 	} else {
-		fmt.Printf("  搜索范围: 30天\n")
-		fmt.Printf("  找到事件: %d 个\n", len(transitEvents))
+		fmt.Printf("  Search range: 30 days\n")
+		fmt.Printf("  Found %d events\n", len(transitEvents))
 		printEvents(transitEvents, 15, jdResult.JDUT)
 	}
 
 	// Test 7: Full transit with Tr-Tr (30 days, fast planets)
-	fmt.Println("\n--- 测试: Tr-Tr 行运互相位 (30天) ---")
+	fmt.Println("\n--- Test: Tr-Tr Transit Aspects (30day) ---")
 	trtrEvents, err := transit.CalcTransitEvents(transit.TransitCalcInput{
 		NatalLat:     39.9042,
 		NatalLon:     116.4074,
@@ -217,12 +217,12 @@ func main() {
 	if err != nil {
 		fmt.Printf("  ERROR: %v\n", err)
 	} else {
-		fmt.Printf("  Tr-Tr 事件: %d 个\n", len(trtrEvents))
+		fmt.Printf("  Tr-Tr events: %d\n", len(trtrEvents))
 		printEvents(trtrEvents, 10, jdResult.JDUT)
 	}
 
 	// Test 8: Sp-Na (progressions vs natal, 1 year)
-	fmt.Println("\n--- 测试: Sp-Na 次限推运 (1年) ---")
+	fmt.Println("\n--- Test: Sp-Na Secondary Progressions (1 year) ---")
 	spnaEvents, err := transit.CalcTransitEvents(transit.TransitCalcInput{
 		NatalLat:     39.9042,
 		NatalLon:     116.4074,
@@ -255,12 +255,12 @@ func main() {
 	if err != nil {
 		fmt.Printf("  ERROR: %v\n", err)
 	} else {
-		fmt.Printf("  Sp-Na 事件: %d 个\n", len(spnaEvents))
+		fmt.Printf("  Sp-Na events: %d\n", len(spnaEvents))
 		printEvents(spnaEvents, 10, jdResult.JDUT)
 	}
 
 	// Test 9: Sa-Na (solar arc vs natal, 1 year)
-	fmt.Println("\n--- 测试: Sa-Na 太阳弧方向 (1年) ---")
+	fmt.Println("\n--- Test: Sa-Na Solar Arc Direction (1 year) ---")
 	sanaEvents, err := transit.CalcTransitEvents(transit.TransitCalcInput{
 		NatalLat:     39.9042,
 		NatalLon:     116.4074,
@@ -293,12 +293,12 @@ func main() {
 	if err != nil {
 		fmt.Printf("  ERROR: %v\n", err)
 	} else {
-		fmt.Printf("  Sa-Na 事件: %d 个\n", len(sanaEvents))
+		fmt.Printf("  Sa-Na events: %d\n", len(sanaEvents))
 		printEvents(sanaEvents, 10, jdResult.JDUT)
 	}
 
 	// Test 10: Void of Course Moon (7 days)
-	fmt.Println("\n--- 测试: 月亮空亡 (7天) ---")
+	fmt.Println("\n--- Test: Moon Void of Course (7day) ---")
 	vocEvents, err := transit.CalcTransitEvents(transit.TransitCalcInput{
 		NatalLat:     39.9042,
 		NatalLon:     116.4074,
@@ -329,16 +329,16 @@ func main() {
 				startDT, _ := julian.JDToDateTime(e.VoidStartJD, "Asia/Shanghai")
 				endDT, _ := julian.JDToDateTime(e.VoidEndJD, "Asia/Shanghai")
 				duration := (e.VoidEndJD - e.VoidStartJD) * 24.0
-				fmt.Printf("  空亡: %s → %s (%.1f小时)\n", startDT, endDT, duration)
-				fmt.Printf("    最后相位: %s → %s, 下一星座: %s\n",
+				fmt.Printf("  Void of Course: %s → %s (%.1f hours)\n", startDT, endDT, duration)
+				fmt.Printf("    Last aspect: %s → %s, next sign: %s\n",
 					e.LastAspectType, e.LastAspectTarget, e.NextSign)
 			}
 		}
-		fmt.Printf("  7天内月亮空亡次数: %d\n", vocCount)
+		fmt.Printf("  Moon VOC count in 7 days: %d\n", vocCount)
 	}
 
 	// Test 11: Tr-Sp (transit vs progressed, 90 days)
-	fmt.Println("\n--- 测试: Tr-Sp 行运×次限 (90天) ---")
+	fmt.Println("\n--- Test: Tr-Sp Transit x Progressions (90day) ---")
 	trspEvents, err := transit.CalcTransitEvents(transit.TransitCalcInput{
 		NatalLat:     39.9042,
 		NatalLon:     116.4074,
@@ -369,12 +369,12 @@ func main() {
 	if err != nil {
 		fmt.Printf("  ERROR: %v\n", err)
 	} else {
-		fmt.Printf("  Tr-Sp 事件: %d 个\n", len(trspEvents))
+		fmt.Printf("  Tr-Sp events: %d\n", len(trspEvents))
 		printEvents(trspEvents, 10, jdResult.JDUT)
 	}
 
 	// Test 12: Full pipeline (all event types, 30 days)
-	fmt.Println("\n--- 测试: 全事件类型 (30天) ---")
+	fmt.Println("\n--- Test: All Event Types (30day) ---")
 	allPlanets := []models.PlanetID{
 		models.PlanetSun, models.PlanetMoon, models.PlanetMercury,
 		models.PlanetVenus, models.PlanetMars, models.PlanetJupiter,
@@ -420,12 +420,12 @@ func main() {
 				chartCounts[string(e.ChartType)+"→"+string(e.TargetChartType)]++
 			}
 		}
-		fmt.Printf("  总事件: %d 个\n", len(fullEvents))
-		fmt.Printf("  事件类型统计:\n")
+		fmt.Printf("  Total events: %d\n", len(fullEvents))
+		fmt.Printf("  Event type stats:\n")
 		for t, c := range eventCounts {
 			fmt.Printf("    %-20s %d\n", t, c)
 		}
-		fmt.Printf("  相位盘类型统计:\n")
+		fmt.Printf("  Chart type stats:\n")
 		for t, c := range chartCounts {
 			fmt.Printf("    %-30s %d\n", t, c)
 		}
@@ -433,14 +433,14 @@ func main() {
 
 	// Sample JSON output
 	if len(transitEvents) > 0 {
-		fmt.Println("\n--- 示例 JSON 输出 ---")
+		fmt.Println("\n--- Sample JSON output ---")
 		sample := transitEvents[0]
 		j, _ := json.MarshalIndent(sample, "  ", "  ")
 		fmt.Printf("  %s\n", string(j))
 	}
 
 	fmt.Println("\n========================================")
-	fmt.Println("  所有测试完成!")
+	fmt.Println("  All tests complete!")
 	fmt.Println("========================================")
 }
 
@@ -448,7 +448,7 @@ func printEvents(events []models.TransitEvent, max int, natalJD float64) {
 	shown := 0
 	for _, e := range events {
 		if shown >= max {
-			fmt.Printf("    ... (共 %d 个事件)\n", len(events))
+			fmt.Printf("    ... (total %d events)\n", len(events))
 			break
 		}
 		retro := ""
@@ -460,27 +460,27 @@ func printEvents(events []models.TransitEvent, max int, natalJD float64) {
 
 		switch e.EventType {
 		case models.EventAspectEnter:
-			fmt.Printf("    %s %s %s %s 进入 %s(%s) %s (容许度 %.2f°) %s %s\n",
+			fmt.Printf("    %s %s %s %s enters %s(%s) %s (orb %.2f°) %s %s\n",
 				dtStr, ageStr, e.ChartType, e.Planet, e.Target, e.TargetChartType, e.AspectType, e.OrbAtEnter, e.PlanetSign, retro)
 		case models.EventAspectExact:
-			fmt.Printf("    %s %s %s %s 精确 %s(%s) %s (第%d击) %s %s\n",
+			fmt.Printf("    %s %s %s %s exact %s(%s) %s (#%d hit) %s %s\n",
 				dtStr, ageStr, e.ChartType, e.Planet, e.Target, e.TargetChartType, e.AspectType, e.ExactCount, e.PlanetSign, retro)
 		case models.EventAspectLeave:
-			fmt.Printf("    %s %s %s %s 离开 %s(%s) %s (容许度 %.2f°) %s %s\n",
+			fmt.Printf("    %s %s %s %s leaves %s(%s) %s (orb %.2f°) %s %s\n",
 				dtStr, ageStr, e.ChartType, e.Planet, e.Target, e.TargetChartType, e.AspectType, e.OrbAtLeave, e.PlanetSign, retro)
 		case models.EventSignIngress:
-			fmt.Printf("    %s %s %s %s 换座 %s → %s %s\n",
+			fmt.Printf("    %s %s %s %s sign change %s → %s %s\n",
 				dtStr, ageStr, e.ChartType, e.Planet, e.FromSign, e.ToSign, retro)
 		case models.EventHouseIngress:
-			fmt.Printf("    %s %s %s %s 变宫 %d宫 → %d宫 %s\n",
+			fmt.Printf("    %s %s %s %s house change house %d → house %d %s\n",
 				dtStr, ageStr, e.ChartType, e.Planet, e.FromHouse, e.ToHouse, retro)
 		case models.EventStation:
-			fmt.Printf("    %s %s %s %s 站点 %s %s %s\n",
+			fmt.Printf("    %s %s %s %s station %s %s %s\n",
 				dtStr, ageStr, e.ChartType, e.Planet, e.StationType, e.PlanetSign, retro)
 		case models.EventVoidOfCourse:
 			startDT, _ := julian.JDToDateTime(e.VoidStartJD, "Asia/Shanghai")
 			endDT, _ := julian.JDToDateTime(e.VoidEndJD, "Asia/Shanghai")
-			fmt.Printf("    月亮空亡: %s → %s\n", startDT, endDT)
+			fmt.Printf("    Moon Void of Course: %s → %s\n", startDT, endDT)
 		}
 		shown++
 	}

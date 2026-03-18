@@ -10,21 +10,21 @@ func TestSignFromLongitude(t *testing.T) {
 		lon  float64
 		want string
 	}{
-		{0, "白羊座"},
-		{15, "白羊座"},
-		{30, "金牛座"},
-		{59.99, "金牛座"},
-		{60, "双子座"},
-		{90, "巨蟹座"},
-		{120, "狮子座"},
-		{150, "处女座"},
-		{180, "天秤座"},
-		{210, "天蝎座"},
-		{240, "射手座"},
-		{270, "摩羯座"},
-		{300, "水瓶座"},
-		{330, "双鱼座"},
-		{359.99, "双鱼座"},
+		{0, "Aries"},
+		{15, "Aries"},
+		{30, "Taurus"},
+		{59.99, "Taurus"},
+		{60, "Gemini"},
+		{90, "Cancer"},
+		{120, "Leo"},
+		{150, "Virgo"},
+		{180, "Libra"},
+		{210, "Scorpio"},
+		{240, "Sagittarius"},
+		{270, "Capricorn"},
+		{300, "Aquarius"},
+		{330, "Pisces"},
+		{359.99, "Pisces"},
 	}
 	for _, tt := range tests {
 		got := SignFromLongitude(tt.lon)

@@ -376,13 +376,6 @@ type TransitEvent struct {
 
 // ZodiacSigns maps sign index (0-11) to sign name
 var ZodiacSigns = []string{
-	"白羊座", "金牛座", "双子座", "巨蟹座",
-	"狮子座", "处女座", "天秤座", "天蝎座",
-	"射手座", "摩羯座", "水瓶座", "双鱼座",
-}
-
-// ZodiacSignsEN maps sign index (0-11) to English name
-var ZodiacSignsEN = []string{
 	"Aries", "Taurus", "Gemini", "Cancer",
 	"Leo", "Virgo", "Libra", "Scorpio",
 	"Sagittarius", "Capricorn", "Aquarius", "Pisces",
@@ -406,6 +399,7 @@ func SignFromLongitude(lon float64) string {
 	}
 	return ZodiacSigns[idx]
 }
+
 
 // SignAbbrFromLongitude returns the 3-letter zodiac abbreviation
 func SignAbbrFromLongitude(lon float64) string {

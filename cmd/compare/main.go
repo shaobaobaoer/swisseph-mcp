@@ -117,6 +117,7 @@ func main() {
 			IncludeSpSp:         true,
 			IncludeSaNa:         true,
 			IncludeSignIngress:  true,
+			IncludeHouseIngress: true,
 			IncludeStation:      true,
 		},
 		OrbConfigTransit:      transitOrbs,
@@ -130,7 +131,11 @@ func main() {
 	}
 
 	// ===== Run 2: Moon sign ingress + VOC =====
-	fmt.Println("Running Moon sign ingress + VOC...")
+	// Moon needs all transit planets to form Tr-Tr aspects (for VOC detection)
+	moonTransitPlanets := append([]models.PlanetID{models.PlanetMoon}, outerPlanets...)
+	moonTransitPlanets = append(moonTransitPlanets, models.PlanetSun, models.PlanetMercury,
+		models.PlanetVenus, models.PlanetMars)
+	fmt.Println("Running Moon transit events...")
 	events2, err := transit.CalcTransitEvents(transit.TransitCalcInput{
 		NatalLat:     natalLat,
 		NatalLon:     natalLon,
@@ -140,9 +145,11 @@ func main() {
 		TransitLon:   natalLon,
 		StartJD:      startJD,
 		EndJD:        endJD,
-		TransitPlanets: []models.PlanetID{models.PlanetMoon},
+		TransitPlanets: moonTransitPlanets,
+		SpecialPoints: &models.SpecialPointsConfig{
+			NatalPoints: natalPoints,
+		},
 		EventConfig: models.EventConfig{
-			IncludeTrNa:         true,
 			IncludeTrTr:         true,
 			IncludeSignIngress:  true,
 			IncludeVoidOfCourse: true,
@@ -155,11 +162,13 @@ func main() {
 		return
 	}
 
-	// Merge and deduplicate: keep Moon sign ingress and VOC from events2
+	// Merge: keep all from run1, keep only Moon SignIngress and VOC from run2
+	// (Solar Fire Tr-Tr for Moon only shows SignIngress and VOC, not individual aspects)
 	var events []models.TransitEvent
 	events = append(events, events1...)
 	for _, e := range events2 {
-		if e.EventType == models.EventSignIngress || e.EventType == models.EventVoidOfCourse {
+		if e.Planet == models.PlanetMoon &&
+			(e.EventType == models.EventSignIngress || e.EventType == models.EventVoidOfCourse) {
 			events = append(events, e)
 		}
 	}

@@ -70,7 +70,7 @@ func TestEventToCSVRow_Station(t *testing.T) {
 		Planet:          models.PlanetMercury,
 		JD:              2460310.667,
 		PlanetLongitude: 120.5,
-		PlanetSign:      "狮子座",
+		PlanetSign:      "Leo",
 		StationType:     models.StationRetrograde,
 		IsRetrograde:    true,
 	}
@@ -93,11 +93,11 @@ func TestEventToCSVRow_SignIngress(t *testing.T) {
 		Planet:          models.PlanetSun,
 		JD:              2460310.667,
 		PlanetLongitude: 0,
-		ToSign:          "白羊座",
+		ToSign:          "Aries",
 	}
 	row := EventToCSVRow(evt, "Asia/Shanghai")
-	if row.P2 != "白羊座" {
-		t.Errorf("SignIngress P2 = %q, want 白羊座", row.P2)
+	if row.P2 != "Aries" {
+		t.Errorf("SignIngress P2 = %q, want Aries", row.P2)
 	}
 	if row.EventType != "SignIngress" {
 		t.Errorf("SignIngress EventType = %q, want SignIngress", row.EventType)
@@ -111,11 +111,11 @@ func TestEventToCSVRow_VoidOfCourse(t *testing.T) {
 		Planet:          models.PlanetMoon,
 		JD:              2460310.667,
 		PlanetLongitude: 45.5,
-		PlanetSign:      "金牛座",
+		PlanetSign:      "Taurus",
 		LastAspectType:  "Trine",
 		LastAspectTarget: "JUPITER",
 		TargetLongitude: 120.0,
-		TargetSign:      "狮子座",
+		TargetSign:      "Leo",
 	}
 	row := EventToCSVRow(evt, "UTC")
 	if row.Aspect != "Trine" {
@@ -133,7 +133,7 @@ func TestEventToCSVRow_HouseIngress(t *testing.T) {
 		Planet:          models.PlanetMoon,
 		JD:              2460310.667,
 		PlanetLongitude: 90.0,
-		PlanetSign:      "巨蟹座",
+		PlanetSign:      "Cancer",
 		ToHouse:         7,
 	}
 	row := EventToCSVRow(evt, "UTC")
@@ -151,9 +151,9 @@ func TestEventToCSVRow_AspectExact(t *testing.T) {
 		Target:          "MOON",
 		JD:              2460310.667,
 		PlanetLongitude: 120.0,
-		PlanetSign:      "狮子座",
+		PlanetSign:      "Leo",
 		TargetLongitude: 0.0,
-		TargetSign:      "白羊座",
+		TargetSign:      "Aries",
 		AspectType:      models.AspectTrine,
 	}
 	row := EventToCSVRow(evt, "UTC")
@@ -170,7 +170,7 @@ func TestCSVRowToString_Station(t *testing.T) {
 		P1: "Mercury", P1House: 5, Aspect: "Station",
 		EventType: "Retrograde", Type: "Tr", Date: "2024-01-01",
 		Time: "12:00:00", Timezone: "UTC", Age: 33.5,
-		Pos1Deg: 15.5, Pos1Sign: "狮子座", Pos1Dir: "Rx",
+		Pos1Deg: 15.5, Pos1Sign: "Leo", Pos1Dir: "Rx",
 	}
 	s := CSVRowToString(row)
 	if !strings.Contains(s, "Mercury") || !strings.Contains(s, "Station") {
@@ -184,8 +184,8 @@ func TestCSVRowToString_Aspect(t *testing.T) {
 		P2: "Moon", P2House: 7,
 		EventType: "Exact", Type: "Tr-Na", Date: "2024-01-01",
 		Time: "12:00:00", Timezone: "UTC", Age: 33.5,
-		Pos1Deg: 15.5, Pos1Sign: "狮子座", Pos1Dir: "Dir",
-		Pos2Deg: 15.3, Pos2Sign: "狮子座", Pos2Dir: "Dir",
+		Pos1Deg: 15.5, Pos1Sign: "Leo", Pos1Dir: "Dir",
+		Pos2Deg: 15.3, Pos2Sign: "Leo", Pos2Dir: "Dir",
 	}
 	s := CSVRowToString(row)
 	if !strings.Contains(s, "Sun") || !strings.Contains(s, "Moon") {

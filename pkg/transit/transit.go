@@ -1099,41 +1099,24 @@ func findVoidOfCourse(events []models.TransitEvent, startJD, endJD float64) []mo
 	})
 
 	// Walk through events chronologically.
-	// VOC starts when Moon's last aspect LEAVE happens and no new aspect ENTER follows
-	// before the next sign ingress.
-	// Strategy: find each sign ingress. Look backward from it to find the last LEAVE
-	// that has no ENTER or EXACT after it (i.e., Moon is truly disengaged).
+	// VOC starts at the last aspect LEAVE (of any Tr-Tr aspect) before each sign ingress.
+	// This matches Solar Fire's VOC definition: the last major aspect the Moon makes
+	// before entering the next sign.
 	for i := 0; i < len(moonEvts); i++ {
 		if !moonEvts[i].IsIngress {
 			continue
 		}
 		ingressEvt := moonEvts[i]
 
-		// Look backward to find the last LEAVE before this ingress
-		// that is not followed by an ENTER or EXACT before the ingress
+		// Find the last LEAVE before this ingress (scanning backward)
 		var lastLeave *moonEvent
 		for j := i - 1; j >= 0; j-- {
 			if moonEvts[j].IsIngress {
 				break // Previous sign change — stop looking
 			}
-			if moonEvts[j].IsEnter || moonEvts[j].IsExact {
-				// Moon entered a new aspect after the leave — not VOC
-				lastLeave = nil
-				continue
-			}
 			if moonEvts[j].IsLeave {
-				// Check: is there any ENTER/EXACT between this leave and the ingress?
-				hasLaterAspect := false
-				for k := j + 1; k < i; k++ {
-					if moonEvts[k].IsEnter || moonEvts[k].IsExact {
-						hasLaterAspect = true
-						break
-					}
-				}
-				if !hasLaterAspect {
-					evt := moonEvts[j]
-					lastLeave = &evt
-				}
+				evt := moonEvts[j]
+				lastLeave = &evt
 				break
 			}
 		}
