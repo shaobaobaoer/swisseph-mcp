@@ -8,7 +8,7 @@ build: $(BIN_DIR)/swisseph-mcp
 
 $(BIN_DIR)/swisseph-mcp: $(shell find cmd pkg internal -name '*.go')
 	@mkdir -p $(BIN_DIR)
-	go build -o $(BIN_DIR)/swisseph-mcp ./cmd/server
+	go build -ldflags="-s -w" -o $(BIN_DIR)/swisseph-mcp ./cmd/server
 
 test:
 	go test ./...
