@@ -1,4 +1,4 @@
-.PHONY: build test test-cover vet clean
+.PHONY: build test test-cover bench vet clean
 
 BIN_DIR := bin
 PACKAGES := ./cmd/... ./pkg/... ./internal/...
@@ -16,6 +16,9 @@ test:
 test-cover:
 	go test -coverprofile=coverage.out $(LIB_PACKAGES)
 	go tool cover -func=coverage.out | tail -1
+
+bench:
+	go test -bench=. -benchmem -run=^$$ ./pkg/chart/ ./pkg/transit/
 
 vet:
 	go vet $(PACKAGES)

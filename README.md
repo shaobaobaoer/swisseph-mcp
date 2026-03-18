@@ -178,9 +178,28 @@ pkg/sweph/         Swiss Ephemeris C bindings (CGO)
 internal/aspect/   Aspect calculation engine
 ```
 
+## Performance
+
+| Operation | Time | Throughput |
+|-----------|------|------------|
+| Planet position | 380ns | 2.6M/sec |
+| Natal chart (10 planets) | 80μs | 12,400/sec |
+| Double chart + cross-aspects | 347μs | 2,880/sec |
+| 30-day transit scan (5 planets) | 764ms | - |
+| 1-year transit scan (outer planets) | 2.1s | - |
+
+Run `make bench` to reproduce.
+
 ## Accuracy
 
 Validated against Solar Fire 9 with **100% exact event match** (247/247 events) over a 1-year transit period including all 7 chart type combinations.
+
+## Docker
+
+```bash
+docker build -t swisseph-mcp .
+docker run -i swisseph-mcp
+```
 
 ## License
 
