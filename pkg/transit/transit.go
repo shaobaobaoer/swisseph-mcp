@@ -91,6 +91,111 @@ type TransitCalcInput struct {
 // bodyCalcFunc is a function that returns longitude and speed at a given JD
 type bodyCalcFunc func(jd float64) (lon, speed float64, err error)
 
+// posAt returns planet position info at a given JD
+func posAt(calcFn bodyCalcFunc, jd float64, natalHouses []float64) (lon float64, sign string, house int, retro bool) {
+	lon, _, _ = calcFn(jd)
+	retro = getSpeed(calcFn, jd) < 0
+	sign = models.SignFromLongitude(lon)
+	house = chart.FindHouseForLongitude(lon, natalHouses)
+	return
+}
+
+// makeStationEvent creates a station event
+func makeStationEvent(calcFn bodyCalcFunc, planet models.PlanetID, chartType models.ChartType,
+	st StationInfo, natalHouses []float64, natalJD float64) models.TransitEvent {
+	lon, sign, house, _ := posAt(calcFn, st.JD, natalHouses)
+	stType := models.StationRetrograde
+	if st.IsDirecting {
+		stType = models.StationDirect
+	}
+	return models.TransitEvent{
+		EventType:       models.EventStation,
+		ChartType:       chartType,
+		Planet:          planet,
+		JD:              st.JD,
+		Age:             progressions.Age(natalJD, st.JD),
+		PlanetLongitude: lon,
+		PlanetSign:      sign,
+		PlanetHouse:     house,
+		IsRetrograde:    stType == models.StationRetrograde,
+		StationType:     stType,
+	}
+}
+
+// rq1Scan holds fixed parameters for RQ1 (moving body vs fixed point) aspect scanning
+type rq1Scan struct {
+	calcFn      bodyCalcFunc
+	planet      models.PlanetID
+	chartType   models.ChartType
+	targetID    string
+	targetLon   float64
+	targetCT    models.ChartType
+	natalHouses []float64
+	natalJD     float64
+}
+
+// event creates a TransitEvent for an RQ1 aspect event
+func (s *rq1Scan) event(eventType models.EventType, jd float64, asp models.AspectDef) models.TransitEvent {
+	lon, sign, house, retro := posAt(s.calcFn, jd, s.natalHouses)
+	tSign := models.SignFromLongitude(s.targetLon)
+	tHouse := chart.FindHouseForLongitude(s.targetLon, s.natalHouses)
+	return models.TransitEvent{
+		EventType:       eventType,
+		ChartType:       s.chartType,
+		Planet:          s.planet,
+		JD:              jd,
+		Age:             progressions.Age(s.natalJD, jd),
+		PlanetLongitude: lon,
+		PlanetSign:      sign,
+		PlanetHouse:     house,
+		IsRetrograde:    retro,
+		TargetChartType: s.targetCT,
+		Target:          s.targetID,
+		TargetLongitude: s.targetLon,
+		TargetSign:      tSign,
+		TargetHouse:     tHouse,
+		AspectType:      asp.Type,
+		AspectAngle:     asp.Angle,
+	}
+}
+
+// rq2Scan holds fixed parameters for RQ2 (moving body vs moving body) aspect scanning
+type rq2Scan struct {
+	calcFn1    bodyCalcFunc
+	planet1    models.PlanetID
+	chartType1 models.ChartType
+	calcFn2    bodyCalcFunc
+	planet2    models.PlanetID
+	chartType2 models.ChartType
+	natalHouses []float64
+	natalJD     float64
+}
+
+// event creates a TransitEvent for an RQ2 aspect event
+func (s *rq2Scan) event(eventType models.EventType, jd float64, asp models.AspectDef) models.TransitEvent {
+	lon1, sign1, house1, retro1 := posAt(s.calcFn1, jd, s.natalHouses)
+	lon2, speed2, _ := s.calcFn2(jd)
+	return models.TransitEvent{
+		EventType:          eventType,
+		ChartType:          s.chartType1,
+		Planet:             s.planet1,
+		JD:                 jd,
+		Age:                progressions.Age(s.natalJD, jd),
+		PlanetLongitude:    lon1,
+		PlanetSign:         sign1,
+		PlanetHouse:        house1,
+		IsRetrograde:       retro1,
+		TargetChartType:    s.chartType2,
+		Target:             string(s.planet2),
+		TargetLongitude:    lon2,
+		TargetSign:         models.SignFromLongitude(lon2),
+		TargetHouse:        chart.FindHouseForLongitude(lon2, s.natalHouses),
+		TargetIsRetrograde: speed2 < 0,
+		AspectType:         asp.Type,
+		AspectAngle:        asp.Angle,
+	}
+}
+
 // CalcTransitEvents computes all transit events in the given time range
 func CalcTransitEvents(input TransitCalcInput) ([]models.TransitEvent, error) {
 	var allEvents []models.TransitEvent
@@ -138,23 +243,7 @@ func CalcTransitEvents(input TransitCalcInput) ([]models.TransitEvent, error) {
 		// Station events
 		if input.EventConfig.IncludeStation {
 			for _, st := range stations {
-				lon, _, _ := calcFn(st.JD)
-				stType := models.StationRetrograde
-				if st.IsDirecting {
-					stType = models.StationDirect
-				}
-				allEvents = append(allEvents, models.TransitEvent{
-					EventType:       models.EventStation,
-					ChartType:       models.ChartTransit,
-					Planet:          tPlanet,
-					JD:              st.JD,
-					Age:             progressions.Age(input.NatalJD, st.JD),
-					PlanetLongitude: lon,
-					PlanetSign:      models.SignFromLongitude(lon),
-					PlanetHouse:     chart.FindHouseForLongitude(lon, natalHouses),
-					IsRetrograde:    stType == models.StationRetrograde,
-					StationType:     stType,
-				})
+				allEvents = append(allEvents, makeStationEvent(calcFn, tPlanet, models.ChartTransit, st, natalHouses, input.NatalJD))
 			}
 		}
 
@@ -284,23 +373,7 @@ func CalcTransitEvents(input TransitCalcInput) ([]models.TransitEvent, error) {
 			// Station events for progressed planets
 			if input.EventConfig.IncludeStation {
 				for _, st := range pStations {
-					lon, _, _ := calcFnP(st.JD)
-					stType := models.StationRetrograde
-					if st.IsDirecting {
-						stType = models.StationDirect
-					}
-					allEvents = append(allEvents, models.TransitEvent{
-						EventType:       models.EventStation,
-						ChartType:       models.ChartProgressions,
-						Planet:          pPlanet,
-						JD:              st.JD,
-						Age:             progressions.Age(input.NatalJD, st.JD),
-						PlanetLongitude: lon,
-						PlanetSign:      models.SignFromLongitude(lon),
-						PlanetHouse:     chart.FindHouseForLongitude(lon, natalHouses),
-						IsRetrograde:    stType == models.StationRetrograde,
-						StationType:     stType,
-					})
+					allEvents = append(allEvents, makeStationEvent(calcFnP, pPlanet, models.ChartProgressions, st, natalHouses, input.NatalJD))
 				}
 			}
 
@@ -631,6 +704,12 @@ func findAspectEventsRQ1(
 ) []models.TransitEvent {
 	var events []models.TransitEvent
 
+	scan := &rq1Scan{
+		calcFn: calcFn, planet: planet, chartType: chartType,
+		targetID: targetID, targetLon: targetLon, targetCT: targetChartType,
+		natalHouses: natalHouses, natalJD: natalJD,
+	}
+
 	for _, asp := range models.StandardAspects {
 		orb := orbs.GetOrb(asp.Type)
 		if orb == 0 {
@@ -646,26 +725,7 @@ func findAspectEventsRQ1(
 			initDiff := angleDiffToAspect(initLon, targetLon, asp.Angle)
 			if math.Abs(initDiff) <= orb {
 				inAspect = true
-				initRetro := getSpeed(calcFn, intervals[0].Start) < 0
-				events = append(events, models.TransitEvent{
-					EventType:          models.EventAspectBegin,
-					ChartType:          chartType,
-					Planet:             planet,
-					JD:                 intervals[0].Start,
-					Age:                progressions.Age(natalJD, intervals[0].Start),
-					PlanetLongitude:    initLon,
-					PlanetSign:         models.SignFromLongitude(initLon),
-					PlanetHouse:        chart.FindHouseForLongitude(initLon, natalHouses),
-					IsRetrograde:       initRetro,
-					TargetChartType:    targetChartType,
-					Target:             targetID,
-					TargetLongitude:    targetLon,
-					TargetSign:         models.SignFromLongitude(targetLon),
-					TargetHouse:        chart.FindHouseForLongitude(targetLon, natalHouses),
-					TargetIsRetrograde: false,
-					AspectType:         asp.Type,
-					AspectAngle:        asp.Angle,
-				})
+				events = append(events, scan.event(models.EventAspectBegin, intervals[0].Start, asp))
 			}
 		}
 
@@ -685,85 +745,27 @@ func findAspectEventsRQ1(
 				// ENTER
 				if !inAspect && math.Abs(curDiff) <= orb && math.Abs(prevDiff) > orb {
 					enterJD := bisectThreshold(calcFn, targetLon, asp.Angle, orb, prevJD, jd, true)
-					eLon, _, _ := calcFn(enterJD)
-					eRetro := getSpeed(calcFn, enterJD) < 0
-					events = append(events, models.TransitEvent{
-						EventType:          models.EventAspectEnter,
-						ChartType:          chartType,
-						Planet:             planet,
-						JD:                 enterJD,
-						Age:                progressions.Age(natalJD, enterJD),
-						PlanetLongitude:    eLon,
-						PlanetSign:         models.SignFromLongitude(eLon),
-						PlanetHouse:        chart.FindHouseForLongitude(eLon, natalHouses),
-						IsRetrograde:       eRetro,
-						TargetChartType:    targetChartType,
-						Target:             targetID,
-						TargetLongitude:    targetLon,
-						TargetSign:         models.SignFromLongitude(targetLon),
-						TargetHouse:        chart.FindHouseForLongitude(targetLon, natalHouses),
-						TargetIsRetrograde: false,
-						AspectType:         asp.Type,
-						AspectAngle:        asp.Angle,
-						OrbAtEnter:         math.Abs(angleDiffToAspect(eLon, targetLon, asp.Angle)),
-					})
+					e := scan.event(models.EventAspectEnter, enterJD, asp)
+					e.OrbAtEnter = math.Abs(angleDiffToAspect(e.PlanetLongitude, targetLon, asp.Angle))
+					events = append(events, e)
 					inAspect = true
 				}
 
 				// EXACT: sign change AND both diffs are within a reasonable range
-				// (guards against wrap-around false positives at ±180 boundary)
 				if prevDiff*curDiff < 0 && math.Abs(prevDiff) < 90 && math.Abs(curDiff) < 90 {
 					exactJD := bisectExact(calcFn, targetLon, asp.Angle, prevJD, jd)
 					exactCounters[counterKey]++
-					eLon, _, _ := calcFn(exactJD)
-					eRetro := getSpeed(calcFn, exactJD) < 0
-					events = append(events, models.TransitEvent{
-						EventType:          models.EventAspectExact,
-						ChartType:          chartType,
-						Planet:             planet,
-						JD:                 exactJD,
-						Age:                progressions.Age(natalJD, exactJD),
-						PlanetLongitude:    eLon,
-						PlanetSign:         models.SignFromLongitude(eLon),
-						PlanetHouse:        chart.FindHouseForLongitude(eLon, natalHouses),
-						IsRetrograde:       eRetro,
-						TargetChartType:    targetChartType,
-						Target:             targetID,
-						TargetLongitude:    targetLon,
-						TargetSign:         models.SignFromLongitude(targetLon),
-						TargetHouse:        chart.FindHouseForLongitude(targetLon, natalHouses),
-						TargetIsRetrograde: false,
-						AspectType:         asp.Type,
-						AspectAngle:        asp.Angle,
-						ExactCount:         exactCounters[counterKey],
-					})
+					e := scan.event(models.EventAspectExact, exactJD, asp)
+					e.ExactCount = exactCounters[counterKey]
+					events = append(events, e)
 				}
 
 				// LEAVE
 				if inAspect && math.Abs(curDiff) > orb && math.Abs(prevDiff) <= orb {
 					leaveJD := bisectThreshold(calcFn, targetLon, asp.Angle, orb, prevJD, jd, false)
-					eLon, _, _ := calcFn(leaveJD)
-					eRetro := getSpeed(calcFn, leaveJD) < 0
-					events = append(events, models.TransitEvent{
-						EventType:          models.EventAspectLeave,
-						ChartType:          chartType,
-						Planet:             planet,
-						JD:                 leaveJD,
-						Age:                progressions.Age(natalJD, leaveJD),
-						PlanetLongitude:    eLon,
-						PlanetSign:         models.SignFromLongitude(eLon),
-						PlanetHouse:        chart.FindHouseForLongitude(eLon, natalHouses),
-						IsRetrograde:       eRetro,
-						TargetChartType:    targetChartType,
-						Target:             targetID,
-						TargetLongitude:    targetLon,
-						TargetSign:         models.SignFromLongitude(targetLon),
-						TargetHouse:        chart.FindHouseForLongitude(targetLon, natalHouses),
-						TargetIsRetrograde: false,
-						AspectType:         asp.Type,
-						AspectAngle:        asp.Angle,
-						OrbAtLeave:         math.Abs(angleDiffToAspect(eLon, targetLon, asp.Angle)),
-					})
+					e := scan.event(models.EventAspectLeave, leaveJD, asp)
+					e.OrbAtLeave = math.Abs(angleDiffToAspect(e.PlanetLongitude, targetLon, asp.Angle))
+					events = append(events, e)
 					inAspect = false
 				}
 
@@ -814,6 +816,12 @@ func findAspectEventsRQ2(
 ) []models.TransitEvent {
 	var events []models.TransitEvent
 
+	scan := &rq2Scan{
+		calcFn1: calcFn1, planet1: planet1, chartType1: chartType1,
+		calcFn2: calcFn2, planet2: planet2, chartType2: chartType2,
+		natalHouses: natalHouses, natalJD: natalJD,
+	}
+
 	// Build monotonic intervals for each body, then intersect
 	stations1 := findStations(calcFn1, startJD, endJD, planet1)
 	stations2 := findStations(calcFn2, startJD, endJD, planet2)
@@ -821,11 +829,10 @@ func findAspectEventsRQ2(
 	intervals2 := buildMonoIntervals(startJD, endJD, stations2)
 	subIntervals := intersectIntervals(intervals1, intervals2)
 	if len(subIntervals) == 0 && len(intervals1) > 0 && len(intervals2) > 0 {
-		// Fallback should not normally happen when both interval sets are non-empty
 		subIntervals = []MonoInterval{{Start: startJD, End: endJD}}
 	}
 	if len(subIntervals) == 0 {
-		return events // no intervals to scan
+		return events
 	}
 
 	for _, asp := range models.StandardAspects {
@@ -839,31 +846,11 @@ func findAspectEventsRQ2(
 
 		// Check initial state and emit Begin event if already in aspect
 		lon1Init, _, _ := calcFn1(startJD)
-		lon2Init, speed2Init, _ := calcFn2(startJD)
+		lon2Init, _, _ := calcFn2(startJD)
 		initDiff := angleDiffToAspect(lon1Init, lon2Init, asp.Angle)
 		if math.Abs(initDiff) <= orb {
 			inAspect = true
-			initRetro1 := getSpeed(calcFn1, startJD) < 0
-			initRetro2 := speed2Init < 0
-			events = append(events, models.TransitEvent{
-				EventType:          models.EventAspectBegin,
-				ChartType:          chartType1,
-				Planet:             planet1,
-				JD:                 startJD,
-				Age:                progressions.Age(natalJD, startJD),
-				PlanetLongitude:    lon1Init,
-				PlanetSign:         models.SignFromLongitude(lon1Init),
-				PlanetHouse:        chart.FindHouseForLongitude(lon1Init, natalHouses),
-				IsRetrograde:       initRetro1,
-				TargetChartType:    chartType2,
-				Target:             string(planet2),
-				TargetLongitude:    lon2Init,
-				TargetSign:         models.SignFromLongitude(lon2Init),
-				TargetHouse:        chart.FindHouseForLongitude(lon2Init, natalHouses),
-				TargetIsRetrograde: initRetro2,
-				AspectType:         asp.Type,
-				AspectAngle:        asp.Angle,
-			})
+			events = append(events, scan.event(models.EventAspectBegin, startJD, asp))
 		}
 
 		for _, interval := range subIntervals {
@@ -875,31 +862,11 @@ func findAspectEventsRQ2(
 			// Check if aspect is near-exact at sub-interval start (station boundary)
 			if inAspect && math.Abs(prevDiff) < 0.01 && prevJD > startJD+0.5 {
 				exactCount++
-				eRetro1 := getSpeed(calcFn1, prevJD) < 0
-				eRetro2 := speed2Start < 0
-				events = append(events, models.TransitEvent{
-					EventType:          models.EventAspectExact,
-					ChartType:          chartType1,
-					Planet:             planet1,
-					JD:                 prevJD,
-					Age:                progressions.Age(natalJD, prevJD),
-					PlanetLongitude:    lon1Start,
-					PlanetSign:         models.SignFromLongitude(lon1Start),
-					PlanetHouse:        chart.FindHouseForLongitude(lon1Start, natalHouses),
-					IsRetrograde:       eRetro1,
-					TargetChartType:    chartType2,
-					Target:             string(planet2),
-					TargetLongitude:    lon2Start,
-					TargetSign:         models.SignFromLongitude(lon2Start),
-					TargetHouse:        chart.FindHouseForLongitude(lon2Start, natalHouses),
-					TargetIsRetrograde: eRetro2,
-					AspectType:         asp.Type,
-					AspectAngle:        asp.Angle,
-					ExactCount:         exactCount,
-				})
+				e := scan.event(models.EventAspectExact, prevJD, asp)
+				e.ExactCount = exactCount
+				events = append(events, e)
 			}
 
-			// Compute initial step based on actual speeds
 			step := adaptiveStep(speed1Start, speed2Start, orb)
 
 		for jd := interval.Start + step; jd <= interval.End+step*0.5; jd += step {
@@ -911,98 +878,34 @@ func findAspectEventsRQ2(
 			lon2, speed2Cur, _ := calcFn2(jd)
 			curDiff := angleDiffToAspect(lon1, lon2, asp.Angle)
 
-			// Dynamically adjust step based on current speeds
 			step = adaptiveStep(speed1Cur, speed2Cur, orb)
 
 			// ENTER
 			if !inAspect && math.Abs(curDiff) <= orb && math.Abs(prevDiff) > orb {
 				enterJD := bisectThresholdRQ2(calcFn1, calcFn2, asp.Angle, orb, prevJD, jd, true)
-				eLon1, _, _ := calcFn1(enterJD)
-				eLon2, eSpeed2, _ := calcFn2(enterJD)
-				eRetro1 := getSpeed(calcFn1, enterJD) < 0
-				eRetro2 := eSpeed2 < 0
-				events = append(events, models.TransitEvent{
-					EventType:          models.EventAspectEnter,
-					ChartType:          chartType1,
-					Planet:             planet1,
-					JD:                 enterJD,
-					Age:                progressions.Age(natalJD, enterJD),
-					PlanetLongitude:    eLon1,
-					PlanetSign:         models.SignFromLongitude(eLon1),
-					PlanetHouse:        chart.FindHouseForLongitude(eLon1, natalHouses),
-					IsRetrograde:       eRetro1,
-					TargetChartType:    chartType2,
-					Target:             string(planet2),
-					TargetLongitude:    eLon2,
-					TargetSign:         models.SignFromLongitude(eLon2),
-					TargetHouse:        chart.FindHouseForLongitude(eLon2, natalHouses),
-					TargetIsRetrograde: eRetro2,
-					AspectType:         asp.Type,
-					AspectAngle:        asp.Angle,
-					OrbAtEnter:         math.Abs(angleDiffToAspect(eLon1, eLon2, asp.Angle)),
-				})
+				e := scan.event(models.EventAspectEnter, enterJD, asp)
+				e.OrbAtEnter = math.Abs(angleDiffToAspect(e.PlanetLongitude, e.TargetLongitude, asp.Angle))
+				events = append(events, e)
 				inAspect = true
 			}
 
-			// EXACT: sign change (or near-zero at interval boundary) AND both diffs reasonable
+			// EXACT
 			isSignChange := prevDiff*curDiff < 0 && math.Abs(prevDiff) < 90 && math.Abs(curDiff) < 90
 			isNearZero := math.Abs(curDiff) < 0.001 && math.Abs(prevDiff) > 0.0001 && math.Abs(prevDiff) < 90
 			if isSignChange || isNearZero {
 				exactJD := bisectExactRQ2(calcFn1, calcFn2, asp.Angle, prevJD, jd)
 				exactCount++
-				eLon1, _, _ := calcFn1(exactJD)
-				eLon2, eSpeed2, _ := calcFn2(exactJD)
-				eRetro1 := getSpeed(calcFn1, exactJD) < 0
-				eRetro2 := eSpeed2 < 0
-				events = append(events, models.TransitEvent{
-					EventType:          models.EventAspectExact,
-					ChartType:          chartType1,
-					Planet:             planet1,
-					JD:                 exactJD,
-					Age:                progressions.Age(natalJD, exactJD),
-					PlanetLongitude:    eLon1,
-					PlanetSign:         models.SignFromLongitude(eLon1),
-					PlanetHouse:        chart.FindHouseForLongitude(eLon1, natalHouses),
-					IsRetrograde:       eRetro1,
-					TargetChartType:    chartType2,
-					Target:             string(planet2),
-					TargetLongitude:    eLon2,
-					TargetSign:         models.SignFromLongitude(eLon2),
-					TargetHouse:        chart.FindHouseForLongitude(eLon2, natalHouses),
-					TargetIsRetrograde: eRetro2,
-					AspectType:         asp.Type,
-					AspectAngle:        asp.Angle,
-					ExactCount:         exactCount,
-				})
+				e := scan.event(models.EventAspectExact, exactJD, asp)
+				e.ExactCount = exactCount
+				events = append(events, e)
 			}
 
 			// LEAVE
 			if inAspect && math.Abs(curDiff) > orb && math.Abs(prevDiff) <= orb {
 				leaveJD := bisectThresholdRQ2(calcFn1, calcFn2, asp.Angle, orb, prevJD, jd, false)
-				eLon1, _, _ := calcFn1(leaveJD)
-				eLon2, eSpeed2, _ := calcFn2(leaveJD)
-				eRetro1 := getSpeed(calcFn1, leaveJD) < 0
-				eRetro2 := eSpeed2 < 0
-				events = append(events, models.TransitEvent{
-					EventType:          models.EventAspectLeave,
-					ChartType:          chartType1,
-					Planet:             planet1,
-					JD:                 leaveJD,
-					Age:                progressions.Age(natalJD, leaveJD),
-					PlanetLongitude:    eLon1,
-					PlanetSign:         models.SignFromLongitude(eLon1),
-					PlanetHouse:        chart.FindHouseForLongitude(eLon1, natalHouses),
-					IsRetrograde:       eRetro1,
-					TargetChartType:    chartType2,
-					Target:             string(planet2),
-					TargetLongitude:    eLon2,
-					TargetSign:         models.SignFromLongitude(eLon2),
-					TargetHouse:        chart.FindHouseForLongitude(eLon2, natalHouses),
-					TargetIsRetrograde: eRetro2,
-					AspectType:         asp.Type,
-					AspectAngle:        asp.Angle,
-					OrbAtLeave:         math.Abs(angleDiffToAspect(eLon1, eLon2, asp.Angle)),
-				})
+				e := scan.event(models.EventAspectLeave, leaveJD, asp)
+				e.OrbAtLeave = math.Abs(angleDiffToAspect(e.PlanetLongitude, e.TargetLongitude, asp.Angle))
+				events = append(events, e)
 				inAspect = false
 			}
 
