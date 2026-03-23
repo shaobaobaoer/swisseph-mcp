@@ -1,7 +1,7 @@
 package sweph
 
 /*
-#cgo CFLAGS: -I${SRCDIR}/../../third_party/swisseph
+#cgo CFLAGS: -I${SRCDIR}/../../third_party/swisseph -DTLSOFF
 
 #include "swephexp.h"
 #include "swehouse.h"

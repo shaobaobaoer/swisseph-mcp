@@ -1,4 +1,4 @@
-.PHONY: build build-api test test-race test-cover cover-html bench vet check clean
+.PHONY: build build-api test test-race test-cover cover-html bench vet check clean docs
 
 BIN_DIR := bin
 PACKAGES := ./cmd/... ./pkg/... ./internal/...
@@ -41,3 +41,15 @@ check: vet test
 
 clean:
 	rm -rf $(BIN_DIR) coverage.out coverage.html
+
+docs:
+	@which gomarkdoc > /dev/null 2>&1 || go install github.com/princjef/gomarkdoc/cmd/gomarkdoc@latest
+	@mkdir -p doc
+	@for pkg in antiscia api ashtakavarga bounds chart composite dignity dispositor \
+	            divisional export firdaria fixedstars geo harmonic heliacal julian \
+	            lots lunar mcp midpoint models planetary primary profection progressions \
+	            render report returns solarsage sweph symbolic synastry transit vedic yoga; do \
+	    gomarkdoc --output doc/pkg-$${pkg}.md ./pkg/$${pkg}/; \
+	done
+	@gomarkdoc --output doc/internal-aspect.md ./internal/aspect/
+	@echo "API docs generated in doc/"
