@@ -1,0 +1,58 @@
+Mar 17 2026 Solar Fire v9.0.29 Page 1
+*** CHART ANALYSIS REPORT ***
+JN - Male Chart
+DeltaT = +62s; ET = 9:37:02 am Dec 18 1997; JDE = 2450800.900729
+ST(0°) = 15:24:10; LST = 23:28:46; Ob = 23°26'22''; Eq.Time = +3m25s
+ACD(0h) = Jul 25 1998; ACD(12h) = Jan 23 1998
+CHART ANGLES
+Ascendant 06°Cancer31'45'' Midheaven 21°Pisces29'51''
+Co-Asc. 28°Cancer35'29'' Polar Asc. 09°Sagittarius53'25''
+HOUSE CUSPS (Placidus)
+1 06°Cancer31'45'' 4 21°Virgo29'51'' 7 06°Capricorn31'45'' 10 21°Pisces29'51''
+2 28°Cancer39'14'' 5 26°Libra07'35'' 8 28°Capricorn39'14'' 11 26°Aries07'35''
+3 22°Leo41'27'' 6 02°Sagittarius58'32'' 9 22°Aquarius41'27'' 12 02°Gemini58'32''
+CHART POINTS
+Point Longitude Travel Latitude Rt.Asc. Decl. Azi(0°N) Alti.
+[Moon] 18°Leo06'58'' +12°19' -02°10' 139°51' +13°19' 040°00' -35°57'
+[Sun] 26°Sagittarius29'59'' +01°01' -00°00' 266°11' -23°23' 247°48' -08°34'
+[Mercury] 23°Sagittarius56'00'' (Rx) -01°21' +02°12' 263°30' -21°05' 251°04' -09°34'
+[Venus] 02°Aquarius33'09'' +18'55'' -00°52' 305°02' -20°26' 227°36' +21°33'
+[Mars] 00°Aquarius05'50'' +46'53'' -01°13' 302°33' -21°19' 228°46' +19°19'
+[Jupiter] 19°Aquarius32'52'' +11'17'' -00°52' 322°15' -15°47' 215°58' +35°09'
+[Saturn] 13°Aries32'15'' +00'12'' -02°34' 013°27' +02°58' 140°06' +55°36'
+[Uranus] 06°Aquarius25'29'' +02'52'' -00°36' 308°58' -19°15' 225°27' +24°53'
+[Neptune] 28°Capricorn28'03'' +01'59'' +00°22' 300°30' -20°06' 231°07' +18°50'
+[Pluto] 06°Sagittarius16'27'' +02'15'' +11°52' 246°27' -09°38' 269°36' -18°23'
+[Chiron] 14°Scorpio01'21'' +07'01'' +01°09' 221°55' -14°56' 277°41' -41°56'
+[NorthNode] 14°Virgo26'45'' (Rx) -03'10'' +00°00' 165°40' +06°07' 010°40' -52°27'
+[ASC] 06°Cancer31'45'' +321°19' +00°00' 097°06' +23°16' 062°34' +00°00'
+[MC] 21°Pisces29'51'' +392°05' +00°00' 352°11' -03°22' 180°00' +55°43'
+LUNAR PHASE
+Angle: +231°36' Phase: Disseminating (6th of 8, and 19th of 28)
+SIGN MODALITIES
+Cardinal [Saturn] [Neptune] [ASC]
+Total Points: 3 Weighted Score: 5
+Fixed [Moon] [Venus] [Mars] [Jupiter] [Uranus] [Chiron]
+Total Points: 6 Weighted Score: 9
+Mutable [Sun] [Mercury] [Pluto] [NorthNode] [MC]
+Total Points: 5 Weighted Score: 9
+SIGN ELEMENTS
+Fire [Moon] [Sun] [Mercury] [Saturn] [Pluto]
+Total Points: 5 Weighted Score: 10
+Earth [Neptune] [NorthNode]
+Total Points: 2 Weighted Score: 1
+Air [Venus] [Mars] [Jupiter] [Uranus]
+Total Points: 4 Weighted Score: 6
+Water [Chiron] [ASC] [MC]
+Total Points: 3 Weighted Score: 6
+HOUSE MODALITIES
+Angular [Saturn] [Neptune]
+Total Points: 2 Weighted Score: 2
+Succedent [Moon] [Venus] [Mars] [Jupiter] [Uranus] [Chiron]
+Total Points: 6 Weighted Score: 9
+Cadent [Sun] [Mercury] [Pluto] [NorthNode]
+Mar 17 2026 Solar Fire v9.0.29 Page 2
+Total Points: 4 Weighted Score: 6
+CHART SHAPE
+Bucket with Handle Planet: [Moon]
+*** END REPORT ***

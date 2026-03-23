@@ -85,14 +85,9 @@ const (
 )
 
 // aspectCSVNames maps aspect types to CSV column names.
-var aspectCSVNames = map[AspectType]string{
-	AspectSextile:        "Quincunx",
-	AspectTrine:          "Sextile",
-	AspectQuincunx:       "Trine",
-	AspectSemiSquare:     "Opposition",
-	AspectSesquiquadrate: "Opposition",
-	AspectOpposition:     "Quincunx",
-}
+// Only needed for types whose constant value differs from the desired CSV name.
+// Currently all AspectType constants already match Solar Fire CSV names.
+var aspectCSVNames = map[AspectType]string{}
 
 // AspectCSVName maps aspect types to CSV column names.
 func AspectCSVName(at AspectType) string {
@@ -185,6 +180,7 @@ func DefaultOrbConfig() OrbConfig {
 
 // GetAspectDefs returns the effective aspect definitions.
 // If Definitions is provided, returns that; otherwise builds from legacy fields.
+// A negative orb value disables the aspect. Zero uses the default.
 func (o OrbConfig) GetAspectDefs() []AspectOrbDef {
 	if len(o.Definitions) > 0 {
 		return o.Definitions
@@ -192,16 +188,26 @@ func (o OrbConfig) GetAspectDefs() []AspectOrbDef {
 	// Build from legacy fields, using defaults if zero
 	// Names must match AspectType constants for backward compatibility
 	return []AspectOrbDef{
-		{Name: "conjunction", Angle: 0, EnteringOrb: defaultIfZero(o.Conjunction, 8), ExitingOrb: defaultIfZero(o.Conjunction, 8), Enabled: true},
-		{Name: "opposition", Angle: 180, EnteringOrb: defaultIfZero(o.Opposition, 8), ExitingOrb: defaultIfZero(o.Opposition, 8), Enabled: true},
-		{Name: "trine", Angle: 120, EnteringOrb: defaultIfZero(o.Trine, 7), ExitingOrb: defaultIfZero(o.Trine, 7), Enabled: true},
-		{Name: "square", Angle: 90, EnteringOrb: defaultIfZero(o.Square, 7), ExitingOrb: defaultIfZero(o.Square, 7), Enabled: true},
-		{Name: "sextile", Angle: 60, EnteringOrb: defaultIfZero(o.Sextile, 5), ExitingOrb: defaultIfZero(o.Sextile, 5), Enabled: true},
-		{Name: "quincunx", Angle: 150, EnteringOrb: defaultIfZero(o.Quincunx, 3), ExitingOrb: defaultIfZero(o.Quincunx, 3), Enabled: true},
-		{Name: "semi-sextile", Angle: 30, EnteringOrb: defaultIfZero(o.SemiSextile, 2), ExitingOrb: defaultIfZero(o.SemiSextile, 2), Enabled: true},
-		{Name: "semi-square", Angle: 45, EnteringOrb: defaultIfZero(o.SemiSquare, 2), ExitingOrb: defaultIfZero(o.SemiSquare, 2), Enabled: true},
-		{Name: "sesquiquadrate", Angle: 135, EnteringOrb: defaultIfZero(o.Sesquiquadrate, 2), ExitingOrb: defaultIfZero(o.Sesquiquadrate, 2), Enabled: true},
+		buildDef("conjunction", 0, o.Conjunction, 8),
+		buildDef("opposition", 180, o.Opposition, 8),
+		buildDef("trine", 120, o.Trine, 7),
+		buildDef("square", 90, o.Square, 7),
+		buildDef("sextile", 60, o.Sextile, 5),
+		buildDef("quincunx", 150, o.Quincunx, 3),
+		buildDef("semi-sextile", 30, o.SemiSextile, 2),
+		buildDef("semi-square", 45, o.SemiSquare, 2),
+		buildDef("sesquiquadrate", 135, o.Sesquiquadrate, 2),
 	}
+}
+
+// buildDef creates an AspectOrbDef. A negative orb value disables the aspect.
+// Zero uses the default.
+func buildDef(name string, angle, orb, defaultOrb float64) AspectOrbDef {
+	if orb < 0 {
+		return AspectOrbDef{Name: name, Angle: angle, Enabled: false}
+	}
+	effectiveOrb := defaultIfZero(orb, defaultOrb)
+	return AspectOrbDef{Name: name, Angle: angle, EnteringOrb: effectiveOrb, ExitingOrb: effectiveOrb, Enabled: true}
 }
 
 // defaultIfZero returns val if non-zero, otherwise returns def

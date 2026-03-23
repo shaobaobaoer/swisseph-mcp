@@ -9,15 +9,15 @@ func TestAspectCSVName(t *testing.T) {
 		at   AspectType
 		want string
 	}{
-		{AspectSextile, "Quincunx"},
-		{AspectTrine, "Sextile"},
-		{AspectQuincunx, "Trine"},
-		{AspectSemiSquare, "Opposition"},
-		{AspectSesquiquadrate, "Opposition"},
-		{AspectOpposition, "Quincunx"},
 		{AspectConjunction, "Conjunction"},
+		{AspectOpposition, "Opposition"},
+		{AspectTrine, "Trine"},
 		{AspectSquare, "Square"},
+		{AspectSextile, "Sextile"},
+		{AspectQuincunx, "Quincunx"},
 		{AspectSemiSextile, "Semi-Sextile"},
+		{AspectSemiSquare, "Semi-Square"},
+		{AspectSesquiquadrate, "Sesquiquadrate"},
 	}
 	for _, tt := range tests {
 		got := AspectCSVName(tt.at)

@@ -498,6 +498,158 @@ func TestCalcSingleChart_JN_Natal(t *testing.T) {
 	})
 }
 
+// =============================================================================
+// XB Natal Chart Precision Test - Based on Solar Fire Chart Analysis Report
+//
+// Subject: XB, Female Chart
+// Birth: Aug 3 1996, 0:30 am AWST (UTC+8), i.e. UTC Aug 2 16:30
+// Birth place: Huzhou, China, 30°52'N, 120°06'E
+// House system: Placidus, Mean Node
+// JDE = 2450298.188218 (TT), JD_UT ≈ 2450298.187502
+// =============================================================================
+
+func TestCalcSingleChart_XB_Natal(t *testing.T) {
+	const (
+		xbJDUT = 2450298.187502
+		xbLat  = 30.867  // 30°52'N
+		xbLon  = 120.1   // 120°06'E
+		tolLon = 0.01    // longitude tolerance 0.01°
+		tolLat = 0.05    // latitude tolerance 0.05°
+		tolSpd = 0.02    // speed tolerance 0.02 deg/day
+		tolAng = 0.01    // angle/cusp tolerance 0.01°
+	)
+
+	planets := []models.PlanetID{
+		models.PlanetSun, models.PlanetMoon, models.PlanetMercury,
+		models.PlanetVenus, models.PlanetMars, models.PlanetJupiter,
+		models.PlanetSaturn, models.PlanetUranus, models.PlanetNeptune,
+		models.PlanetPluto, models.PlanetChiron,
+		models.PlanetNorthNodeMean, models.PlanetLilithMean,
+	}
+	orbs := models.OrbConfig{
+		Conjunction: 8, Opposition: 8, Trine: 7, Square: 7,
+		Sextile: 5, Quincunx: 3, SemiSextile: 2,
+		SemiSquare: 2, Sesquiquadrate: 2,
+	}
+
+	info, err := CalcSingleChart(xbLat, xbLon, xbJDUT, planets, orbs, models.HousePlacidus)
+	if err != nil {
+		t.Fatalf("CalcSingleChart XB: %v", err)
+	}
+
+	// --- Planet position verification ---
+	// Solar Fire reference data from output_meta.txt
+	type expected struct {
+		pid      models.PlanetID
+		lon      float64
+		lat      float64
+		speed    float64
+		retro    bool
+		sign     string
+		signDeg  float64
+		house    int
+	}
+	// Reference from Solar Fire meta:
+	// [Moon] 26°Pisces04'54'' [Sun] 10°Leo38'18'' [Mercury] 01°Virgo36'47''
+	// [Venus] 26°Gemini16'54'' [Mars] 05°Cancer18'21'' [Jupiter] 09°Capricorn22'12'' (Rx)
+	// [Saturn] 07°Aries12'57'' (Rx) [Uranus] 02°Aquarius16'18'' (Rx)
+	// [Neptune] 25°Capricorn57'57'' (Rx) [Pluto] 00°Sagittarius21'03'' (Rx)
+	// [Chiron] 10°Libra59'58'' [NorthNode] 11°Libra04'09'' (Rx)
+	// Travel (speed): Moon +14°21', Sun +57'24'', Mercury +01°35', Venus +47'01'', Mars +39'59''
+	// Jupiter -05'33'' (Rx), Saturn -01'28'' (Rx), Uranus -02'22'' (Rx), Neptune -01'33'' (Rx)
+	// Pluto -00'15'' (Rx), Chiron +05'54'', NorthNode -03'10'' (Rx)
+	wantPlanets := []expected{
+		{models.PlanetMoon, 356.082, 1.2, 14.35, false, "Pisces", 26.082, 11},
+		{models.PlanetSun, 130.638, 0.0, 0.957, false, "Leo", 10.638, 3},
+		{models.PlanetMercury, 151.613, 0.817, 1.583, false, "Virgo", 1.613, 4},
+		{models.PlanetVenus, 86.282, -4.3, 0.785, false, "Gemini", 26.282, 1},
+		{models.PlanetMars, 95.305, 0.483, 0.666, false, "Cancer", 5.305, 2},
+		{models.PlanetJupiter, 279.37, -0.117, -0.093, true, "Capricorn", 9.37, 8},
+		{models.PlanetSaturn, 7.216, -2.467, -0.024, true, "Aries", 7.216, 11},
+		{models.PlanetUranus, 302.272, -0.6, -0.039, true, "Aquarius", 2.272, 9},
+		{models.PlanetNeptune, 295.966, 0.467, -0.026, true, "Capricorn", 25.966, 9},
+		{models.PlanetPluto, 240.351, 13.067, -0.004, true, "Sagittarius", 0.351, 6},
+		{models.PlanetChiron, 190.999, -1.4, 0.099, false, "Libra", 10.999, 5},
+		{models.PlanetNorthNodeMean, 191.068, 0.0, -0.053, true, "Libra", 11.068, 5},
+	}
+
+	// Build lookup map from computed results
+	gotMap := make(map[models.PlanetID]models.PlanetPosition)
+	for _, p := range info.Planets {
+		gotMap[p.PlanetID] = p
+	}
+
+	for _, w := range wantPlanets {
+		got, ok := gotMap[w.pid]
+		if !ok {
+			t.Errorf("planet %s: not found in computed results", w.pid)
+			continue
+		}
+
+		t.Run(string(w.pid), func(t *testing.T) {
+			if math.Abs(got.Longitude-w.lon) > tolLon {
+				t.Errorf("longitude: got %.4f, want %.3f (diff %.4f)", got.Longitude, w.lon, got.Longitude-w.lon)
+			}
+			if math.Abs(got.Latitude-w.lat) > tolLat {
+				t.Errorf("latitude: got %.4f, want %.3f", got.Latitude, w.lat)
+			}
+			if math.Abs(got.Speed-w.speed) > tolSpd {
+				t.Errorf("speed: got %.4f, want %.3f", got.Speed, w.speed)
+			}
+			if got.IsRetrograde != w.retro {
+				t.Errorf("retrograde: got %v, want %v", got.IsRetrograde, w.retro)
+			}
+			if got.Sign != w.sign {
+				t.Errorf("sign: got %s, want %s", got.Sign, w.sign)
+			}
+			if math.Abs(got.SignDegree-w.signDeg) > tolLon {
+				t.Errorf("signDegree: got %.4f, want %.3f", got.SignDegree, w.signDeg)
+			}
+			if got.House != w.house {
+				t.Errorf("house: got %d, want %d", got.House, w.house)
+			}
+		})
+	}
+
+	// --- House cusp verification ---
+	// From Solar Fire meta:
+	// 1 04°Gemini23'46'' 4 16°Leo41'20'' 7 04°Sagittarius23'46'' 10 16°Aquarius41'20''
+	// 2 29°Gemini13'26'' 5 17°Virgo05'24'' 8 29°Sagittarius13'26'' 11 17°Pisces05'24''
+	// 3 21°Cancer57'12'' 6 24°Libra50'57'' 9 21°Capricorn57'12'' 12 24°Aries50'57''
+	wantHouses := []float64{
+		64.396, 89.224, 111.953, 136.689, 167.09, 204.851,
+		244.396, 269.224, 291.953, 316.689, 347.09, 24.851,
+	}
+	if len(info.Houses) != 12 {
+		t.Fatalf("cusp count: got %d, want 12", len(info.Houses))
+	}
+	for i, wh := range wantHouses {
+		if math.Abs(info.Houses[i]-wh) > tolAng {
+			t.Errorf("cusp[%d]: got %.4f, want %.3f (diff %.4f)", i+1, info.Houses[i], wh, info.Houses[i]-wh)
+		}
+	}
+
+	// --- Angles verification ---
+	t.Run("Angles", func(t *testing.T) {
+		// ASC: 04°Gemini23'46'' = 64.396°
+		if math.Abs(info.Angles.ASC-64.396) > tolAng {
+			t.Errorf("ASC: got %.4f, want 64.396", info.Angles.ASC)
+		}
+		// MC: 16°Aquarius41'20'' = 316.689°
+		if math.Abs(info.Angles.MC-316.689) > tolAng {
+			t.Errorf("MC: got %.4f, want 316.689", info.Angles.MC)
+		}
+		// DSC: 04°Sagittarius23'46'' = 244.396°
+		if math.Abs(info.Angles.DSC-244.396) > tolAng {
+			t.Errorf("DSC: got %.4f, want 244.396", info.Angles.DSC)
+		}
+		// IC: 16°Leo41'20'' = 136.689°
+		if math.Abs(info.Angles.IC-136.689) > tolAng {
+			t.Errorf("IC: got %.4f, want 136.689", info.Angles.IC)
+		}
+	})
+}
+
 func TestWrapAngle(t *testing.T) {
 	tests := []struct {
 		in, want float64

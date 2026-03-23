@@ -150,7 +150,9 @@ func calcPlanetPosition(pid models.PlanetID, jdUT, armc, lat, eps float64, hsysC
 		return nil, fmt.Errorf("calc %s: %w", pid, err)
 	}
 
-	house := findHouseFromPos(armc, lat, eps, hsysChar, result.Longitude, result.Latitude)
+	// Use house cusps for house determination (Solar Fire compatible)
+	// This ignores ecliptic latitude, matching Solar Fire behavior
+	house := findHouse(result.Longitude, houses)
 
 	return &models.PlanetPosition{
 		PlanetID:     pid,

@@ -157,8 +157,8 @@ func TestEventToCSVRow_AspectExact(t *testing.T) {
 		AspectType:      models.AspectTrine,
 	}
 	row := EventToCSVRow(evt, "UTC")
-	if row.Aspect != "Sextile" { // Trine -> Sextile in CSV
-		t.Errorf("AspectExact CSV Aspect = %q, want Sextile", row.Aspect)
+	if row.Aspect != "Trine" {
+		t.Errorf("AspectExact CSV Aspect = %q, want Trine", row.Aspect)
 	}
 	if row.EventType != "Exact" {
 		t.Errorf("AspectExact EventType = %q, want Exact", row.EventType)
