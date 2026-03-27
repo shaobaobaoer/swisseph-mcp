@@ -1,8 +1,8 @@
 // Package swisseph is the root of the solarsage-mcp module.
 //
-// SolarSage is a comprehensive astrology calculation engine built on the
-// Swiss Ephemeris. It exposes 40 MCP tools, 40 REST endpoints, and a clean
-// Go library API spanning 38 packages.
+// SolarSage is a comprehensive Western astrology calculation engine built on the
+// Swiss Ephemeris. It exposes 35 MCP tools, 35 REST endpoints, and a clean
+// Go library API spanning 33 packages.
 //
 // # Recommended Entry Point
 //
@@ -49,12 +49,6 @@
 //   - pkg/midpoint     — midpoint tree, 90-degree Cosmobiology dial
 //   - internal/aspect  — aspect math and 7 geometric pattern types
 //
-// Vedic astrology:
-//   - pkg/vedic        — sidereal charts, 5 ayanamsas, Nakshatras, Vimshottari Dasha
-//   - pkg/divisional   — 16 Varga charts (D1-D60)
-//   - pkg/ashtakavarga — Ashtakavarga bindu tables
-//   - pkg/yoga         — Vedic yoga detection
-//
 // Analysis and reporting:
 //   - pkg/synastry     — relationship compatibility scoring
 //   - pkg/report       — comprehensive one-call natal report
@@ -70,6 +64,6 @@
 // # Server Interfaces
 //
 // For MCP server usage, build and run cmd/server (JSON-RPC over stdio).
-// For REST API usage, build and run cmd/api (net/http, 40 POST endpoints).
+// For REST API usage, build and run cmd/api (net/http, 35 POST endpoints).
 // Both can be built with: make build && make build-api
 package swisseph

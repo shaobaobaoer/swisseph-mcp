@@ -45,10 +45,10 @@ clean:
 docs:
 	@which gomarkdoc > /dev/null 2>&1 || go install github.com/princjef/gomarkdoc/cmd/gomarkdoc@latest
 	@mkdir -p doc
-	@for pkg in antiscia api ashtakavarga bounds chart composite dignity dispositor \
-	            divisional export firdaria fixedstars geo harmonic heliacal julian \
+	@for pkg in antiscia api bounds chart composite dignity dispositor \
+	            export firdaria fixedstars geo harmonic heliacal julian \
 	            lots lunar mcp midpoint models planetary primary profection progressions \
-	            render report returns solarsage sweph symbolic synastry transit vedic yoga; do \
+	            render report returns solarsage sweph symbolic synastry transit; do \
 	    gomarkdoc --output doc/pkg-$${pkg}.md ./pkg/$${pkg}/; \
 	done
 	@gomarkdoc --output doc/internal-aspect.md ./internal/aspect/

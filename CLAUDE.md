@@ -5,7 +5,7 @@
 ```bash
 make build        # Build MCP server to bin/solarsage-mcp
 make build-api    # Build REST API server to bin/solarsage-api
-make test         # Run all tests (38 packages, 824+ tests)
+make test         # Run all tests (33 packages, 800+ tests)
 make test-race    # Run tests with race detector
 make test-cover   # Run tests with coverage report
 make cover-html   # Generate HTML coverage report
@@ -23,8 +23,8 @@ The project is a Go MCP server wrapping the Swiss Ephemeris C library via CGO. I
 
 **High-level API:**
 - `pkg/solarsage/` - **Convenience API** (33 functions, datetime strings, sensible defaults)
-- `pkg/mcp/` - MCP protocol layer (40 tools)
-- `pkg/api/` - **RESTful HTTP API** (40 endpoints, JSON, CORS, API key auth)
+- `pkg/mcp/` - MCP protocol layer (35 tools)
+- `pkg/api/` - **RESTful HTTP API** (35 endpoints, JSON, CORS, API key auth)
 - `pkg/report/` - Comprehensive chart analysis report
 
 **Chart Calculations:**
@@ -53,14 +53,8 @@ The project is a Go MCP server wrapping the Swiss Ephemeris C library via CGO. I
 **Analysis:**
 - `pkg/fixedstars/` - 50+ star catalog with conjunctions
 - `pkg/midpoint/` - Midpoints, 90deg dial, activations
-- `pkg/harmonic/` - Divisional charts (1-180)
+- `pkg/harmonic/` - Harmonic charts (1-180)
 - `internal/aspect/` - Aspect math + 7 pattern types
-
-**Vedic:**
-- `pkg/vedic/` - Sidereal charts, 27 Nakshatras, Vimshottari Dasha
-- `pkg/divisional/` - 16 Varga charts (D1-D60, Navamsa, Dasamsa, etc.)
-- `pkg/ashtakavarga/` - Bindu tables, Sarvashtakavarga
-- `pkg/yoga/` - Yoga detection (Mahapurusha, Raja, Dhana, Gajakesari, etc.)
 
 **Astronomical:**
 - `pkg/lunar/` - Phases, eclipse detection

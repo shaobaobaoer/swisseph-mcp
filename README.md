@@ -1,7 +1,7 @@
 # SolarSage
 
-The most comprehensive open-source astrology calculation engine.
-**40 MCP tools · 40 REST endpoints · 38 packages · 824+ tests · 11 house systems · 5 ayanamsas · 50+ fixed stars · 27 Nakshatras · 15+ Arabic lots · 7 aspect patterns** — all with sub-arcsecond accuracy.
+The most comprehensive open-source Western astrology calculation engine.
+**35 MCP tools · 35 REST endpoints · 33 packages · 800+ tests · 11 house systems · 50+ fixed stars · 15+ Arabic lots · 7 aspect patterns** — all with sub-arcsecond accuracy.
 
 Usable as a **Go library**, an **MCP server** for AI assistants, or a **RESTful HTTP API** for web/mobile clients.
 
@@ -66,15 +66,11 @@ SolarSage focuses on **astrological calculations** while SolarSageDataService pr
 | Harmonic charts | 1-180 | None | None | None |
 | Planetary hours | Chaldean | None | None | None |
 | House systems | 11 | 7 | 3 | All |
-| Sidereal/Vedic | Nakshatras + Dasha | None | None | Manual |
 | Dispositors | Full chains | None | None | None |
 | Primary directions | Ptolemy semi-arc | None | None | None |
 | Symbolic directions | 4 methods | None | None | None |
 | Firdaria | Day/night sequences | None | None | None |
 | Heliacal phenomena | Visibility algorithm | None | None | Low-level |
-| Ashtakavarga | Bindu tables | None | None | None |
-| Yoga detection | 10+ yogas | None | None | None |
-| Divisional charts | 16 Vargas | None | None | None |
 | Bonification | Aspect-based scoring | None | None | None |
 | One-call report | Everything combined | None | None | None |
 | Chart visualization | Wheel coordinates | None | None | None |
@@ -92,8 +88,7 @@ SolarSage focuses on **astrological calculations** while SolarSageDataService pr
 - **Double Charts** — Synastry/transit overlay with cross-aspects
 - **Composite Charts** — Midpoint method for relationship analysis
 - **Davison Charts** — Midpoint in time and space
-- **Harmonic Charts** — Divisional charts (5th quintile, 7th septile, 9th novile, etc.)
-- **Sidereal Charts** — 5 ayanamsa systems
+- **Harmonic Charts** — Nth harmonic charts (5th quintile, 7th septile, 9th novile, etc.)
 
 ### Predictive Techniques
 - **Transit Detection** — Tr-Na, Tr-Tr, Tr-Sp, Tr-Sa, Sp-Na, Sp-Sp, Sa-Na with 1-second precision
@@ -123,14 +118,6 @@ SolarSage focuses on **astrological calculations** while SolarSageDataService pr
 - **Aspect Patterns** — Grand Trine, T-Square, Grand Cross, Yod, Kite, Mystic Rectangle, Stellium
 - **Fixed Stars** — 50+ major star catalog with precession-corrected conjunctions
 - **Midpoint Analysis** — Full midpoint tree, 90-degree Cosmobiology dial, activations
-
-### Vedic / Sidereal
-- **Sidereal Charts** — 5 ayanamsa systems (Lahiri, Raman, Krishnamurti, Fagan-Bradley, Yukteshwar)
-- **Nakshatras** — All 27 lunar mansions with padas and Vimshottari lords
-- **Vimshottari Dasha** — Full Maha Dasha period sequence from Moon's Nakshatra
-- **Divisional Charts** — 16 Varga charts (D1-D60, Navamsa, Dasamsa, etc.)
-- **Ashtakavarga** — Bindu tables and Sarvashtakavarga
-- **Yoga Detection** — Mahapurusha, Raja, Dhana, Gajakesari, and more
 
 ### Astronomical
 - **Lunar Phases** — New/full moon finder, phase angle, illumination percentage
@@ -313,19 +300,6 @@ func main() {
     pos, _ := solarsage.PlanetPosition("Venus", "2025-03-18T12:00:00Z")
     fmt.Printf("Venus: %s at %.2f°\n", pos.Sign, pos.SignDegree)
 
-    // Vedic sidereal chart with Nakshatras
-    vedic, _ := solarsage.SiderealChart(51.5074, -0.1278, "1990-06-15T14:30:00Z")
-    for _, p := range vedic.Planets {
-        fmt.Printf("%s: %s (Nakshatra: %s, Pada %d)\n",
-            p.PlanetID, p.SiderealSign, p.Nakshatra, p.NakshatraPada)
-    }
-
-    // Vimshottari Dasha periods
-    periods, _ := solarsage.Dasha(51.5074, -0.1278, "1990-06-15T14:30:00Z")
-    for _, d := range periods {
-        fmt.Printf("Age %.0f–%.0f: %s Dasha\n", d.StartAge, d.StartAge+d.Years, d.Lord)
-    }
-
     // Chart wheel coordinates for SVG/Canvas rendering
     wheel, _ := solarsage.ChartWheel(51.5074, -0.1278, "1990-06-15T14:30:00Z")
     for _, p := range wheel.Planets {
@@ -417,9 +391,7 @@ func main() {
 | `calc_double_chart` | Synastry/transit double chart with cross-aspects between two charts |
 | `calc_composite_chart` | Composite (midpoint) chart for relationship analysis |
 | `calc_davison_chart` | Davison relationship chart (midpoint in time and space) |
-| `calc_harmonic_chart` | Nth harmonic (divisional) chart for any harmonic number |
-| `calc_sidereal_chart` | Sidereal chart with Nakshatras, padas, and Vimshottari lords |
-| `calc_divisional_chart` | Vedic Varga charts (Navamsa D9, Dasamsa D10, etc.) |
+| `calc_harmonic_chart` | Nth harmonic chart for any harmonic number |
 | `calc_chart_wheel` | Chart wheel x/y coordinates for SVG/Canvas rendering |
 
 ### Predictive
@@ -472,14 +444,6 @@ func main() {
 | `calc_dispositors` | Dispositorship chains, final dispositor, and mutual dispositors |
 | `calc_natal_report` | Comprehensive natal analysis combining all techniques |
 
-### Vedic / Sidereal
-
-| Tool | Description |
-|------|-------------|
-| `calc_vimshottari_dasha` | Vimshottari Maha Dasha periods from Moon's Nakshatra |
-| `calc_ashtakavarga` | Ashtakavarga bindu tables and Sarvashtakavarga |
-| `calc_yogas` | Vedic yoga detection (Mahapurusha, Raja, Dhana, Gajakesari, etc.) |
-
 ---
 
 ## REST API Reference
@@ -520,8 +484,6 @@ Most chart endpoints accept an optional `orb_config` parameter for customizing a
 | `POST /api/v1/chart/composite` | Composite chart |
 | `POST /api/v1/chart/davison` | Davison chart |
 | `POST /api/v1/chart/harmonic` | Harmonic chart |
-| `POST /api/v1/chart/sidereal` | Sidereal/Vedic chart |
-| `POST /api/v1/chart/divisional` | Varga divisional chart |
 | `POST /api/v1/chart/wheel` | Chart wheel coordinates |
 | `POST /api/v1/transit` | Transit events |
 | `POST /api/v1/progressions` | Secondary progressions |
@@ -544,9 +506,6 @@ Most chart endpoints accept an optional `orb_config` parameter for customizing a
 | `POST /api/v1/fixed-stars` | Fixed star conjunctions |
 | `POST /api/v1/midpoints` | Midpoint analysis |
 | `POST /api/v1/synastry` | Synastry scoring |
-| `POST /api/v1/vedic/dasha` | Vimshottari Dasha |
-| `POST /api/v1/vedic/ashtakavarga` | Ashtakavarga |
-| `POST /api/v1/vedic/yogas` | Yoga detection |
 | `POST /api/v1/lunar/phase` | Lunar phase |
 | `POST /api/v1/lunar/phases` | Lunar phase list |
 | `POST /api/v1/lunar/eclipses` | Eclipse finder |
@@ -591,10 +550,6 @@ pkg/
   dignity/         Essential dignities, mutual receptions, sect
   dispositor/      Dispositorship chains & final dispositor
   report/          Comprehensive chart analysis report
-  vedic/           Sidereal charts, Nakshatras, Vimshottari Dasha
-  divisional/      Vedic Varga charts (D1-D60)
-  ashtakavarga/    Ashtakavarga bindu tables
-  yoga/            Vedic yoga detection
   profection/      Annual & monthly profections
   firdaria/        Firdaria planetary period system
   lots/            Arabic lots/parts calculator
@@ -603,7 +558,7 @@ pkg/
   dignity/         Essential dignities, sect, bonification
   fixedstars/      Fixed star catalog & conjunction detection
   midpoint/        Midpoint analysis & Cosmobiology dial
-  harmonic/        Harmonic (divisional) charts
+  harmonic/        Harmonic charts
   planetary/       Chaldean planetary hours
   heliacal/        Heliacal risings/settings
   lunar/           Lunar phases & eclipse detection
