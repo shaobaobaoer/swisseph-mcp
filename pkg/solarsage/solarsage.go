@@ -18,11 +18,9 @@ import (
 	"time"
 
 	"github.com/shaobaobaoer/solarsage-mcp/internal/aspect"
-	"github.com/shaobaobaoer/solarsage-mcp/pkg/ashtakavarga"
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/chart"
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/composite"
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/dignity"
-	"github.com/shaobaobaoer/solarsage-mcp/pkg/divisional"
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/firdaria"
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/lunar"
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/models"
@@ -34,8 +32,6 @@ import (
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/symbolic"
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/synastry"
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/transit"
-	"github.com/shaobaobaoer/solarsage-mcp/pkg/vedic"
-	"github.com/shaobaobaoer/solarsage-mcp/pkg/yoga"
 )
 
 // DefaultPlanets is the standard set of 10 planets used when none specified.
@@ -287,38 +283,7 @@ func FullReport(lat, lon float64, datetime string) (*report.ChartReport, error) 
 	return report.GenerateNatalReport(lat, lon, jd)
 }
 
-// SiderealChart calculates a Vedic (sidereal) natal chart with Nakshatras.
-// Uses Lahiri ayanamsa by default.
-func SiderealChart(lat, lon float64, datetime string) (*vedic.SiderealChart, error) {
-	return SiderealChartWithAyanamsa(lat, lon, datetime, vedic.AyanamsaLahiri)
-}
 
-// SiderealChartWithAyanamsa calculates a sidereal chart with a specified ayanamsa system.
-func SiderealChartWithAyanamsa(lat, lon float64, datetime string, system vedic.Ayanamsa) (*vedic.SiderealChart, error) {
-	if err := ValidateCoords(lat, lon); err != nil {
-		return nil, err
-	}
-	jd, err := ParseDatetime(datetime)
-	if err != nil {
-		return nil, fmt.Errorf("datetime: %w", err)
-	}
-	return vedic.CalcSiderealChart(lat, lon, jd, system)
-}
-
-// Dasha calculates the Vimshottari Maha Dasha periods from birth data.
-func Dasha(lat, lon float64, datetime string) ([]vedic.DashaPeriod, error) {
-	sc, err := SiderealChart(lat, lon, datetime)
-	if err != nil {
-		return nil, err
-	}
-	// Find Moon's sidereal longitude
-	for _, p := range sc.Planets {
-		if p.PlanetID == models.PlanetMoon {
-			return vedic.CalcVimshottariDasha(p.SiderealLon), nil
-		}
-	}
-	return nil, fmt.Errorf("Moon not found in chart")
-}
 
 // ChartWheel generates chart wheel rendering coordinates for visualization.
 func ChartWheel(lat, lon float64, datetime string) (*render.ChartWheel, error) {
@@ -416,47 +381,7 @@ func PrimaryDirections(lat, lon float64, datetime string, maxAge float64) (*prim
 	})
 }
 
-// NavamsaChart calculates the Navamsa (D9) divisional chart.
-// Uses Lahiri ayanamsa by default.
-func NavamsaChart(lat, lon float64, datetime string) (*divisional.DivisionalChart, error) {
-	return DivisionalChart(lat, lon, datetime, divisional.VargaNavamsa)
-}
 
-// DivisionalChart calculates any Vedic divisional chart (Varga).
-// Uses Lahiri ayanamsa by default.
-func DivisionalChart(lat, lon float64, datetime string, varga divisional.VargaType) (*divisional.DivisionalChart, error) {
-	if err := ValidateCoords(lat, lon); err != nil {
-		return nil, err
-	}
-	jd, err := ParseDatetime(datetime)
-	if err != nil {
-		return nil, fmt.Errorf("datetime: %w", err)
-	}
-	return divisional.CalcDivisionalChart(lat, lon, jd, varga, vedic.AyanamsaLahiri)
-}
-
-// Ashtakavarga calculates the Ashtakavarga point system.
-// Uses Lahiri ayanamsa by default.
-func Ashtakavarga(lat, lon float64, datetime string) (*ashtakavarga.AshtakavargaResult, error) {
-	sc, err := SiderealChart(lat, lon, datetime)
-	if err != nil {
-		return nil, fmt.Errorf("ashtakavarga: %w", err)
-	}
-	// Extract sidereal ASC longitude
-	siderealASC := sc.SiderealAngles.ASC
-	return ashtakavarga.CalcAshtakavarga(sc.Planets, siderealASC), nil
-}
-
-// Yogas analyzes Vedic planetary yogas in a chart.
-// Uses Lahiri ayanamsa by default.
-func Yogas(lat, lon float64, datetime string) (*yoga.YogaAnalysis, error) {
-	sc, err := SiderealChart(lat, lon, datetime)
-	if err != nil {
-		return nil, fmt.Errorf("yogas: %w", err)
-	}
-	siderealASC := sc.SiderealAngles.ASC
-	return yoga.AnalyzeYogas(sc.Planets, sc.Houses, siderealASC), nil
-}
 
 // Bonification analyzes bonification and maltreatment for all planets in a chart.
 func Bonification(lat, lon float64, datetime string) ([]dignity.BonMalInfo, error) {

@@ -1,0 +1,2730 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "SolarSage API",
+    "description": "专业的占星计算 RESTful API，基于瑞士星历表（Swiss Ephemeris）提供高精度天文计算。支持本命盘、推运、返照盘、印度占星、传统占星等多种占星技术。\n\n## 核心功能\n\n- **星盘计算**：本命盘、双人比较盘、组合盘、戴维森盘、谐波盘、分盘\n- **预测技术**：行运、次限推运、太阳弧、主限向运、象征向运、太阳返照、月亮返照\n- **传统占星**：庙旺落陷、互容、昼夜区分、守护星链、小限法、Firdaria、阿拉伯点、界、映点、行星时、偕日升落\n- **印度占星**：恒星黄道、27宿、Vimshottari大运、Ashtakavarga、瑜伽\n- **分析功能**：相位模式、恒星合相、中点、配对评分\n- **月相**：月相计算、月相周期、日月食\n\n## 认证\n\nAPI 使用 X-API-Key 请求头进行认证。如果服务器配置了 API 密钥，则所有请求都必须包含有效的密钥。\n\n## 时间格式\n\n所有时间均使用 Julian Day（儒略日）表示，这是天文学中常用的连续计数系统。可以使用 `/api/v1/datetime/to-jd` 端点将日期时间转换为 Julian Day。\n\n## 坐标系统\n\n地理位置使用纬度（latitude，北纬为正）和经度（longitude，东经为正）表示，单位为度。\n",
+    "version": "1.0.0",
+    "contact": {
+      "name": "SolarSage"
+    },
+    "license": {
+      "name": "MIT"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8080",
+      "description": "本地开发服务器"
+    }
+  ],
+  "security": [
+    {
+      "ApiKeyAuth": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "Health",
+      "description": "健康检查端点"
+    },
+    {
+      "name": "Basic",
+      "description": "基础计算功能：地理编码、日期转换、行星位置"
+    },
+    {
+      "name": "Charts",
+      "description": "星盘计算：本命盘、双人盘、组合盘、谐波盘、恒星盘、分盘、星盘轮"
+    },
+    {
+      "name": "Predictive",
+      "description": "预测技术：行运、次限推运、太阳弧、主限向运、象征向运、返照盘"
+    },
+    {
+      "name": "Traditional",
+      "description": "传统占星：庙旺落陷、守护星、小限法、Firdaria、阿拉伯点、界、映点、行星时、偕日升落"
+    },
+    {
+      "name": "Analysis",
+      "description": "分析功能：相位模式、恒星合相、中点、配对评分"
+    },
+    {
+      "name": "Vedic",
+      "description": "印度占星：Vimshottari大运、Ashtakavarga、瑜伽"
+    },
+    {
+      "name": "Lunar",
+      "description": "月相计算：月相、月相周期、日月食"
+    },
+    {
+      "name": "Report",
+      "description": "综合报告生成"
+    }
+  ],
+  "paths": {
+    "/api/v1/health": {
+      "get": {
+        "tags": ["Health"],
+        "summary": "健康检查",
+        "description": "检查 API 服务是否正常运行。无需认证。",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "服务正常",
+            "content": {
+              "application/json": {
+                "example": {
+                  "status": "ok"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/geocode": {
+      "post": {
+        "tags": ["Basic"],
+        "summary": "地理编码",
+        "description": "将地名（城市、地址）转换为地理坐标和时区信息。使用在线地理编码服务。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["location_name"],
+                "properties": {
+                  "location_name": {
+                    "type": "string",
+                    "description": "地名，如 \"Beijing, China\" 或 \"New York, USA\"",
+                    "example": "Beijing, China"
+                  }
+                }
+              },
+              "example": {
+                "location_name": "Beijing, China"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功获取地理坐标",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeoLocation"
+                },
+                "example": {
+                  "latitude": 39.9042,
+                  "longitude": 116.4074,
+                  "timezone": "Asia/Shanghai",
+                  "display_name": "Beijing, China"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "无法解析地名",
+            "content": {
+              "application/json": {
+                "example": {
+                  "error": "location not found",
+                  "status": 422
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/datetime/to-jd": {
+      "post": {
+        "tags": ["Basic"],
+        "summary": "日期时间转儒略日",
+        "description": "将 ISO 8601 格式的日期时间转换为 Julian Day（儒略日）。儒略日是天文学中使用的连续计数系统，用于精确计算天体位置。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["datetime"],
+                "properties": {
+                  "datetime": {
+                    "type": "string",
+                    "description": "ISO 8601 格式的日期时间，如 \"1990-01-15T10:30:00\"",
+                    "example": "1990-01-15T10:30:00"
+                  },
+                  "calendar": {
+                    "type": "string",
+                    "enum": ["GREGORIAN", "JULIAN"],
+                    "default": "GREGORIAN",
+                    "description": "历法类型，公历或儒略历"
+                  }
+                }
+              },
+              "example": {
+                "datetime": "1990-01-15T10:30:00",
+                "calendar": "GREGORIAN"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "转换成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JulianDayResult"
+                },
+                "example": {
+                  "jd_ut": 2447912.9375,
+                  "jd_tt": 2447912.9383
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/datetime/from-jd": {
+      "post": {
+        "tags": ["Basic"],
+        "summary": "儒略日转日期时间",
+        "description": "将 Julian Day（儒略日）转换为 ISO 8601 格式的日期时间。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["jd"],
+                "properties": {
+                  "jd": {
+                    "type": "number",
+                    "format": "double",
+                    "description": "Julian Day（UT）",
+                    "example": 2447912.9375
+                  },
+                  "timezone": {
+                    "type": "string",
+                    "default": "UTC",
+                    "description": "目标时区，如 \"Asia/Shanghai\"",
+                    "example": "Asia/Shanghai"
+                  }
+                }
+              },
+              "example": {
+                "jd": 2447912.9375,
+                "timezone": "Asia/Shanghai"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "转换成功",
+            "content": {
+              "application/json": {
+                "example": {
+                  "datetime": "1990-01-15T18:30:00+08:00"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/planet/position": {
+      "post": {
+        "tags": ["Basic"],
+        "summary": "计算行星位置",
+        "description": "计算指定时刻单个行星的黄道经度、速度、星座位置等信息。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["planet", "jd_ut"],
+                "properties": {
+                  "planet": {
+                    "$ref": "#/components/schemas/PlanetID"
+                  },
+                  "jd_ut": {
+                    "type": "number",
+                    "format": "double",
+                    "description": "Julian Day（UT）"
+                  }
+                }
+              },
+              "example": {
+                "planet": "SUN",
+                "jd_ut": 2447912.9375
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "计算成功",
+            "content": {
+              "application/json": {
+                "example": {
+                  "planet": "SUN",
+                  "longitude": 295.1234,
+                  "speed": 0.95,
+                  "is_retrograde": false,
+                  "sign": "Capricorn",
+                  "sign_degree": 5.1234
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/chart/natal": {
+      "post": {
+        "tags": ["Charts"],
+        "summary": "本命盘计算",
+        "description": "计算本命盘，包括所有行星位置、宫位、四轴、相位等完整信息。支持多种宫位制和自定义行星列表。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["latitude", "longitude", "jd_ut"],
+                "properties": {
+                  "latitude": {
+                    "type": "number",
+                    "format": "double",
+                    "description": "出生地纬度，北纬为正",
+                    "example": 39.9042
+                  },
+                  "longitude": {
+                    "type": "number",
+                    "format": "double",
+                    "description": "出生地经度，东经为正",
+                    "example": 116.4074
+                  },
+                  "jd_ut": {
+                    "type": "number",
+                    "format": "double",
+                    "description": "出生时间的 Julian Day（UT）"
+                  },
+                  "planets": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/PlanetID"
+                    },
+                    "description": "要计算的行星列表，默认为十大行星"
+                  },
+                  "house_system": {
+                    "$ref": "#/components/schemas/HouseSystem"
+                  },
+                  "orb_config": {
+                    "$ref": "#/components/schemas/OrbConfig"
+                  },
+                  "format": {
+                    "type": "string",
+                    "enum": ["json", "csv"],
+                    "default": "json",
+                    "description": "输出格式，CSV 格式便于导入电子表格"
+                  }
+                }
+              },
+              "example": {
+                "latitude": 39.9042,
+                "longitude": 116.4074,
+                "jd_ut": 2447912.9375,
+                "house_system": "PLACIDUS"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "本命盘计算结果",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChartInfo"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/chart/double": {
+      "post": {
+        "tags": ["Charts"],
+        "summary": "双人比较盘",
+        "description": "计算双人比较盘，将两个人的星盘叠加比较，显示内盘、外盘和交叉相位。常用于关系分析。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["inner_latitude", "inner_longitude", "inner_jd_ut", "outer_latitude", "outer_longitude", "outer_jd_ut"],
+                "properties": {
+                  "inner_latitude": {
+                    "type": "number",
+                    "description": "内盘（第一人）纬度"
+                  },
+                  "inner_longitude": {
+                    "type": "number",
+                    "description": "内盘（第一人）经度"
+                  },
+                  "inner_jd_ut": {
+                    "type": "number",
+                    "description": "内盘（第一人）出生时间 Julian Day"
+                  },
+                  "inner_planets": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/PlanetID"
+                    },
+                    "description": "内盘行星列表"
+                  },
+                  "outer_latitude": {
+                    "type": "number",
+                    "description": "外盘（第二人）纬度"
+                  },
+                  "outer_longitude": {
+                    "type": "number",
+                    "description": "外盘（第二人）经度"
+                  },
+                  "outer_jd_ut": {
+                    "type": "number",
+                    "description": "外盘（第二人）出生时间 Julian Day"
+                  },
+                  "outer_planets": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/PlanetID"
+                    },
+                    "description": "外盘行星列表"
+                  },
+                  "special_points": {
+                    "$ref": "#/components/schemas/SpecialPointsConfig"
+                  },
+                  "house_system": {
+                    "$ref": "#/components/schemas/HouseSystem"
+                  },
+                  "orb_config": {
+                    "$ref": "#/components/schemas/OrbConfig"
+                  },
+                  "format": {
+                    "type": "string",
+                    "enum": ["json", "csv"]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "双人比较盘计算结果",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "inner_chart": {
+                      "$ref": "#/components/schemas/ChartInfo"
+                    },
+                    "outer_chart": {
+                      "$ref": "#/components/schemas/ChartInfo"
+                    },
+                    "cross_aspects": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/CrossAspectInfo"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/chart/composite": {
+      "post": {
+        "tags": ["Charts"],
+        "summary": "组合盘（中点法）",
+        "description": "计算组合盘，使用两个人的行星位置中点作为新盘的行星位置。常用于关系分析，代表关系本身的特质。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["person1_latitude", "person1_longitude", "person1_jd_ut", "person2_latitude", "person2_longitude", "person2_jd_ut"],
+                "properties": {
+                  "person1_latitude": {
+                    "type": "number",
+                    "description": "第一人纬度"
+                  },
+                  "person1_longitude": {
+                    "type": "number",
+                    "description": "第一人经度"
+                  },
+                  "person1_jd_ut": {
+                    "type": "number",
+                    "description": "第一人出生时间 Julian Day"
+                  },
+                  "person2_latitude": {
+                    "type": "number",
+                    "description": "第二人纬度"
+                  },
+                  "person2_longitude": {
+                    "type": "number",
+                    "description": "第二人经度"
+                  },
+                  "person2_jd_ut": {
+                    "type": "number",
+                    "description": "第二人出生时间 Julian Day"
+                  },
+                  "planets": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/PlanetID"
+                    }
+                  },
+                  "house_system": {
+                    "$ref": "#/components/schemas/HouseSystem"
+                  },
+                  "orb_config": {
+                    "$ref": "#/components/schemas/OrbConfig"
+                  },
+                  "format": {
+                    "type": "string",
+                    "enum": ["json", "csv"]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "组合盘计算结果"
+          }
+        }
+      }
+    },
+    "/api/v1/chart/davison": {
+      "post": {
+        "tags": ["Charts"],
+        "summary": "戴维森盘",
+        "description": "计算戴维森关系盘，使用两个人的时间和地点的中点作为新盘的参数。与组合盘类似，但时间和地点也取中点。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["person1_latitude", "person1_longitude", "person1_jd_ut", "person2_latitude", "person2_longitude", "person2_jd_ut"],
+                "properties": {
+                  "person1_latitude": {
+                    "type": "number"
+                  },
+                  "person1_longitude": {
+                    "type": "number"
+                  },
+                  "person1_jd_ut": {
+                    "type": "number"
+                  },
+                  "person2_latitude": {
+                    "type": "number"
+                  },
+                  "person2_longitude": {
+                    "type": "number"
+                  },
+                  "person2_jd_ut": {
+                    "type": "number"
+                  },
+                  "planets": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/PlanetID"
+                    }
+                  },
+                  "house_system": {
+                    "$ref": "#/components/schemas/HouseSystem"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "戴维森盘计算结果"
+          }
+        }
+      }
+    },
+    "/api/v1/chart/harmonic": {
+      "post": {
+        "tags": ["Charts"],
+        "summary": "谐波盘",
+        "description": "计算谐波盘，将行星位置乘以谐波数后取模360度。常用于分析特定主题，如5谐波看才华，7谐波看感情等。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["latitude", "longitude", "jd_ut", "harmonic"],
+                "properties": {
+                  "latitude": {
+                    "type": "number"
+                  },
+                  "longitude": {
+                    "type": "number"
+                  },
+                  "jd_ut": {
+                    "type": "number"
+                  },
+                  "harmonic": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 180,
+                    "description": "谐波数，如 4、5、7、9 等"
+                  },
+                  "planets": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/PlanetID"
+                    }
+                  },
+                  "house_system": {
+                    "$ref": "#/components/schemas/HouseSystem"
+                  },
+                  "orb_config": {
+                    "$ref": "#/components/schemas/OrbConfig"
+                  },
+                  "format": {
+                    "type": "string",
+                    "enum": ["json", "csv"]
+                  }
+                }
+              },
+              "example": {
+                "latitude": 39.9042,
+                "longitude": 116.4074,
+                "jd_ut": 2447912.9375,
+                "harmonic": 5
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "谐波盘计算结果"
+          }
+        }
+      }
+    },
+    "/api/v1/chart/sidereal": {
+      "post": {
+        "tags": ["Charts"],
+        "summary": "恒星黄道盘",
+        "description": "计算恒星黄道星盘，用于印度占星。包含27宿（Nakshatra）信息。可选择不同的岁差（Ayanamsa）系统。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["latitude", "longitude", "jd_ut"],
+                "properties": {
+                  "latitude": {
+                    "type": "number"
+                  },
+                  "longitude": {
+                    "type": "number"
+                  },
+                  "jd_ut": {
+                    "type": "number"
+                  },
+                  "ayanamsa": {
+                    "$ref": "#/components/schemas/Ayanamsa"
+                  },
+                  "format": {
+                    "type": "string",
+                    "enum": ["json", "csv"]
+                  }
+                }
+              },
+              "example": {
+                "latitude": 39.9042,
+                "longitude": 116.4074,
+                "jd_ut": 2447912.9375,
+                "ayanamsa": "LAHIRI"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "恒星黄道盘计算结果，包含行星位置和27宿信息"
+          }
+        }
+      }
+    },
+    "/api/v1/chart/divisional": {
+      "post": {
+        "tags": ["Charts"],
+        "summary": "分盘（Varga）",
+        "description": "计算印度占星的分盘，用于分析特定生活领域。如 D9（Navamsa）看婚姻，D10（Dasamsa）看事业等。支持 D1-D60 共16种分盘。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["latitude", "longitude", "jd_ut", "varga"],
+                "properties": {
+                  "latitude": {
+                    "type": "number"
+                  },
+                  "longitude": {
+                    "type": "number"
+                  },
+                  "jd_ut": {
+                    "type": "number"
+                  },
+                  "varga": {
+                    "type": "string",
+                    "description": "分盘类型：D1(Rasi)、D2(Hora)、D3(Drekkana)、D4(Chaturthamsa)、D7(Saptamsa)、D9(Navamsa)、D10(Dasamsa)、D12(Dwadamsa)、D16(Shodamsa)、D20(Vimsamsa)、D24(Chaturvimsamsa)、D27(Bhamsa)、D30(Trimsamsa)、D40(Khavedamsa)、D45(Akshavedamsa)、D60(Shastyamsa)",
+                    "enum": ["D1", "D2", "D3", "D4", "D7", "D9", "D10", "D12", "D16", "D20", "D24", "D27", "D30", "D40", "D45", "D60"],
+                    "default": "D9"
+                  },
+                  "ayanamsa": {
+                    "type": "string",
+                    "default": "LAHIRI"
+                  }
+                }
+              },
+              "example": {
+                "latitude": 39.9042,
+                "longitude": 116.4074,
+                "jd_ut": 2447912.9375,
+                "varga": "D9"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "分盘计算结果"
+          }
+        }
+      }
+    },
+    "/api/v1/chart/wheel": {
+      "post": {
+        "tags": ["Charts"],
+        "summary": "星盘轮坐标",
+        "description": "计算星盘轮的绘制坐标，用于可视化展示。返回行星、宫位边界、星座分段等在圆盘上的位置信息。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["latitude", "longitude", "jd_ut"],
+                "properties": {
+                  "latitude": {
+                    "type": "number"
+                  },
+                  "longitude": {
+                    "type": "number"
+                  },
+                  "jd_ut": {
+                    "type": "number"
+                  },
+                  "planets": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/PlanetID"
+                    }
+                  },
+                  "house_system": {
+                    "$ref": "#/components/schemas/HouseSystem"
+                  },
+                  "radius": {
+                    "type": "number",
+                    "description": "星盘轮半径（像素）",
+                    "default": 200
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "星盘轮坐标数据"
+          }
+        }
+      }
+    },
+    "/api/v1/transit": {
+      "post": {
+        "tags": ["Predictive"],
+        "summary": "行运事件计算",
+        "description": "计算指定时间范围内的所有行运事件，包括行运与本命相位、行运与行运相位、次限推运、太阳弧等。可配置要包含的事件类型。\n\n支持的事件类型：\n- Tr-Na：行运与本命相位\n- Tr-Tr：行运与行运相位\n- Tr-Sp：行运与次限推运相位\n- Tr-Sa：行运与太阳弧相位\n- Sp-Na：次限推运与本命相位\n- Sa-Na：太阳弧与本命相位\n- Sign Ingress：入星座\n- House Ingress：入宫\n- Station：顺逆行站\n- Void of Course：月亮空亡",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["natal_latitude", "natal_longitude", "natal_jd_ut", "start_jd_ut", "end_jd_ut"],
+                "properties": {
+                  "natal_latitude": {
+                    "type": "number",
+                    "description": "本命盘纬度"
+                  },
+                  "natal_longitude": {
+                    "type": "number",
+                    "description": "本命盘经度"
+                  },
+                  "natal_jd_ut": {
+                    "type": "number",
+                    "description": "本命盘出生时间 Julian Day"
+                  },
+                  "natal_planets": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/PlanetID"
+                    },
+                    "description": "本命盘行星列表"
+                  },
+                  "transit_latitude": {
+                    "type": "number",
+                    "description": "行运参考地点纬度，默认与本命盘相同"
+                  },
+                  "transit_longitude": {
+                    "type": "number",
+                    "description": "行运参考地点经度，默认与本命盘相同"
+                  },
+                  "start_jd_ut": {
+                    "type": "number",
+                    "description": "行运开始时间 Julian Day"
+                  },
+                  "end_jd_ut": {
+                    "type": "number",
+                    "description": "行运结束时间 Julian Day"
+                  },
+                  "transit_planets": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/PlanetID"
+                    },
+                    "description": "行运行星列表"
+                  },
+                  "progressions_config": {
+                    "$ref": "#/components/schemas/ProgressionsConfig"
+                  },
+                  "solar_arc_config": {
+                    "$ref": "#/components/schemas/SolarArcConfig"
+                  },
+                  "special_points": {
+                    "$ref": "#/components/schemas/SpecialPointsConfig"
+                  },
+                  "event_config": {
+                    "$ref": "#/components/schemas/EventConfig"
+                  },
+                  "house_system": {
+                    "$ref": "#/components/schemas/HouseSystem"
+                  },
+                  "orb_config": {
+                    "$ref": "#/components/schemas/OrbConfig"
+                  },
+                  "timezone": {
+                    "type": "string",
+                    "default": "UTC",
+                    "description": "输出时间使用的时区"
+                  },
+                  "format": {
+                    "type": "string",
+                    "enum": ["json", "csv"]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "行运事件列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "events": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/TransitEvent"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/progressions": {
+      "post": {
+        "tags": ["Predictive"],
+        "summary": "次限推运",
+        "description": "计算次限推运（Secondary Progressions）。次限推运是一种预测技术，基于「一天等于一年」的原则，将出生后天数映射为年龄。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["natal_jd_ut", "transit_jd_ut"],
+                "properties": {
+                  "natal_jd_ut": {
+                    "type": "number",
+                    "description": "出生时间 Julian Day"
+                  },
+                  "transit_jd_ut": {
+                    "type": "number",
+                    "description": "当前/目标时间 Julian Day"
+                  },
+                  "planets": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/PlanetID"
+                    }
+                  },
+                  "format": {
+                    "type": "string",
+                    "enum": ["json", "csv"]
+                  }
+                }
+              },
+              "example": {
+                "natal_jd_ut": 2447912.9375,
+                "transit_jd_ut": 2460462.5
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "次限推运行星位置，包含年龄信息"
+          }
+        }
+      }
+    },
+    "/api/v1/solar-arc": {
+      "post": {
+        "tags": ["Predictive"],
+        "summary": "太阳弧推运",
+        "description": "计算太阳弧方向。太阳弧是一种预测技术，将所有本命行星按太阳移动的弧度等量推进。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["natal_jd_ut", "transit_jd_ut"],
+                "properties": {
+                  "natal_jd_ut": {
+                    "type": "number",
+                    "description": "出生时间 Julian Day"
+                  },
+                  "transit_jd_ut": {
+                    "type": "number",
+                    "description": "当前/目标时间 Julian Day"
+                  },
+                  "planets": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/PlanetID"
+                    }
+                  },
+                  "format": {
+                    "type": "string",
+                    "enum": ["json", "csv"]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "太阳弧行星位置，包含太阳弧偏移量"
+          }
+        }
+      }
+    },
+    "/api/v1/primary-directions": {
+      "post": {
+        "tags": ["Predictive"],
+        "summary": "主限向运",
+        "description": "计算主限方向。主限向运是古典占星最重要的预测技术之一，基于地球自转计算行星到达四轴或形成相位的时间。使用 Ptolemy 半弧法和 Naibod 密钥。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["latitude", "longitude", "natal_jd_ut"],
+                "properties": {
+                  "latitude": {
+                    "type": "number",
+                    "description": "出生地纬度"
+                  },
+                  "longitude": {
+                    "type": "number",
+                    "description": "出生地经度"
+                  },
+                  "natal_jd_ut": {
+                    "type": "number",
+                    "description": "出生时间 Julian Day"
+                  },
+                  "planets": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/PlanetID"
+                    }
+                  },
+                  "aspects": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/AspectType"
+                    },
+                    "description": "要计算的相位类型"
+                  },
+                  "direction_key": {
+                    "type": "string",
+                    "enum": ["NAIBOD", "PLACIDUS", "REGIOMONTANUS"],
+                    "default": "NAIBOD",
+                    "description": "方向密钥类型"
+                  },
+                  "max_age": {
+                    "type": "number",
+                    "default": 100,
+                    "description": "计算的最大年龄"
+                  },
+                  "house_system": {
+                    "$ref": "#/components/schemas/HouseSystem"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "主限向运事件列表"
+          }
+        }
+      }
+    },
+    "/api/v1/symbolic-directions": {
+      "post": {
+        "tags": ["Predictive"],
+        "summary": "象征向运",
+        "description": "计算象征向运。象征向运是一种简化的预测技术，按固定速率（如每年1度、Naibod速率等）推进行星。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["latitude", "longitude", "natal_jd_ut", "age"],
+                "properties": {
+                  "latitude": {
+                    "type": "number"
+                  },
+                  "longitude": {
+                    "type": "number"
+                  },
+                  "natal_jd_ut": {
+                    "type": "number"
+                  },
+                  "age": {
+                    "type": "number",
+                    "description": "要计算的年龄"
+                  },
+                  "method": {
+                    "type": "string",
+                    "enum": ["ONE_DEGREE", "NAIBOD", "PROFECTION", "CUSTOM"],
+                    "default": "ONE_DEGREE",
+                    "description": "推进方法：ONE_DEGREE（每年1度）、NAIBOD（Naibod速率约0.9856度/年）、PROFECTION（小限法）、CUSTOM（自定义速率）"
+                  },
+                  "custom_rate": {
+                    "type": "number",
+                    "description": "自定义推进速率（度/年），仅在 method 为 CUSTOM 时有效"
+                  },
+                  "planets": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/PlanetID"
+                    }
+                  },
+                  "house_system": {
+                    "$ref": "#/components/schemas/HouseSystem"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "象征向运结果"
+          }
+        }
+      }
+    },
+    "/api/v1/solar-return": {
+      "post": {
+        "tags": ["Predictive"],
+        "summary": "太阳返照盘",
+        "description": "计算太阳返照盘。太阳返照盘是太阳回到本命位置的时刻的星盘，常用于预测未来一年的运势。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["natal_jd_ut", "natal_latitude", "natal_longitude", "search_jd_ut"],
+                "properties": {
+                  "natal_jd_ut": {
+                    "type": "number",
+                    "description": "出生时间 Julian Day"
+                  },
+                  "natal_latitude": {
+                    "type": "number",
+                    "description": "出生地纬度"
+                  },
+                  "natal_longitude": {
+                    "type": "number",
+                    "description": "出生地经度"
+                  },
+                  "search_jd_ut": {
+                    "type": "number",
+                    "description": "搜索起始时间 Julian Day"
+                  },
+                  "planets": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/PlanetID"
+                    }
+                  },
+                  "house_system": {
+                    "$ref": "#/components/schemas/HouseSystem"
+                  },
+                  "count": {
+                    "type": "integer",
+                    "default": 1,
+                    "description": "要计算的返照盘数量，大于1时返回连续多年的返照盘"
+                  },
+                  "format": {
+                    "type": "string",
+                    "enum": ["json", "csv"]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "太阳返照盘信息"
+          }
+        }
+      }
+    },
+    "/api/v1/lunar-return": {
+      "post": {
+        "tags": ["Predictive"],
+        "summary": "月亮返照盘",
+        "description": "计算月亮返照盘。月亮返照盘是月亮回到本命位置的时刻的星盘，常用于预测未来一个月的运势。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["natal_jd_ut", "natal_latitude", "natal_longitude", "search_jd_ut"],
+                "properties": {
+                  "natal_jd_ut": {
+                    "type": "number",
+                    "description": "出生时间 Julian Day"
+                  },
+                  "natal_latitude": {
+                    "type": "number",
+                    "description": "出生地纬度"
+                  },
+                  "natal_longitude": {
+                    "type": "number",
+                    "description": "出生地经度"
+                  },
+                  "search_jd_ut": {
+                    "type": "number",
+                    "description": "搜索起始时间 Julian Day"
+                  },
+                  "planets": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/PlanetID"
+                    }
+                  },
+                  "house_system": {
+                    "$ref": "#/components/schemas/HouseSystem"
+                  },
+                  "count": {
+                    "type": "integer",
+                    "default": 1,
+                    "description": "要计算的返照盘数量"
+                  },
+                  "format": {
+                    "type": "string",
+                    "enum": ["json", "csv"]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "月亮返照盘信息"
+          }
+        }
+      }
+    },
+    "/api/v1/dignity": {
+      "post": {
+        "tags": ["Traditional"],
+        "summary": "庙旺落陷",
+        "description": "计算行星的庙旺落陷等必然尊贵。包括入庙、旺相、三分、界、面，以及失势、落陷等状态。还包括行星间的互容关系和昼夜区分信息。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["latitude", "longitude", "jd_ut"],
+                "properties": {
+                  "latitude": {
+                    "type": "number"
+                  },
+                  "longitude": {
+                    "type": "number"
+                  },
+                  "jd_ut": {
+                    "type": "number"
+                  },
+                  "planets": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/PlanetID"
+                    }
+                  },
+                  "house_system": {
+                    "$ref": "#/components/schemas/HouseSystem"
+                  },
+                  "format": {
+                    "type": "string",
+                    "enum": ["json", "csv"]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "庙旺落陷信息，包括必然尊贵、互容、昼夜区分"
+          }
+        }
+      }
+    },
+    "/api/v1/bonification": {
+      "post": {
+        "tags": ["Traditional"],
+        "summary": "吉凶判断",
+        "description": "计算行星的吉化与凶化状态。基于传统占星理论，判断行星是否受到吉星或凶星的影响。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["latitude", "longitude", "jd_ut"],
+                "properties": {
+                  "latitude": {
+                    "type": "number"
+                  },
+                  "longitude": {
+                    "type": "number"
+                  },
+                  "jd_ut": {
+                    "type": "number"
+                  },
+                  "planets": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/PlanetID"
+                    }
+                  },
+                  "house_system": {
+                    "$ref": "#/components/schemas/HouseSystem"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "行星吉凶判断结果"
+          }
+        }
+      }
+    },
+    "/api/v1/dispositors": {
+      "post": {
+        "tags": ["Traditional"],
+        "summary": "守护星链",
+        "description": "计算行星的守护星链和最终守护星。通过追踪每颗行星所在星座的守护星，形成守护关系链。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["latitude", "longitude", "jd_ut"],
+                "properties": {
+                  "latitude": {
+                    "type": "number"
+                  },
+                  "longitude": {
+                    "type": "number"
+                  },
+                  "jd_ut": {
+                    "type": "number"
+                  },
+                  "planets": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/PlanetID"
+                    }
+                  },
+                  "house_system": {
+                    "$ref": "#/components/schemas/HouseSystem"
+                  },
+                  "traditional": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "是否使用传统守护星（不含三王星）"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "守护星链信息"
+          }
+        }
+      }
+    },
+    "/api/v1/profection": {
+      "post": {
+        "tags": ["Traditional"],
+        "summary": "小限法",
+        "description": "计算年度小限法。小限法是一种古老的预测技术，每年对应一个宫位和守护星。还可以计算月份小限。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["latitude", "longitude", "natal_jd_ut", "age"],
+                "properties": {
+                  "latitude": {
+                    "type": "number"
+                  },
+                  "longitude": {
+                    "type": "number"
+                  },
+                  "natal_jd_ut": {
+                    "type": "number",
+                    "description": "出生时间 Julian Day"
+                  },
+                  "age": {
+                    "type": "integer",
+                    "description": "当前年龄"
+                  },
+                  "house_system": {
+                    "$ref": "#/components/schemas/HouseSystem"
+                  },
+                  "include_monthly": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "是否包含月份小限"
+                  },
+                  "start_age": {
+                    "type": "integer",
+                    "description": "时间线起始年龄"
+                  },
+                  "end_age": {
+                    "type": "integer",
+                    "description": "时间线结束年龄"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "小限法结果，包含年度宫位、守护星等信息"
+          }
+        }
+      }
+    },
+    "/api/v1/firdaria": {
+      "post": {
+        "tags": ["Traditional"],
+        "summary": "Firdaria 行星周期",
+        "description": "计算 Firdaria 行星周期系统。Firdaria 是波斯占星的行星周期系统，将人生分配给不同行星掌管。昼夜出生的周期顺序不同。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["is_day_birth", "age"],
+                "properties": {
+                  "is_day_birth": {
+                    "type": "boolean",
+                    "description": "是否白天出生（太阳在地平线上）"
+                  },
+                  "age": {
+                    "type": "number",
+                    "description": "当前年龄"
+                  },
+                  "start_age": {
+                    "type": "number",
+                    "description": "时间线起始年龄"
+                  },
+                  "end_age": {
+                    "type": "number",
+                    "description": "时间线结束年龄"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Firdaria 周期信息"
+          }
+        }
+      }
+    },
+    "/api/v1/lots": {
+      "post": {
+        "tags": ["Traditional"],
+        "summary": "阿拉伯点",
+        "description": "计算阿拉伯点，也称希腊点或命运点。包括福点、精神点、爱神点、婚姻点等15个以上的阿拉伯点。日夜盘计算公式自动切换。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["latitude", "longitude", "jd_ut"],
+                "properties": {
+                  "latitude": {
+                    "type": "number"
+                  },
+                  "longitude": {
+                    "type": "number"
+                  },
+                  "jd_ut": {
+                    "type": "number"
+                  },
+                  "planets": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/PlanetID"
+                    }
+                  },
+                  "house_system": {
+                    "$ref": "#/components/schemas/HouseSystem"
+                  },
+                  "format": {
+                    "type": "string",
+                    "enum": ["json", "csv"]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "阿拉伯点列表及其位置"
+          }
+        }
+      }
+    },
+    "/api/v1/bounds": {
+      "post": {
+        "tags": ["Traditional"],
+        "summary": "界",
+        "description": "计算行星所在的界。界是必然尊贵的一种，将每个星座分为五个不等部分，由不同行星守护。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["latitude", "longitude", "jd_ut"],
+                "properties": {
+                  "latitude": {
+                    "type": "number"
+                  },
+                  "longitude": {
+                    "type": "number"
+                  },
+                  "jd_ut": {
+                    "type": "number"
+                  },
+                  "planets": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/PlanetID"
+                    }
+                  },
+                  "house_system": {
+                    "$ref": "#/components/schemas/HouseSystem"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "行星界信息"
+          }
+        }
+      }
+    },
+    "/api/v1/antiscia": {
+      "post": {
+        "tags": ["Traditional"],
+        "summary": "映点",
+        "description": "计算行星的映点。映点是行星在至点或分点轴线的镜像点，常用于发现隐藏的联系。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["latitude", "longitude", "jd_ut"],
+                "properties": {
+                  "latitude": {
+                    "type": "number"
+                  },
+                  "longitude": {
+                    "type": "number"
+                  },
+                  "jd_ut": {
+                    "type": "number"
+                  },
+                  "planets": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/PlanetID"
+                    }
+                  },
+                  "house_system": {
+                    "$ref": "#/components/schemas/HouseSystem"
+                  },
+                  "orb": {
+                    "type": "number",
+                    "description": "判断映点相位的容许度"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "映点位置和映点相位对"
+          }
+        }
+      }
+    },
+    "/api/v1/planetary-hours": {
+      "post": {
+        "tags": ["Traditional"],
+        "summary": "行星时",
+        "description": "计算指定日期的行星时。行星时是传统占星的时间系统，将白天和黑夜各分为12段，每段由一个行星掌管。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["latitude", "longitude", "jd_ut"],
+                "properties": {
+                  "latitude": {
+                    "type": "number"
+                  },
+                  "longitude": {
+                    "type": "number"
+                  },
+                  "jd_ut": {
+                    "type": "number",
+                    "description": "日期 Julian Day"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "当日行星时列表"
+          }
+        }
+      }
+    },
+    "/api/v1/heliacal": {
+      "post": {
+        "tags": ["Traditional"],
+        "summary": "偕日升落",
+        "description": "计算行星的偕日升落事件。偕日升落是指行星首次在日出前可见（晨星）或日落后可见（昏星）的时刻。使用瑞士星历表的可见性算法。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["latitude", "longitude", "altitude", "start_jd_ut", "end_jd_ut"],
+                "properties": {
+                  "latitude": {
+                    "type": "number",
+                    "description": "观测地纬度"
+                  },
+                  "longitude": {
+                    "type": "number",
+                    "description": "观测地经度"
+                  },
+                  "altitude": {
+                    "type": "number",
+                    "description": "观测地海拔高度（米）"
+                  },
+                  "start_jd_ut": {
+                    "type": "number",
+                    "description": "搜索起始时间 Julian Day"
+                  },
+                  "end_jd_ut": {
+                    "type": "number",
+                    "description": "搜索结束时间 Julian Day"
+                  },
+                  "planets": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/PlanetID"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "偕日升落事件列表"
+          }
+        }
+      }
+    },
+    "/api/v1/aspects/patterns": {
+      "post": {
+        "tags": ["Analysis"],
+        "summary": "相位模式",
+        "description": "检测星盘中的相位模式，如大三角、T三角、大十字、风筝、上帝手指等。相位模式是多颗行星形成的特定几何结构。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["latitude", "longitude", "jd_ut"],
+                "properties": {
+                  "latitude": {
+                    "type": "number"
+                  },
+                  "longitude": {
+                    "type": "number"
+                  },
+                  "jd_ut": {
+                    "type": "number"
+                  },
+                  "planets": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/PlanetID"
+                    }
+                  },
+                  "house_system": {
+                    "$ref": "#/components/schemas/HouseSystem"
+                  },
+                  "orb_config": {
+                    "$ref": "#/components/schemas/OrbConfig"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "检测到的相位模式列表"
+          }
+        }
+      }
+    },
+    "/api/v1/fixed-stars": {
+      "post": {
+        "tags": ["Analysis"],
+        "summary": "恒星合相",
+        "description": "查找与行星合相的恒星。包含50多颗传统占星常用恒星的目录，如心宿二、轩辕十四、角宿一、毕宿五等。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["latitude", "longitude", "jd_ut"],
+                "properties": {
+                  "latitude": {
+                    "type": "number"
+                  },
+                  "longitude": {
+                    "type": "number"
+                  },
+                  "jd_ut": {
+                    "type": "number"
+                  },
+                  "planets": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/PlanetID"
+                    }
+                  },
+                  "house_system": {
+                    "$ref": "#/components/schemas/HouseSystem"
+                  },
+                  "orb": {
+                    "type": "number",
+                    "default": 1.5,
+                    "description": "合相容许度（度）"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "恒星合相列表"
+          }
+        }
+      }
+    },
+    "/api/v1/midpoints": {
+      "post": {
+        "tags": ["Analysis"],
+        "summary": "中点",
+        "description": "计算行星对的中点和直接/间接中点树。中点分析是现代占星的重要技术，用于发现隐藏的连接。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["latitude", "longitude", "jd_ut"],
+                "properties": {
+                  "latitude": {
+                    "type": "number"
+                  },
+                  "longitude": {
+                    "type": "number"
+                  },
+                  "jd_ut": {
+                    "type": "number"
+                  },
+                  "planets": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/PlanetID"
+                    }
+                  },
+                  "house_system": {
+                    "$ref": "#/components/schemas/HouseSystem"
+                  },
+                  "orb": {
+                    "type": "number",
+                    "description": "中点激活的容许度"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "中点树结构"
+          }
+        }
+      }
+    },
+    "/api/v1/synastry": {
+      "post": {
+        "tags": ["Analysis"],
+        "summary": "配对评分",
+        "description": "计算两个星盘的配对兼容性评分。基于相位分析、元素平衡、极性平衡等多个维度进行综合评估。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["person1_latitude", "person1_longitude", "person1_jd_ut", "person2_latitude", "person2_longitude", "person2_jd_ut"],
+                "properties": {
+                  "person1_latitude": {
+                    "type": "number"
+                  },
+                  "person1_longitude": {
+                    "type": "number"
+                  },
+                  "person1_jd_ut": {
+                    "type": "number"
+                  },
+                  "person2_latitude": {
+                    "type": "number"
+                  },
+                  "person2_longitude": {
+                    "type": "number"
+                  },
+                  "person2_jd_ut": {
+                    "type": "number"
+                  },
+                  "planets": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/PlanetID"
+                    }
+                  },
+                  "house_system": {
+                    "$ref": "#/components/schemas/HouseSystem"
+                  },
+                  "orb_config": {
+                    "$ref": "#/components/schemas/OrbConfig"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "配对评分结果"
+          }
+        }
+      }
+    },
+    "/api/v1/vedic/dasha": {
+      "post": {
+        "tags": ["Vedic"],
+        "summary": "Vimshottari 大运",
+        "description": "计算 Vimshottari Dasha 大运系统。这是印度占星最重要的周期系统，基于月亮所在宿度分配不同的行星周期。总周期120年。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["latitude", "longitude", "jd_ut"],
+                "properties": {
+                  "latitude": {
+                    "type": "number"
+                  },
+                  "longitude": {
+                    "type": "number"
+                  },
+                  "jd_ut": {
+                    "type": "number"
+                  },
+                  "ayanamsa": {
+                    "$ref": "#/components/schemas/Ayanamsa"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Vimshottari 大运周期列表"
+          }
+        }
+      }
+    },
+    "/api/v1/vedic/ashtakavarga": {
+      "post": {
+        "tags": ["Vedic"],
+        "summary": "Ashtakavarga",
+        "description": "计算 Ashtakavarga 系统。Ashtakavarga 是印度占星的强度评估系统，通过计算每个宫位从各行星获得的 bindu（吉点）数量来评估。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["latitude", "longitude", "jd_ut"],
+                "properties": {
+                  "latitude": {
+                    "type": "number"
+                  },
+                  "longitude": {
+                    "type": "number"
+                  },
+                  "jd_ut": {
+                    "type": "number"
+                  },
+                  "ayanamsa": {
+                    "type": "string",
+                    "default": "LAHIRI"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Ashtakavarga 表格和 Sarvashtakavarga 总分"
+          }
+        }
+      }
+    },
+    "/api/v1/vedic/yogas": {
+      "post": {
+        "tags": ["Vedic"],
+        "summary": "瑜伽检测",
+        "description": "检测星盘中的瑜伽。瑜伽是印度占星中的特定行星组合，如大王瑜伽、财瑜伽、象瑜伽等。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["latitude", "longitude", "jd_ut"],
+                "properties": {
+                  "latitude": {
+                    "type": "number"
+                  },
+                  "longitude": {
+                    "type": "number"
+                  },
+                  "jd_ut": {
+                    "type": "number"
+                  },
+                  "ayanamsa": {
+                    "type": "string",
+                    "default": "LAHIRI"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "检测到的瑜伽列表"
+          }
+        }
+      }
+    },
+    "/api/v1/lunar/phase": {
+      "post": {
+        "tags": ["Lunar"],
+        "summary": "月相计算",
+        "description": "计算指定时刻的月相。包括月相名称（新月、上弦月、满月、下弦月等）、亮度百分比、日月角距等信息。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["jd_ut"],
+                "properties": {
+                  "jd_ut": {
+                    "type": "number",
+                    "description": "Julian Day"
+                  }
+                }
+              },
+              "example": {
+                "jd_ut": 2460462.5
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "月相信息"
+          }
+        }
+      }
+    },
+    "/api/v1/lunar/phases": {
+      "post": {
+        "tags": ["Lunar"],
+        "summary": "月相周期",
+        "description": "查找指定时间范围内的所有月相事件（新月、上弦月、满月、下弦月）。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["start_jd_ut", "end_jd_ut"],
+                "properties": {
+                  "start_jd_ut": {
+                    "type": "number",
+                    "description": "开始时间 Julian Day"
+                  },
+                  "end_jd_ut": {
+                    "type": "number",
+                    "description": "结束时间 Julian Day"
+                  },
+                  "format": {
+                    "type": "string",
+                    "enum": ["json", "csv"]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "月相事件列表"
+          }
+        }
+      }
+    },
+    "/api/v1/lunar/eclipses": {
+      "post": {
+        "tags": ["Lunar"],
+        "summary": "日月食",
+        "description": "查找指定时间范围内的所有日月食事件。包括日食和月食的类型、时间、可见区域等信息。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["start_jd_ut", "end_jd_ut"],
+                "properties": {
+                  "start_jd_ut": {
+                    "type": "number",
+                    "description": "开始时间 Julian Day"
+                  },
+                  "end_jd_ut": {
+                    "type": "number",
+                    "description": "结束时间 Julian Day"
+                  },
+                  "format": {
+                    "type": "string",
+                    "enum": ["json", "csv"]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "日月食事件列表"
+          }
+        }
+      }
+    },
+    "/api/v1/report/natal": {
+      "post": {
+        "tags": ["Report"],
+        "summary": "本命盘综合报告",
+        "description": "生成完整的本命盘综合分析报告，包含行星位置、宫位、相位、庙旺落陷、守护星链、小限法、阿拉伯点等多个维度的分析。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["latitude", "longitude", "jd_ut"],
+                "properties": {
+                  "latitude": {
+                    "type": "number"
+                  },
+                  "longitude": {
+                    "type": "number"
+                  },
+                  "jd_ut": {
+                    "type": "number"
+                  }
+                }
+              },
+              "example": {
+                "latitude": 39.9042,
+                "longitude": 116.4074,
+                "jd_ut": 2447912.9375
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "综合分析报告"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "ApiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key",
+        "description": "API 密钥认证。如果服务器配置了 API 密钥，则所有请求都必须包含有效的密钥。"
+      }
+    },
+    "schemas": {
+      "PlanetID": {
+        "type": "string",
+        "enum": [
+          "SUN",
+          "MOON",
+          "MERCURY",
+          "VENUS",
+          "MARS",
+          "JUPITER",
+          "SATURN",
+          "URANUS",
+          "NEPTUNE",
+          "PLUTO",
+          "CHIRON",
+          "NORTH_NODE_TRUE",
+          "NORTH_NODE_MEAN",
+          "SOUTH_NODE",
+          "LILITH_MEAN",
+          "LILITH_TRUE"
+        ],
+        "description": "行星标识符。支持十大行星、凯龙星、南北交点、莉莉丝等。",
+        "example": "SUN"
+      },
+      "HouseSystem": {
+        "type": "string",
+        "enum": [
+          "PLACIDUS",
+          "KOCH",
+          "EQUAL",
+          "WHOLE_SIGN",
+          "CAMPANUS",
+          "REGIOMONTANUS",
+          "PORPHYRY",
+          "MORINUS",
+          "TOPOCENTRIC",
+          "ALCABITIUS",
+          "MERIDIAN",
+          "SRIPATI"
+        ],
+        "default": "PLACIDUS",
+        "description": "宫位制类型。常用：PLACIDUS（普拉西德）、WHOLE_SIGN（整宫制）、EQUAL（等宫制）。",
+        "example": "PLACIDUS"
+      },
+      "AspectType": {
+        "type": "string",
+        "enum": [
+          "Conjunction",
+          "Opposition",
+          "Trine",
+          "Square",
+          "Sextile",
+          "Quincunx",
+          "Semi-Sextile",
+          "Semi-Square",
+          "Sesquiquadrate"
+        ],
+        "description": "相位类型。合相(0°)、冲相(180°)、三合(120°)、刑相(90°)、六合(60°)等。",
+        "example": "Conjunction"
+      },
+      "Ayanamsa": {
+        "type": "string",
+        "enum": [
+          "LAHIRI",
+          "RAMAN",
+          "KP",
+          "YUKTESHWAR",
+          "JN_BHASIN",
+          "BABYLONIAN",
+          "HIPPARCHUS",
+          "SASSANIAN",
+          "TRUE_CITRA",
+          "TRUE_REVATI",
+          "TRUE_PUSHYA"
+        ],
+        "default": "LAHIRI",
+        "description": "岁差系统。印度占星常用的岁差计算方法，Lahiri 是最常用的。",
+        "example": "LAHIRI"
+      },
+      "OrbConfig": {
+        "type": "object",
+        "description": "相位容许度配置。可自定义每种相位的入相位和出相位容许度。",
+        "properties": {
+          "definitions": {
+            "type": "array",
+            "description": "相位定义列表，包含角度和容许度",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "相位名称"
+                },
+                "angle": {
+                  "type": "number",
+                  "description": "相位角度"
+                },
+                "entering_orb": {
+                  "type": "number",
+                  "description": "入相位容许度"
+                },
+                "exiting_orb": {
+                  "type": "number",
+                  "description": "出相位容许度"
+                },
+                "enabled": {
+                  "type": "boolean",
+                  "description": "是否启用此相位"
+                }
+              }
+            }
+          },
+          "conjunction": {
+            "type": "number",
+            "description": "合相容许度（遗留字段）"
+          },
+          "opposition": {
+            "type": "number",
+            "description": "冲相容许度"
+          },
+          "trine": {
+            "type": "number",
+            "description": "三合容许度"
+          },
+          "square": {
+            "type": "number",
+            "description": "刑相容许度"
+          },
+          "sextile": {
+            "type": "number",
+            "description": "六合容许度"
+          }
+        }
+      },
+      "SpecialPointsConfig": {
+        "type": "object",
+        "description": "特殊点配置，用于指定要包含的特殊点（如四轴、阿拉伯点等）。",
+        "properties": {
+          "inner_points": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["ASC", "MC", "DSC", "IC", "VERTEX", "ANTI_VERTEX", "EAST_POINT", "LOT_FORTUNE", "LOT_SPIRIT"]
+            }
+          },
+          "outer_points": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["ASC", "MC", "DSC", "IC", "VERTEX", "ANTI_VERTEX", "EAST_POINT", "LOT_FORTUNE", "LOT_SPIRIT"]
+            }
+          },
+          "natal_points": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "transit_points": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "EventConfig": {
+        "type": "object",
+        "description": "行运事件类型配置。用于指定要计算的行运事件类型。",
+        "properties": {
+          "include_tr_na": {
+            "type": "boolean",
+            "default": true,
+            "description": "包含行运-本命相位事件"
+          },
+          "include_tr_tr": {
+            "type": "boolean",
+            "default": true,
+            "description": "包含行运-行运相位事件"
+          },
+          "include_tr_sp": {
+            "type": "boolean",
+            "default": true,
+            "description": "包含行运-次限推运相位事件"
+          },
+          "include_tr_sa": {
+            "type": "boolean",
+            "default": true,
+            "description": "包含行运-太阳弧相位事件"
+          },
+          "include_sp_na": {
+            "type": "boolean",
+            "default": true,
+            "description": "包含次限推运-本命相位事件"
+          },
+          "include_sp_sp": {
+            "type": "boolean",
+            "default": true,
+            "description": "包含次限推运-次限推运相位事件"
+          },
+          "include_sa_na": {
+            "type": "boolean",
+            "default": true,
+            "description": "包含太阳弧-本命相位事件"
+          },
+          "include_sign_ingress": {
+            "type": "boolean",
+            "default": true,
+            "description": "包含入星座事件"
+          },
+          "include_house_ingress": {
+            "type": "boolean",
+            "default": true,
+            "description": "包含入宫事件"
+          },
+          "include_station": {
+            "type": "boolean",
+            "default": true,
+            "description": "包含顺逆行站事件"
+          },
+          "include_void_of_course": {
+            "type": "boolean",
+            "default": true,
+            "description": "包含月亮空亡事件"
+          }
+        }
+      },
+      "ProgressionsConfig": {
+        "type": "object",
+        "description": "次限推运配置",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "default": false,
+            "description": "是否启用次限推运计算"
+          },
+          "planets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlanetID"
+            },
+            "description": "要计算的推运行星列表"
+          }
+        }
+      },
+      "SolarArcConfig": {
+        "type": "object",
+        "description": "太阳弧配置",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "default": false,
+            "description": "是否启用太阳弧计算"
+          },
+          "planets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlanetID"
+            },
+            "description": "要计算的太阳弧行星列表"
+          }
+        }
+      },
+      "GeoLocation": {
+        "type": "object",
+        "description": "地理位置信息",
+        "properties": {
+          "latitude": {
+            "type": "number",
+            "description": "纬度，北纬为正"
+          },
+          "longitude": {
+            "type": "number",
+            "description": "经度，东经为正"
+          },
+          "timezone": {
+            "type": "string",
+            "description": "时区"
+          },
+          "display_name": {
+            "type": "string",
+            "description": "显示名称"
+          }
+        }
+      },
+      "JulianDayResult": {
+        "type": "object",
+        "description": "儒略日转换结果",
+        "properties": {
+          "jd_ut": {
+            "type": "number",
+            "description": "世界时儒略日"
+          },
+          "jd_tt": {
+            "type": "number",
+            "description": "动力学时儒略日"
+          }
+        }
+      },
+      "PlanetPosition": {
+        "type": "object",
+        "description": "行星位置信息",
+        "properties": {
+          "planet_id": {
+            "$ref": "#/components/schemas/PlanetID"
+          },
+          "longitude": {
+            "type": "number",
+            "description": "黄道经度（0-360度）"
+          },
+          "latitude": {
+            "type": "number",
+            "description": "黄道纬度"
+          },
+          "speed": {
+            "type": "number",
+            "description": "每日移动速度，负值表示逆行"
+          },
+          "is_retrograde": {
+            "type": "boolean",
+            "description": "是否逆行"
+          },
+          "sign": {
+            "type": "string",
+            "description": "所在星座"
+          },
+          "sign_degree": {
+            "type": "number",
+            "description": "星座内度数（0-30度）"
+          },
+          "house": {
+            "type": "integer",
+            "description": "所在宫位（1-12）"
+          }
+        }
+      },
+      "AnglesInfo": {
+        "type": "object",
+        "description": "四轴信息",
+        "properties": {
+          "asc": {
+            "type": "number",
+            "description": "上升点（ASC）经度"
+          },
+          "mc": {
+            "type": "number",
+            "description": "中天（MC）经度"
+          },
+          "dsc": {
+            "type": "number",
+            "description": "下降点（DSC）经度"
+          },
+          "ic": {
+            "type": "number",
+            "description": "天底（IC）经度"
+          }
+        }
+      },
+      "AspectInfo": {
+        "type": "object",
+        "description": "相位信息",
+        "properties": {
+          "planet_a": {
+            "type": "string",
+            "description": "第一颗行星"
+          },
+          "planet_b": {
+            "type": "string",
+            "description": "第二颗行星"
+          },
+          "aspect_type": {
+            "$ref": "#/components/schemas/AspectType"
+          },
+          "aspect_angle": {
+            "type": "number",
+            "description": "相位角度"
+          },
+          "actual_angle": {
+            "type": "number",
+            "description": "实际角度"
+          },
+          "orb": {
+            "type": "number",
+            "description": "容许度误差"
+          },
+          "is_applying": {
+            "type": "boolean",
+            "description": "是否入相位"
+          }
+        }
+      },
+      "CrossAspectInfo": {
+        "type": "object",
+        "description": "交叉相位信息（双人盘）",
+        "properties": {
+          "inner_body": {
+            "type": "string",
+            "description": "内盘天体"
+          },
+          "outer_body": {
+            "type": "string",
+            "description": "外盘天体"
+          },
+          "aspect_type": {
+            "$ref": "#/components/schemas/AspectType"
+          },
+          "aspect_angle": {
+            "type": "number"
+          },
+          "actual_angle": {
+            "type": "number"
+          },
+          "orb": {
+            "type": "number"
+          },
+          "is_applying": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ChartInfo": {
+        "type": "object",
+        "description": "完整星盘信息",
+        "properties": {
+          "planets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlanetPosition"
+            },
+            "description": "行星位置列表"
+          },
+          "houses": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "description": "宫位边界经度（12个值）"
+          },
+          "angles": {
+            "$ref": "#/components/schemas/AnglesInfo"
+          },
+          "aspects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AspectInfo"
+            },
+            "description": "相位列表"
+          }
+        }
+      },
+      "TransitEvent": {
+        "type": "object",
+        "description": "行运事件",
+        "properties": {
+          "event_type": {
+            "type": "string",
+            "enum": ["ASPECT_BEGIN", "ASPECT_ENTER", "ASPECT_EXACT", "ASPECT_LEAVE", "SIGN_INGRESS", "HOUSE_INGRESS", "STATION", "VOID_OF_COURSE"],
+            "description": "事件类型"
+          },
+          "chart_type": {
+            "type": "string",
+            "enum": ["TRANSIT", "NATAL", "PROGRESSIONS", "SOLAR_ARC"],
+            "description": "图表类型"
+          },
+          "planet": {
+            "$ref": "#/components/schemas/PlanetID"
+          },
+          "jd": {
+            "type": "number",
+            "description": "事件发生时间 Julian Day"
+          },
+          "age": {
+            "type": "number",
+            "description": "年龄（仅推运事件）"
+          },
+          "planet_longitude": {
+            "type": "number",
+            "description": "行星经度"
+          },
+          "planet_sign": {
+            "type": "string",
+            "description": "行星所在星座"
+          },
+          "planet_house": {
+            "type": "integer",
+            "description": "行星所在宫位"
+          },
+          "is_retrograde": {
+            "type": "boolean",
+            "description": "是否逆行"
+          },
+          "target_chart_type": {
+            "type": "string",
+            "description": "目标图表类型（相位事件）"
+          },
+          "target": {
+            "type": "string",
+            "description": "目标天体（相位事件）"
+          },
+          "target_longitude": {
+            "type": "number"
+          },
+          "target_sign": {
+            "type": "string"
+          },
+          "target_house": {
+            "type": "integer"
+          },
+          "target_is_retrograde": {
+            "type": "boolean"
+          },
+          "aspect_type": {
+            "$ref": "#/components/schemas/AspectType"
+          },
+          "aspect_angle": {
+            "type": "number"
+          },
+          "orb_at_enter": {
+            "type": "number",
+            "description": "入相位时的容许度"
+          },
+          "orb_at_leave": {
+            "type": "number",
+            "description": "出相位时的容许度"
+          },
+          "exact_count": {
+            "type": "integer",
+            "description": "精确相位次数"
+          },
+          "from_sign": {
+            "type": "string",
+            "description": "原星座（入星座事件）"
+          },
+          "to_sign": {
+            "type": "string",
+            "description": "目标星座（入星座事件）"
+          },
+          "from_house": {
+            "type": "integer",
+            "description": "原宫位（入宫事件）"
+          },
+          "to_house": {
+            "type": "integer",
+            "description": "目标宫位（入宫事件）"
+          },
+          "station_type": {
+            "type": "string",
+            "enum": ["RETROGRADE", "DIRECT"],
+            "description": "站类型（顺逆行站事件）"
+          },
+          "void_start_jd": {
+            "type": "number",
+            "description": "空亡开始时间（月亮空亡事件）"
+          },
+          "void_end_jd": {
+            "type": "number",
+            "description": "空亡结束时间（月亮空亡事件）"
+          },
+          "last_aspect_type": {
+            "type": "string",
+            "description": "最后相位类型（月亮空亡事件）"
+          },
+          "last_aspect_target": {
+            "type": "string",
+            "description": "最后相位目标（月亮空亡事件）"
+          },
+          "next_sign": {
+            "type": "string",
+            "description": "下一星座（月亮空亡事件）"
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "错误信息"
+          },
+          "status": {
+            "type": "integer",
+            "description": "HTTP 状态码"
+          }
+        }
+      }
+    }
+  }
+}

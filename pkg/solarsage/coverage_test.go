@@ -159,59 +159,6 @@ func TestNatalChartFull_InvalidDatetime(t *testing.T) {
 	}
 }
 
-func TestSiderealChart_OK(t *testing.T) {
-	sc, err := SiderealChart(51.5, -0.1, "2000-01-01T12:00:00Z")
-	if err != nil {
-		t.Fatalf("SiderealChart: %v", err)
-	}
-	if len(sc.Planets) != 10 {
-		t.Errorf("Expected 10 planets, got %d", len(sc.Planets))
-	}
-	for _, p := range sc.Planets {
-		if p.Nakshatra == "" {
-			t.Errorf("%s has empty nakshatra", p.PlanetID)
-		}
-	}
-}
-
-func TestSiderealChart_InvalidDatetime(t *testing.T) {
-	_, err := SiderealChart(51.5, -0.1, "bad")
-	if err == nil {
-		t.Error("expected error")
-	}
-}
-
-func TestSiderealChart_InvalidCoords(t *testing.T) {
-	_, err := SiderealChart(999, -0.1, "2000-01-01")
-	if err == nil {
-		t.Error("expected error")
-	}
-}
-
-func TestSiderealChartWithAyanamsa(t *testing.T) {
-	sc, err := SiderealChartWithAyanamsa(51.5, -0.1, "2000-01-01T12:00:00Z", "RAMAN")
-	if err != nil {
-		t.Fatalf("SiderealChartWithAyanamsa: %v", err)
-	}
-	if sc.Ayanamsa != "RAMAN" {
-		t.Errorf("Ayanamsa = %s, want RAMAN", sc.Ayanamsa)
-	}
-}
-
-func TestDasha_OK(t *testing.T) {
-	periods, err := Dasha(51.5, -0.1, "2000-01-01T12:00:00Z")
-	if err != nil {
-		t.Fatalf("Dasha: %v", err)
-	}
-	if len(periods) == 0 {
-		t.Error("Expected at least some dasha periods")
-	}
-	// First period should start at age 0
-	if periods[0].StartAge != 0 {
-		t.Errorf("First period startAge = %.2f, want 0", periods[0].StartAge)
-	}
-}
-
 func TestNatalChartWithOptions_AllHouseSystems(t *testing.T) {
 	houseSystems := []string{
 		"PLACIDUS", "KOCH", "EQUAL", "WHOLE_SIGN", "CAMPANUS",
@@ -257,13 +204,6 @@ func TestParseHouseSystem(t *testing.T) {
 		if !shouldWork && err == nil {
 			t.Errorf("ParseHouseSystem(%q) expected error", name)
 		}
-	}
-}
-
-func TestDasha_InvalidDatetime(t *testing.T) {
-	_, err := Dasha(51.5, -0.1, "bad")
-	if err == nil {
-		t.Error("expected error")
 	}
 }
 

@@ -6,17 +6,14 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 
 	swisseph "github.com/shaobaobaoer/solarsage-mcp"
 	"github.com/shaobaobaoer/solarsage-mcp/internal/aspect"
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/antiscia"
-	"github.com/shaobaobaoer/solarsage-mcp/pkg/ashtakavarga"
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/bounds"
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/chart"
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/composite"
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/dignity"
-	"github.com/shaobaobaoer/solarsage-mcp/pkg/divisional"
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/export"
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/firdaria"
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/fixedstars"
@@ -40,8 +37,6 @@ import (
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/symbolic"
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/sweph"
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/transit"
-	"github.com/shaobaobaoer/solarsage-mcp/pkg/vedic"
-	"github.com/shaobaobaoer/solarsage-mcp/pkg/yoga"
 )
 
 // Server implements the MCP protocol via JSON-RPC over stdio
@@ -682,34 +677,7 @@ func (s *Server) handleToolsList(req *jsonRPCRequest) *jsonRPCResponse {
 				"required": ["latitude", "longitude", "jd_ut"]
 			}`),
 		},
-		toolDef{
-			Name:        "calc_sidereal_chart",
-			Description: "Calculate a sidereal (Vedic/Jyotish) natal chart with Nakshatras, padas, and Vimshottari lords",
-			InputSchema: json.RawMessage(`{
-				"type": "object",
-				"properties": {
-					"latitude": {"type": "number"},
-					"longitude": {"type": "number"},
-					"jd_ut": {"type": "number"},
-					"ayanamsa": {"type": "string", "enum": ["LAHIRI", "RAMAN", "KRISHNAMURTI", "FAGAN_BRADLEY", "YUKTESHWAR"], "default": "LAHIRI"}
-				},
-				"required": ["latitude", "longitude", "jd_ut"]
-			}`),
-		},
-		toolDef{
-			Name:        "calc_vimshottari_dasha",
-			Description: "Calculate Vimshottari Maha Dasha periods from the Moon's sidereal position",
-			InputSchema: json.RawMessage(`{
-				"type": "object",
-				"properties": {
-					"latitude": {"type": "number"},
-					"longitude": {"type": "number"},
-					"jd_ut": {"type": "number"},
-					"ayanamsa": {"type": "string", "enum": ["LAHIRI", "RAMAN", "KRISHNAMURTI", "FAGAN_BRADLEY", "YUKTESHWAR"], "default": "LAHIRI"}
-				},
-				"required": ["latitude", "longitude", "jd_ut"]
-			}`),
-		},
+
 		toolDef{
 			Name:        "calc_chart_wheel",
 			Description: "Generate chart wheel rendering coordinates (x/y positions for planets, houses, aspects, signs) for SVG/Canvas visualization",
@@ -776,49 +744,7 @@ func (s *Server) handleToolsList(req *jsonRPCRequest) *jsonRPCResponse {
 				"required": ["latitude", "longitude", "natal_jd_ut"]
 			}`),
 		},
-		toolDef{
-			Name:        "calc_divisional_chart",
-			Description: "Calculate Vedic divisional chart (Varga). Supports D1-D60 including Navamsa (D9), Dasamsa (D10), etc.",
-			InputSchema: json.RawMessage(`{
-				"type": "object",
-				"properties": {
-					"latitude": {"type": "number"},
-					"longitude": {"type": "number"},
-					"jd_ut": {"type": "number"},
-					"varga": {"type": "string", "enum": ["D1","D2","D3","D4","D7","D9","D10","D12","D16","D20","D24","D27","D30","D40","D45","D60"], "default": "D9"},
-					"ayanamsa": {"type": "string", "enum": ["LAHIRI", "RAMAN", "KRISHNAMURTI", "FAGAN_BRADLEY", "YUKTESHWAR"], "default": "LAHIRI"}
-				},
-				"required": ["latitude", "longitude", "jd_ut"]
-			}`),
-		},
-		toolDef{
-			Name:        "calc_ashtakavarga",
-			Description: "Calculate Ashtakavarga (Vedic point-based planetary strength system). Returns bindu tables for each planet and Sarvashtakavarga.",
-			InputSchema: json.RawMessage(`{
-				"type": "object",
-				"properties": {
-					"latitude": {"type": "number"},
-					"longitude": {"type": "number"},
-					"jd_ut": {"type": "number"},
-					"ayanamsa": {"type": "string", "enum": ["LAHIRI", "RAMAN", "KRISHNAMURTI", "FAGAN_BRADLEY", "YUKTESHWAR"], "default": "LAHIRI"}
-				},
-				"required": ["latitude", "longitude", "jd_ut"]
-			}`),
-		},
-		toolDef{
-			Name:        "calc_yogas",
-			Description: "Analyze Vedic Yogas (planetary combinations). Detects Mahapurusha, Raja, Dhana, Gajakesari, Budhaditya, and Chandra-Mangala yogas.",
-			InputSchema: json.RawMessage(`{
-				"type": "object",
-				"properties": {
-					"latitude": {"type": "number"},
-					"longitude": {"type": "number"},
-					"jd_ut": {"type": "number"},
-					"ayanamsa": {"type": "string", "enum": ["LAHIRI", "RAMAN", "KRISHNAMURTI", "FAGAN_BRADLEY", "YUKTESHWAR"], "default": "LAHIRI"}
-				},
-				"required": ["latitude", "longitude", "jd_ut"]
-			}`),
-		},
+
 		toolDef{
 			Name:        "calc_bonification",
 			Description: "Analyze bonification and maltreatment (classical astrology). Evaluates benefic/malefic influences including combustion, besiegement, and planetary aspects.",
@@ -945,10 +871,6 @@ func (s *Server) handleToolsCall(req *jsonRPCRequest) *jsonRPCResponse {
 		result, err = s.handleCalcDispositors(params.Arguments)
 	case "calc_natal_report":
 		result, err = s.handleCalcNatalReport(params.Arguments)
-	case "calc_sidereal_chart":
-		result, err = s.handleCalcSiderealChart(params.Arguments)
-	case "calc_vimshottari_dasha":
-		result, err = s.handleCalcVimshottariDasha(params.Arguments)
 	case "calc_chart_wheel":
 		result, err = s.handleCalcChartWheel(params.Arguments)
 	case "calc_firdaria":
@@ -957,12 +879,6 @@ func (s *Server) handleToolsCall(req *jsonRPCRequest) *jsonRPCResponse {
 		result, err = s.handleCalcDavisonChart(params.Arguments)
 	case "calc_primary_directions":
 		result, err = s.handleCalcPrimaryDirections(params.Arguments)
-	case "calc_divisional_chart":
-		result, err = s.handleCalcDivisionalChart(params.Arguments)
-	case "calc_ashtakavarga":
-		result, err = s.handleCalcAshtakavarga(params.Arguments)
-	case "calc_yogas":
-		result, err = s.handleCalcYogas(params.Arguments)
 	case "calc_bonification":
 		result, err = s.handleCalcBonification(params.Arguments)
 	case "calc_symbolic_directions":
@@ -1947,84 +1863,6 @@ func (s *Server) handleCalcDispositors(args json.RawMessage) (interface{}, error
 	return dispositor.CalcDispositors(chartInfo.Planets, input.Traditional), nil
 }
 
-func (s *Server) handleCalcSiderealChart(args json.RawMessage) (interface{}, error) {
-	var input struct {
-		Latitude  float64        `json:"latitude"`
-		Longitude float64        `json:"longitude"`
-		JDUT      float64        `json:"jd_ut"`
-		Ayanamsa  vedic.Ayanamsa `json:"ayanamsa"`
-		Format    string         `json:"format"`
-	}
-	if err := json.Unmarshal(args, &input); err != nil {
-		return nil, err
-	}
-	if input.Ayanamsa == "" {
-		input.Ayanamsa = vedic.AyanamsaLahiri
-	}
-
-	sc, err := vedic.CalcSiderealChart(input.Latitude, input.Longitude, input.JDUT, input.Ayanamsa)
-	if err != nil {
-		return nil, err
-	}
-
-	if input.Format == "csv" {
-		var sb strings.Builder
-		sb.WriteString("Planet,TropicalLon,SiderealLon,SiderealSign,SiderealDeg,Nakshatra,Pada,NakshatraLord,Glyph\n")
-		for _, p := range sc.Planets {
-			sb.WriteString(fmt.Sprintf("%s,%.4f,%.4f,%s,%.4f,%s,%d,%s,%s\n",
-				models.BodyDisplayName(string(p.PlanetID)),
-				p.Longitude, p.SiderealLon,
-				p.SiderealSign, p.SiderealDeg,
-				p.Nakshatra, p.NakshatraPada,
-				models.BodyDisplayName(string(p.NakshatraLord)),
-				models.PlanetGlyph(p.PlanetID),
-			))
-		}
-		return map[string]interface{}{
-			"format":   "csv",
-			"ayanamsa": string(sc.Ayanamsa),
-			"planets":  sb.String(),
-		}, nil
-	}
-	return sc, nil
-}
-
-func (s *Server) handleCalcVimshottariDasha(args json.RawMessage) (interface{}, error) {
-	var input struct {
-		Latitude  float64        `json:"latitude"`
-		Longitude float64        `json:"longitude"`
-		JDUT      float64        `json:"jd_ut"`
-		Ayanamsa  vedic.Ayanamsa `json:"ayanamsa"`
-	}
-	if err := json.Unmarshal(args, &input); err != nil {
-		return nil, err
-	}
-	if input.Ayanamsa == "" {
-		input.Ayanamsa = vedic.AyanamsaLahiri
-	}
-
-	sc, err := vedic.CalcSiderealChart(input.Latitude, input.Longitude, input.JDUT, input.Ayanamsa)
-	if err != nil {
-		return nil, err
-	}
-
-	// Find Moon's sidereal longitude
-	var moonSidLon float64
-	for _, p := range sc.Planets {
-		if p.PlanetID == models.PlanetMoon {
-			moonSidLon = p.SiderealLon
-			break
-		}
-	}
-
-	periods := vedic.CalcVimshottariDasha(moonSidLon)
-	return map[string]interface{}{
-		"moon_nakshatra": sc.Planets[1].Nakshatra, // Moon is always index 1
-		"moon_sidereal":  moonSidLon,
-		"dasha_periods":  periods,
-	}, nil
-}
-
 func (s *Server) handleCalcChartWheel(args json.RawMessage) (interface{}, error) {
 	var input struct {
 		Latitude    float64            `json:"latitude"`
@@ -2163,74 +2001,6 @@ func (s *Server) handleCalcPrimaryDirections(args json.RawMessage) (interface{},
 		MaxAge:      input.MaxAge,
 		HouseSystem: input.HouseSystem,
 	})
-}
-
-func (s *Server) handleCalcDivisionalChart(args json.RawMessage) (interface{}, error) {
-	var input struct {
-		Latitude  float64 `json:"latitude"`
-		Longitude float64 `json:"longitude"`
-		JDUT      float64 `json:"jd_ut"`
-		Varga     string  `json:"varga"`
-		Ayanamsa  string  `json:"ayanamsa"`
-	}
-	if err := json.Unmarshal(args, &input); err != nil {
-		return nil, err
-	}
-	if input.Varga == "" {
-		input.Varga = "D9"
-	}
-	if input.Ayanamsa == "" {
-		input.Ayanamsa = "LAHIRI"
-	}
-
-	return divisional.CalcDivisionalChart(input.Latitude, input.Longitude, input.JDUT,
-		divisional.VargaType(input.Varga), vedic.Ayanamsa(input.Ayanamsa))
-}
-
-func (s *Server) handleCalcAshtakavarga(args json.RawMessage) (interface{}, error) {
-	var input struct {
-		Latitude  float64 `json:"latitude"`
-		Longitude float64 `json:"longitude"`
-		JDUT      float64 `json:"jd_ut"`
-		Ayanamsa  string  `json:"ayanamsa"`
-	}
-	if err := json.Unmarshal(args, &input); err != nil {
-		return nil, err
-	}
-	if input.Ayanamsa == "" {
-		input.Ayanamsa = "LAHIRI"
-	}
-
-	siderealChart, err := vedic.CalcSiderealChart(input.Latitude, input.Longitude, input.JDUT,
-		vedic.Ayanamsa(input.Ayanamsa))
-	if err != nil {
-		return nil, err
-	}
-
-	return ashtakavarga.CalcAshtakavarga(siderealChart.Planets, siderealChart.SiderealAngles.ASC), nil
-}
-
-func (s *Server) handleCalcYogas(args json.RawMessage) (interface{}, error) {
-	var input struct {
-		Latitude  float64 `json:"latitude"`
-		Longitude float64 `json:"longitude"`
-		JDUT      float64 `json:"jd_ut"`
-		Ayanamsa  string  `json:"ayanamsa"`
-	}
-	if err := json.Unmarshal(args, &input); err != nil {
-		return nil, err
-	}
-	if input.Ayanamsa == "" {
-		input.Ayanamsa = "LAHIRI"
-	}
-
-	siderealChart, err := vedic.CalcSiderealChart(input.Latitude, input.Longitude, input.JDUT,
-		vedic.Ayanamsa(input.Ayanamsa))
-	if err != nil {
-		return nil, err
-	}
-
-	return yoga.AnalyzeYogas(siderealChart.Planets, siderealChart.Houses, siderealChart.SiderealAngles.ASC), nil
 }
 
 func (s *Server) handleCalcBonification(args json.RawMessage) (interface{}, error) {

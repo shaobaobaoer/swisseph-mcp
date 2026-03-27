@@ -2,8 +2,6 @@ package solarsage
 
 import (
 	"testing"
-
-	"github.com/shaobaobaoer/solarsage-mcp/pkg/divisional"
 )
 
 func TestFirdaria_OK(t *testing.T) {
@@ -80,84 +78,6 @@ func TestPrimaryDirections_InvalidCoords(t *testing.T) {
 
 func TestPrimaryDirections_InvalidDatetime(t *testing.T) {
 	_, err := PrimaryDirections(51.5, -0.1, "bad", 50)
-	if err == nil {
-		t.Error("expected error for bad datetime")
-	}
-}
-
-func TestNavamsaChart_OK(t *testing.T) {
-	result, err := NavamsaChart(51.5, -0.1, "2000-01-01T12:00:00Z")
-	if err != nil {
-		t.Fatalf("NavamsaChart: %v", err)
-	}
-	if result == nil {
-		t.Fatal("expected non-nil result")
-	}
-	if result.Varga != divisional.VargaNavamsa {
-		t.Errorf("expected Navamsa varga, got %s", result.Varga)
-	}
-}
-
-func TestNavamsaChart_InvalidCoords(t *testing.T) {
-	_, err := NavamsaChart(999, -0.1, "2000-01-01")
-	if err == nil {
-		t.Error("expected error for invalid coords")
-	}
-}
-
-func TestDivisionalChart_OK(t *testing.T) {
-	result, err := DivisionalChart(51.5, -0.1, "2000-01-01T12:00:00Z", divisional.VargaDasamsa)
-	if err != nil {
-		t.Fatalf("DivisionalChart: %v", err)
-	}
-	if result == nil {
-		t.Fatal("expected non-nil result")
-	}
-}
-
-func TestDivisionalChart_InvalidCoords(t *testing.T) {
-	_, err := DivisionalChart(999, -0.1, "2000-01-01", divisional.VargaNavamsa)
-	if err == nil {
-		t.Error("expected error for invalid coords")
-	}
-}
-
-func TestDivisionalChart_InvalidDatetime(t *testing.T) {
-	_, err := DivisionalChart(51.5, -0.1, "bad", divisional.VargaNavamsa)
-	if err == nil {
-		t.Error("expected error for bad datetime")
-	}
-}
-
-func TestAshtakavarga_OK(t *testing.T) {
-	result, err := Ashtakavarga(51.5, -0.1, "2000-01-01T12:00:00Z")
-	if err != nil {
-		t.Fatalf("Ashtakavarga: %v", err)
-	}
-	if result == nil {
-		t.Fatal("expected non-nil result")
-	}
-}
-
-func TestAshtakavarga_InvalidDatetime(t *testing.T) {
-	_, err := Ashtakavarga(51.5, -0.1, "bad")
-	if err == nil {
-		t.Error("expected error for bad datetime")
-	}
-}
-
-func TestYogas_OK(t *testing.T) {
-	result, err := Yogas(51.5, -0.1, "2000-01-01T12:00:00Z")
-	if err != nil {
-		t.Fatalf("Yogas: %v", err)
-	}
-	if result == nil {
-		t.Fatal("expected non-nil result")
-	}
-}
-
-func TestYogas_InvalidDatetime(t *testing.T) {
-	_, err := Yogas(51.5, -0.1, "bad")
 	if err == nil {
 		t.Error("expected error for bad datetime")
 	}

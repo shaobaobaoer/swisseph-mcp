@@ -525,8 +525,6 @@ func TestHandleToolsCall_NewTools(t *testing.T) {
 		{"calc_synastry", `{"person1_latitude":51.5,"person1_longitude":-0.1,"person1_jd_ut":2451545.0,"person2_latitude":40.7,"person2_longitude":-74.0,"person2_jd_ut":2451910.0}`},
 		{"calc_dispositors", `{"latitude":51.5,"longitude":-0.1,"jd_ut":2451545.0}`},
 		{"calc_natal_report", `{"latitude":51.5,"longitude":-0.1,"jd_ut":2451545.0}`},
-		{"calc_sidereal_chart", `{"latitude":51.5,"longitude":-0.1,"jd_ut":2451545.0}`},
-		{"calc_vimshottari_dasha", `{"latitude":51.5,"longitude":-0.1,"jd_ut":2451545.0}`},
 		{"calc_chart_wheel", `{"latitude":51.5,"longitude":-0.1,"jd_ut":2451545.0}`},
 		{"calc_lunar_phases", `{"start_jd_ut":2451545.0,"end_jd_ut":2451575.0}`},
 		{"calc_eclipses", `{"start_jd_ut":2451545.0,"end_jd_ut":2451910.0}`},
@@ -620,40 +618,6 @@ func TestHandleCalcNatalReport_InvalidJSON(t *testing.T) {
 	}
 }
 
-func TestHandleCalcSiderealChart(t *testing.T) {
-	s := newTestServer()
-	args := json.RawMessage(`{
-		"latitude": 51.5074,
-		"longitude": -0.1278,
-		"jd_ut": 2451545.0,
-		"ayanamsa": "LAHIRI"
-	}`)
-	result, err := s.handleCalcSiderealChart(args)
-	if err != nil {
-		t.Fatalf("handleCalcSiderealChart: %v", err)
-	}
-	if result == nil {
-		t.Fatal("result is nil")
-	}
-}
-
-func TestHandleCalcVimshottariDasha(t *testing.T) {
-	s := newTestServer()
-	args := json.RawMessage(`{
-		"latitude": 51.5074,
-		"longitude": -0.1278,
-		"jd_ut": 2451545.0
-	}`)
-	result, err := s.handleCalcVimshottariDasha(args)
-	if err != nil {
-		t.Fatalf("handleCalcVimshottariDasha: %v", err)
-	}
-	m := result.(map[string]interface{})
-	if m["dasha_periods"] == nil {
-		t.Error("missing dasha_periods")
-	}
-}
-
 func TestHandleCalcChartWheel(t *testing.T) {
 	s := newTestServer()
 	args := json.RawMessage(`{
@@ -677,22 +641,6 @@ func TestHandleCalcChartWheel(t *testing.T) {
 func TestHandleCalcChartWheel_InvalidJSON(t *testing.T) {
 	s := newTestServer()
 	_, err := s.handleCalcChartWheel(json.RawMessage(`{invalid`))
-	if err == nil {
-		t.Error("expected error")
-	}
-}
-
-func TestHandleCalcSiderealChart_InvalidJSON(t *testing.T) {
-	s := newTestServer()
-	_, err := s.handleCalcSiderealChart(json.RawMessage(`{invalid`))
-	if err == nil {
-		t.Error("expected error")
-	}
-}
-
-func TestHandleCalcVimshottariDasha_InvalidJSON(t *testing.T) {
-	s := newTestServer()
-	_, err := s.handleCalcVimshottariDasha(json.RawMessage(`{invalid`))
 	if err == nil {
 		t.Error("expected error")
 	}

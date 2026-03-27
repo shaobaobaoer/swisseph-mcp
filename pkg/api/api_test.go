@@ -265,19 +265,6 @@ func TestSolarArc(t *testing.T) {
 	}
 }
 
-func TestVedicDasha(t *testing.T) {
-	srv := newTestServer("")
-	rec := doPost(t, srv, "/api/v1/vedic/dasha", map[string]interface{}{
-		"latitude":  51.5,
-		"longitude": -0.1,
-		"jd_ut":     2451545.0,
-	}, nil)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
-	}
-}
-
 func TestMissingRequiredField(t *testing.T) {
 	srv := newTestServer("")
 	// Geocode requires location_name

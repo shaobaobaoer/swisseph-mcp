@@ -137,50 +137,6 @@ func TestHarmonicChart_CSV(t *testing.T) {
 	}
 }
 
-// TestSiderealChart tests the /api/v1/chart/sidereal endpoint.
-func TestSiderealChart(t *testing.T) {
-	srv := newTestServer("")
-	rec := doPost(t, srv, "/api/v1/chart/sidereal", map[string]interface{}{
-		"latitude":  51.5,
-		"longitude": -0.1,
-		"jd_ut":     2451545.0,
-	}, nil)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
-	}
-}
-
-// TestSiderealChart_CSV tests CSV format for sidereal chart.
-func TestSiderealChart_CSV(t *testing.T) {
-	srv := newTestServer("")
-	rec := doPost(t, srv, "/api/v1/chart/sidereal", map[string]interface{}{
-		"latitude":  51.5,
-		"longitude": -0.1,
-		"jd_ut":     2451545.0,
-		"format":    "csv",
-	}, nil)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
-	}
-}
-
-// TestDivisionalChart tests the /api/v1/chart/divisional endpoint.
-func TestDivisionalChart(t *testing.T) {
-	srv := newTestServer("")
-	rec := doPost(t, srv, "/api/v1/chart/divisional", map[string]interface{}{
-		"latitude":  51.5,
-		"longitude": -0.1,
-		"jd_ut":     2451545.0,
-		"varga":     "D9",
-	}, nil)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
-	}
-}
-
 // TestChartWheel tests the /api/v1/chart/wheel endpoint.
 func TestChartWheel(t *testing.T) {
 	srv := newTestServer("")
@@ -697,34 +653,6 @@ func TestSynastry(t *testing.T) {
 		"person2_latitude":  48.85,
 		"person2_longitude": 2.35,
 		"person2_jd_ut":     2451600.0,
-	}, nil)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
-	}
-}
-
-// TestAshtakavarga tests the /api/v1/vedic/ashtakavarga endpoint.
-func TestAshtakavarga(t *testing.T) {
-	srv := newTestServer("")
-	rec := doPost(t, srv, "/api/v1/vedic/ashtakavarga", map[string]interface{}{
-		"latitude":  51.5,
-		"longitude": -0.1,
-		"jd_ut":     2451545.0,
-	}, nil)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
-	}
-}
-
-// TestYogas tests the /api/v1/vedic/yogas endpoint.
-func TestYogas(t *testing.T) {
-	srv := newTestServer("")
-	rec := doPost(t, srv, "/api/v1/vedic/yogas", map[string]interface{}{
-		"latitude":  51.5,
-		"longitude": -0.1,
-		"jd_ut":     2451545.0,
 	}, nil)
 
 	if rec.Code != http.StatusOK {

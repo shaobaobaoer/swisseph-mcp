@@ -73,55 +73,6 @@ func TestHandleCalcPrimaryDirections(t *testing.T) {
 	}
 }
 
-func TestHandleCalcDivisionalChart(t *testing.T) {
-	s := newTestServer()
-	args := json.RawMessage(`{
-		"latitude": 51.5074,
-		"longitude": -0.1278,
-		"jd_ut": 2451545.0,
-		"varga": "D9"
-	}`)
-	result, err := s.handleCalcDivisionalChart(args)
-	if err != nil {
-		t.Fatalf("handleCalcDivisionalChart: %v", err)
-	}
-	if result == nil {
-		t.Fatal("result is nil")
-	}
-}
-
-func TestHandleCalcAshtakavarga(t *testing.T) {
-	s := newTestServer()
-	args := json.RawMessage(`{
-		"latitude": 51.5074,
-		"longitude": -0.1278,
-		"jd_ut": 2451545.0
-	}`)
-	result, err := s.handleCalcAshtakavarga(args)
-	if err != nil {
-		t.Fatalf("handleCalcAshtakavarga: %v", err)
-	}
-	if result == nil {
-		t.Fatal("result is nil")
-	}
-}
-
-func TestHandleCalcYogas(t *testing.T) {
-	s := newTestServer()
-	args := json.RawMessage(`{
-		"latitude": 51.5074,
-		"longitude": -0.1278,
-		"jd_ut": 2451545.0
-	}`)
-	result, err := s.handleCalcYogas(args)
-	if err != nil {
-		t.Fatalf("handleCalcYogas: %v", err)
-	}
-	if result == nil {
-		t.Fatal("result is nil")
-	}
-}
-
 func TestHandleCalcBonification(t *testing.T) {
 	s := newTestServer()
 	args := json.RawMessage(`{
@@ -190,19 +141,4 @@ func TestHandleCalcProgressions_CSV(t *testing.T) {
 	}
 }
 
-func TestHandleCalcSiderealChart_CSV(t *testing.T) {
-	s := newTestServer()
-	args := json.RawMessage(`{
-		"latitude": 51.5074,
-		"longitude": -0.1278,
-		"jd_ut": 2451545.0,
-		"format": "csv"
-	}`)
-	result, err := s.handleCalcSiderealChart(args)
-	if err != nil {
-		t.Fatalf("handleCalcSiderealChart CSV: %v", err)
-	}
-	if result == nil {
-		t.Fatal("result is nil")
-	}
-}
+

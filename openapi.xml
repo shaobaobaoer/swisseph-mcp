@@ -1,0 +1,1326 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<openapi version="3.0.3">
+  <info>
+    <title>SolarSage Astrology API</title>
+    <description>
+      <![CDATA[
+      SolarSage is a comprehensive astrology calculation API providing:
+      - Natal chart calculations with 11 house systems
+      - Transit analysis and event detection
+      - Progressions (secondary, solar arc, primary, symbolic)
+      - Traditional astrology (dignities, lots, bounds, profections, firdaria)
+      - Vedic astrology (sidereal charts, nakshatras, dashas, ashtakavarga)
+      - Synastry and composite charts
+      - Fixed stars, midpoints, and harmonic charts
+      - Lunar phases and eclipse detection
+      
+      All calculations use the Swiss Ephemeris (DE431) for high precision.
+      ]]>
+    </description>
+    <version>1.0.0</version>
+    <contact>
+      <name>SolarSage API Team</name>
+    </contact>
+  </info>
+
+  <servers>
+    <server>
+      <url>http://localhost:8080</url>
+      <description>Local development server</description>
+    </server>
+  </servers>
+
+  <security>
+    <apiKey>
+      <type>apiKey</type>
+      <in>header</in>
+      <name>X-API-Key</name>
+    </apiKey>
+  </security>
+
+  <!-- Basic Endpoints -->
+  <path path="/api/v1/health" method="GET">
+    <summary>Health check</summary>
+    <description>Returns API status</description>
+    <responses>
+      <response code="200">
+        <description>API is healthy</description>
+        <content type="application/json">
+          <schema type="object">
+            <property name="status" type="string" example="ok"/>
+          </schema>
+        </content>
+      </response>
+    </responses>
+  </path>
+
+  <path path="/api/v1/geocode" method="POST">
+    <summary>Geocode location</summary>
+    <description>Convert location name to coordinates</description>
+    <requestBody required="true">
+      <content type="application/json">
+        <schema type="object">
+          <property name="location_name" type="string" required="true" example="New York, USA"/>
+        </schema>
+      </content>
+    </requestBody>
+    <responses>
+      <response code="200">
+        <description>Geocoding result</description>
+        <content type="application/json">
+          <schema type="object">
+            <property name="name" type="string"/>
+            <property name="latitude" type="number" format="float"/>
+            <property name="longitude" type="number" format="float"/>
+            <property name="timezone" type="string"/>
+          </schema>
+        </content>
+      </response>
+      <response code="400">Invalid request</response>
+      <response code="422">Geocoding failed</response>
+    </responses>
+  </path>
+
+  <path path="/api/v1/datetime/to-jd" method="POST">
+    <summary>Convert datetime to Julian Day</summary>
+    <requestBody required="true">
+      <content type="application/json">
+        <schema type="object">
+          <property name="datetime" type="string" required="true" example="2024-01-15T10:30:00"/>
+          <property name="calendar" type="string" enum="gregorian,julian" default="gregorian"/>
+        </schema>
+      </content>
+    </requestBody>
+    <responses>
+      <response code="200">
+        <schema type="object">
+          <property name="jd" type="number" format="double"/>
+        </schema>
+      </response>
+    </responses>
+  </path>
+
+  <path path="/api/v1/datetime/from-jd" method="POST">
+    <summary>Convert Julian Day to datetime</summary>
+    <requestBody required="true">
+      <content type="application/json">
+        <schema type="object">
+          <property name="jd" type="number" format="double" required="true"/>
+          <property name="calendar" type="string" enum="gregorian,julian" default="gregorian"/>
+        </schema>
+      </content>
+    </requestBody>
+    <responses>
+      <response code="200">
+        <schema type="object">
+          <property name="datetime" type="string"/>
+          <property name="calendar" type="string"/>
+        </schema>
+      </response>
+    </responses>
+  </path>
+
+  <path path="/api/v1/planet/position" method="POST">
+    <summary>Calculate planet position</summary>
+    <requestBody required="true">
+      <content type="application/json">
+        <schema type="object">
+          <property name="planet" type="string" required="true" example="SUN"/>
+          <property name="jd" type="number" format="double" required="true"/>
+          <property name="options" type="object">
+            <property name="tropical" type="boolean" default="true"/>
+            <property name="speed" type="boolean" default="true"/>
+          </property>
+        </schema>
+      </content>
+    </requestBody>
+    <responses>
+      <response code="200">
+        <schema type="object">
+          <property name="longitude" type="number"/>
+          <property name="latitude" type="number"/>
+          <property name="speed" type="number"/>
+          <property name="sign" type="string"/>
+          <property name="degree" type="number"/>
+        </schema>
+      </response>
+    </responses>
+  </path>
+
+  <!-- Chart Endpoints -->
+  <path path="/api/v1/chart/natal" method="POST">
+    <summary>Calculate natal chart</summary>
+    <description>Calculate a complete natal chart with planets, houses, and aspects</description>
+    <requestBody required="true">
+      <content type="application/json">
+        <schema type="object">
+          <property name="datetime" type="string" required="true" example="1990-06-15T14:30:00"/>
+          <property name="latitude" type="number" format="float" required="true" example="40.7128"/>
+          <property name="longitude" type="number" format="float" required="true" example="-74.0060"/>
+          <property name="timezone" type="string" required="true" example="America/New_York"/>
+          <property name="options" type="object">
+            <property name="house_system" type="string" enum="placidus,koch,porphyry,regiomontanus,campanus,equal,whole_sign,alcabitus,morinus,topocentric,apex" default="placidus"/>
+            <property name="tropical" type="boolean" default="true"/>
+            <property name="planets" type="array" itemType="string"/>
+            <property name="aspects" type="boolean" default="true"/>
+            <property name="orb_config" type="object">
+              <property name="conjunction" type="number" default="8"/>
+              <property name="opposition" type="number" default="8"/>
+              <property name="trine" type="number" default="6"/>
+              <property name="square" type="number" default="6"/>
+              <property name="sextile" type="number" default="4"/>
+            </property>
+          </property>
+        </schema>
+      </content>
+    </requestBody>
+    <responses>
+      <response code="200">
+        <description>Natal chart data</description>
+        <content type="application/json">
+          <schema type="object">
+            <property name="planets" type="array">
+              <item type="object">
+                <property name="planet" type="string"/>
+                <property name="longitude" type="number"/>
+                <property name="latitude" type="number"/>
+                <property name="speed" type="number"/>
+                <property name="house" type="integer"/>
+                <property name="sign" type="string"/>
+              </item>
+            </property>
+            <property name="houses" type="array" itemType="number"/>
+            <property name="angles" type="object">
+              <property name="asc" type="number"/>
+              <property name="mc" type="number"/>
+              <property name="desc" type="number"/>
+              <property name="ic" type="number"/>
+            </property>
+            <property name="aspects" type="array">
+              <item type="object">
+                <property name="planet1" type="string"/>
+                <property name="planet2" type="string"/>
+                <property name="aspect" type="string"/>
+                <property name="orb" type="number"/>
+                <property name="applying" type="boolean"/>
+              </item>
+            </property>
+          </schema>
+        </content>
+      </response>
+    </responses>
+  </path>
+
+  <path path="/api/v1/chart/double" method="POST">
+    <summary>Calculate double chart (synastry)</summary>
+    <description>Compare two natal charts</description>
+    <requestBody required="true">
+      <content type="application/json">
+        <schema type="object">
+          <property name="chart1" type="object" required="true">
+            <property name="datetime" type="string"/>
+            <property name="latitude" type="number"/>
+            <property name="longitude" type="number"/>
+            <property name="timezone" type="string"/>
+          </property>
+          <property name="chart2" type="object" required="true">
+            <property name="datetime" type="string"/>
+            <property name="latitude" type="number"/>
+            <property name="longitude" type="number"/>
+            <property name="timezone" type="string"/>
+          </property>
+          <property name="options" type="object">
+            <property name="house_system" type="string" default="placidus"/>
+            <property name="synastry_aspects" type="boolean" default="true"/>
+          </property>
+        </schema>
+      </content>
+    </requestBody>
+    <responses>
+      <response code="200">
+        <schema type="object">
+          <property name="chart1" type="object"/>
+          <property name="chart2" type="object"/>
+          <property name="synastry_aspects" type="array"/>
+          <property name="composite_mc" type="number"/>
+        </schema>
+      </response>
+    </responses>
+  </path>
+
+  <path path="/api/v1/chart/composite" method="POST">
+    <summary>Calculate composite chart (midpoint method)</summary>
+    <description>Create a composite chart using midpoint calculations</description>
+    <requestBody required="true">
+      <content type="application/json">
+        <schema type="object">
+          <property name="chart1" type="object" required="true"/>
+          <property name="chart2" type="object" required="true"/>
+          <property name="options" type="object">
+            <property name="house_system" type="string" default="placidus"/>
+          </property>
+        </schema>
+      </content>
+    </requestBody>
+    <responses>
+      <response code="200">
+        <schema type="object">
+          <property name="planets" type="array"/>
+          <property name="houses" type="array"/>
+          <property name="angles" type="object"/>
+        </schema>
+      </response>
+    </responses>
+  </path>
+
+  <path path="/api/v1/chart/davison" method="POST">
+    <summary>Calculate Davison composite chart</summary>
+    <description>Create a Davison space-time composite chart</description>
+    <requestBody required="true">
+      <content type="application/json">
+        <schema type="object">
+          <property name="chart1" type="object" required="true"/>
+          <property name="chart2" type="object" required="true"/>
+          <property name="options" type="object">
+            <property name="house_system" type="string" default="placidus"/>
+          </property>
+        </schema>
+      </content>
+    </requestBody>
+    <responses>
+      <response code="200">
+        <schema type="object">
+          <property name="planets" type="array"/>
+          <property name="houses" type="array"/>
+          <property name="angles" type="object"/>
+          <property name="davison_datetime" type="string"/>
+          <property name="davison_latitude" type="number"/>
+          <property name="davison_longitude" type="number"/>
+        </schema>
+      </response>
+    </responses>
+  </path>
+
+  <path path="/api/v1/chart/harmonic" method="POST">
+    <summary>Calculate harmonic chart</summary>
+    <description>Generate a harmonic chart (H4, H9, etc.)</description>
+    <requestBody required="true">
+      <content type="application/json">
+        <schema type="object">
+          <property name="chart" type="object" required="true">
+            <property name="datetime" type="string"/>
+            <property name="latitude" type="number"/>
+            <property name="longitude" type="number"/>
+            <property name="timezone" type="string"/>
+          </property>
+          <property name="harmonic" type="integer" required="true" example="9"/>
+          <property name="options" type="object">
+            <property name="house_system" type="string" default="placidus"/>
+          </property>
+        </schema>
+      </content>
+    </requestBody>
+    <responses>
+      <response code="200">
+        <schema type="object">
+          <property name="harmonic" type="integer"/>
+          <property name="planets" type="array"/>
+          <property name="houses" type="array"/>
+        </schema>
+      </response>
+    </responses>
+  </path>
+
+  <path path="/api/v1/chart/sidereal" method="POST">
+    <summary>Calculate sidereal chart</summary>
+    <description>Generate a sidereal (Vedic) chart</description>
+    <requestBody required="true">
+      <content type="application/json">
+        <schema type="object">
+          <property name="datetime" type="string" required="true"/>
+          <property name="latitude" type="number" required="true"/>
+          <property name="longitude" type="number" required="true"/>
+          <property name="timezone" type="string" required="true"/>
+          <property name="options" type="object">
+            <property name="ayanamsa" type="string" enum="lahiri,raman,krishnamurti,yukteswar,jn_bhasin,fagan_bradley,de_luce" default="lahiri"/>
+            <property name="house_system" type="string" default="whole_sign"/>
+          </property>
+        </schema>
+      </content>
+    </requestBody>
+    <responses>
+      <response code="200">
+        <schema type="object">
+          <property name="planets" type="array"/>
+          <property name="houses" type="array"/>
+          <property name="angles" type="object"/>
+          <property name="ayanamsa_value" type="number"/>
+          <property name="nakshatras" type="array"/>
+        </schema>
+      </response>
+    </responses>
+  </path>
+
+  <path path="/api/v1/chart/divisional" method="POST">
+    <summary>Calculate divisional chart (Varga)</summary>
+    <description>Generate Vedic divisional charts (D9, D10, etc.)</description>
+    <requestBody required="true">
+      <content type="application/json">
+        <schema type="object">
+          <property name="chart" type="object" required="true"/>
+          <property name="division" type="integer" required="true" example="9"/>
+          <property name="options" type="object">
+            <property name="ayanamsa" type="string" default="lahiri"/>
+          </property>
+        </schema>
+      </content>
+    </requestBody>
+    <responses>
+      <response code="200">
+        <schema type="object">
+          <property name="division" type="integer"/>
+          <property name="name" type="string"/>
+          <property name="planets" type="array"/>
+          <property name="houses" type="array"/>
+        </schema>
+      </response>
+    </responses>
+  </path>
+
+  <path path="/api/v1/chart/wheel" method="POST">
+    <summary>Generate chart wheel data</summary>
+    <description>Get SVG/Canvas coordinates for chart wheel visualization</description>
+    <requestBody required="true">
+      <content type="application/json">
+        <schema type="object">
+          <property name="chart" type="object" required="true"/>
+          <property name="options" type="object">
+            <property name="width" type="integer" default="600"/>
+            <property name="height" type="integer" default="600"/>
+            <property name="style" type="string" enum="modern,traditional" default="modern"/>
+          </property>
+        </schema>
+      </content>
+    </requestBody>
+    <responses>
+      <response code="200">
+        <schema type="object">
+          <property name="wheel_center" type="object">
+            <property name="x" type="number"/>
+            <property name="y" type="number"/>
+          </property>
+          <property name="radius" type="number"/>
+          <property name="planet_positions" type="array">
+            <item type="object">
+              <property name="planet" type="string"/>
+              <property name="x" type="number"/>
+              <property name="y" type="number"/>
+              <property name="angle" type="number"/>
+            </item>
+          </property>
+          <property name="house_cusps" type="array">
+            <item type="object">
+              <property name="house" type="integer"/>
+              <property name="x1" type="number"/>
+              <property name="y1" type="number"/>
+              <property name="x2" type="number"/>
+              <property name="y2" type="number"/>
+              <property name="angle" type="number"/>
+            </item>
+          </property>
+          <property name="aspect_lines" type="array"/>
+        </schema>
+      </response>
+    </responses>
+  </path>
+
+  <!-- Predictive Endpoints -->
+  <path path="/api/v1/transit" method="POST">
+    <summary>Calculate transits</summary>
+    <description>Calculate transit events for a given time period</description>
+    <requestBody required="true">
+      <content type="application/json">
+        <schema type="object">
+          <property name="natal_chart" type="object" required="true">
+            <property name="datetime" type="string"/>
+            <property name="latitude" type="number"/>
+            <property name="longitude" type="number"/>
+            <property name="timezone" type="string"/>
+          </property>
+          <property name="start_date" type="string" required="true"/>
+          <property name="end_date" type="string" required="true"/>
+          <property name="options" type="object">
+            <property name="transit_planets" type="array" itemType="string"/>
+            <property name="natal_planets" type="array" itemType="string"/>
+            <property name="aspects" type="array" itemType="string"/>
+            <property name="include_transit_to-transit" type="boolean" default="true"/>
+            <property name="include_transit-to-natal" type="boolean" default="true"/>
+            <property name="include_stations" type="boolean" default="true"/>
+            <property name="include_ingresses" type="boolean" default="true"/>
+            <property name="orb" type="number" default="1.0"/>
+          </property>
+        </schema>
+      </content>
+    </requestBody>
+    <responses>
+      <response code="200">
+        <schema type="object">
+          <property name="events" type="array">
+            <item type="object">
+              <property name="date" type="string"/>
+              <property name="type" type="string" enum="exact,enter,leave,station,ingress"/>
+              <property name="transit_planet" type="string"/>
+              <property name="natal_planet" type="string"/>
+              <property name="aspect" type="string"/>
+              <property name="orb" type="number"/>
+              <property name="applying" type="boolean"/>
+            </item>
+          </property>
+        </schema>
+      </response>
+    </responses>
+  </path>
+
+  <path path="/api/v1/progressions" method="POST">
+    <summary>Calculate secondary progressions</summary>
+    <description>Calculate progressed chart for a given date</description>
+    <requestBody required="true">
+      <content type="application/json">
+        <schema type="object">
+          <property name="natal_chart" type="object" required="true"/>
+          <property name="progressed_date" type="string" required="true"/>
+          <property name="options" type="object">
+            <property name="house_system" type="string" default="placidus"/>
+            <property name="mc_progression_method" type="string" enum="solar_arc,naibod" default="solar_arc"/>
+          </property>
+        </schema>
+      </content>
+    </requestBody>
+    <responses>
+      <response code="200">
+        <schema type="object">
+          <property name="progressed_planets" type="array"/>
+          <property name="progressed_angles" type="object"/>
+          <property name="solar_arc" type="number"/>
+          <property name="progressed_date" type="string"/>
+        </schema>
+      </response>
+    </responses>
+  </path>
+
+  <path path="/api/v1/solar-arc" method="POST">
+    <summary>Calculate solar arc directions</summary>
+    <description>Calculate solar arc directed chart</description>
+    <requestBody required="true">
+      <content type="application/json">
+        <schema type="object">
+          <property name="natal_chart" type="object" required="true"/>
+          <property name="target_date" type="string" required="true"/>
+          <property name="options" type="object">
+            <property name="house_system" type="string" default="placidus"/>
+          </property>
+        </schema>
+      </content>
+    </requestBody>
+    <responses>
+      <response code="200">
+        <schema type="object">
+          <property name="directed_planets" type="array"/>
+          <property name="directed_angles" type="object"/>
+          <property name="solar_arc" type="number"/>
+        </schema>
+      </response>
+    </responses>
+  </path>
+
+  <path path="/api/v1/primary-directions" method="POST">
+    <summary>Calculate primary directions</summary>
+    <description>Calculate primary directed chart (Ptolemy semi-arc)</description>
+    <requestBody required="true">
+      <content type="application/json">
+        <schema type="object">
+          <property name="natal_chart" type="object" required="true"/>
+          <property name="target_date" type="string" required="true"/>
+          <property name="options" type="object">
+            <property name="key" type="string" enum="ptolemy,naibod" default="ptolemy"/>
+            <property name="converse" type="boolean" default="false"/>
+          </property>
+        </schema>
+      </content>
+    </requestBody>
+    <responses>
+      <response code="200">
+        <schema type="object">
+          <property name="directed_positions" type="array"/>
+          <property name="promissor" type="string"/>
+          <property name="significator" type="string"/>
+          <property name="arc" type="number"/>
+        </schema>
+      </response>
+    </responses>
+  </path>
+
+  <path path="/api/v1/symbolic-directions" method="POST">
+    <summary>Calculate symbolic directions</summary>
+    <description>Calculate symbolic directions (1° = 1 year, etc.)</description>
+    <requestBody required="true">
+      <content type="application/json">
+        <schema type="object">
+          <property name="natal_chart" type="object" required="true"/>
+          <property name="target_date" type="string" required="true"/>
+          <property name="options" type="object">
+            <property name="rate" type="number" default="1.0"/>
+            <property name="rate_unit" type="string" enum="degree_per_year,naibod" default="degree_per_year"/>
+          </property>
+        </schema>
+      </content>
+    </requestBody>
+    <responses>
+      <response code="200">
+        <schema type="object">
+          <property name="directed_planets" type="array"/>
+          <property name="arc" type="number"/>
+        </schema>
+      </response>
+    </responses>
+  </path>
+
+  <path path="/api/v1/solar-return" method="POST">
+    <summary>Calculate solar return chart</summary>
+    <description>Calculate solar return for a given year</description>
+    <requestBody required="true">
+      <content type="application/json">
+        <schema type="object">
+          <property name="natal_chart" type="object" required="true"/>
+          <property name="year" type="integer" required="true"/>
+          <property name="options" type="object">
+            <property name="location" type="object">
+              <property name="latitude" type="number"/>
+              <property name="longitude" type="number"/>
+            </property>
+            <property name="house_system" type="string" default="placidus"/>
+            <property name="precession_corrected" type="boolean" default="false"/>
+          </property>
+        </schema>
+      </content>
+    </requestBody>
+    <responses>
+      <response code="200">
+        <schema type="object">
+          <property name="return_date" type="string"/>
+          <property name="return_jd" type="number"/>
+          <property name="return_location" type="object"/>
+          <property name="return_chart" type="object"/>
+          <property name="natal_sun_longitude" type="number"/>
+          <property name="return_sun_longitude" type="number"/>
+        </schema>
+      </response>
+    </responses>
+  </path>
+
+  <path path="/api/v1/lunar-return" method="POST">
+    <summary>Calculate lunar return chart</summary>
+    <description>Calculate lunar return for a given month</description>
+    <requestBody required="true">
+      <content type="application/json">
+        <schema type="object">
+          <property name="natal_chart" type="object" required="true"/>
+          <property name="year" type="integer" required="true"/>
+          <property name="month" type="integer" required="true"/>
+          <property name="options" type="object">
+            <property name="location" type="object">
+              <property name="latitude" type="number"/>
+              <property name="longitude" type="number"/>
+            </property>
+            <property name="house_system" type="string" default="placidus"/>
+          </property>
+        </schema>
+      </content>
+    </requestBody>
+    <responses>
+      <response code="200">
+        <schema type="object">
+          <property name="return_date" type="string"/>
+          <property name="return_jd" type="number"/>
+          <property name="return_chart" type="object"/>
+        </schema>
+      </response>
+    </responses>
+  </path>
+
+  <!-- Traditional Astrology Endpoints -->
+  <path path="/api/v1/dignity" method="POST">
+    <summary>Calculate essential dignities</summary>
+    <description>Calculate essential dignities and debilities</description>
+    <requestBody required="true">
+      <content type="application/json">
+        <schema type="object">
+          <property name="chart" type="object" required="true"/>
+          <property name="options" type="object">
+            <property name="include_mutual_receptions" type="boolean" default="true"/>
+            <property name="include_almuten" type="boolean" default="true"/>
+          </property>
+        </schema>
+      </content>
+    </requestBody>
+    <responses>
+      <response code="200">
+        <schema type="object">
+          <property name="dignities" type="array">
+            <item type="object">
+              <property name="planet" type="string"/>
+              <property name="sign" type="string"/>
+              <property name="dignity" type="string" enum="ruler,exaltation,triplicity,term,face,detriment,fall"/>
+              <property name="score" type="number"/>
+            </item>
+          </property>
+          <property name="mutual_receptions" type="array"/>
+          <property name="almuten_figuris" type="object"/>
+        </schema>
+      </response>
+    </responses>
+  </path>
+
+  <path path="/api/v1/bonification" method="POST">
+    <summary>Calculate bonification and maltreatment</summary>
+    <description>Traditional benefic/malefic analysis</description>
+    <requestBody required="true">
+      <content type="application/json">
+        <schema type="object">
+          <property name="chart" type="object" required="true"/>
+        </schema>
+      </content>
+    </requestBody>
+    <responses>
+      <response code="200">
+        <schema type="object">
+          <property name="sect" type="string" enum="diurnal,nocturnal"/>
+          <property name="bonifications" type="array">
+            <item type="object">
+              <property name="planet" type="string"/>
+              <property name="benefic" type="string"/>
+              <property name="aspect" type="string"/>
+              <property name="nature" type="string" enum="helping,witnessing"/>
+            </item>
+          </property>
+          <property name="maltreatments" type="array"/>
+        </schema>
+      </response>
+    </responses>
+  </path>
+
+  <path path="/api/v1/dispositors" method="POST">
+    <summary>Calculate dispositor chains</summary>
+    <description>Calculate dispositorship and final dispositor</description>
+    <requestBody required="true">
+      <content type="application/json">
+        <schema type="object">
+          <property name="chart" type="object" required="true"/>
+          <property name="options" type="object">
+            <property name="include_final_dispositor" type="boolean" default="true"/>
+          </property>
+        </schema>
+      </content>
+    </requestBody>
+    <responses>
+      <response code="200">
+        <schema type="object">
+          <property name="dispositors" type="object"/>
+          <property name="final_dispositor" type="string"/>
+          <property name="dispositor_chains" type="array"/>
+        </schema>
+      </response>
+    </responses>
+  </path>
+
+  <path path="/api/v1/profection" method="POST">
+    <summary>Calculate annual profections</summary>
+    <description>Calculate annual and monthly profections</description>
+    <requestBody required="true">
+      <content type="application/json">
+        <schema type="object">
+          <property name="natal_chart" type="object" required="true"/>
+          <property name="target_date" type="string" required="true"/>
+          <property name="options" type="object">
+            <property name="include_monthly" type="boolean" default="true"/>
+          </property>
+        </schema>
+      </content>
+    </requestBody>
+    <responses>
+      <response code="200">
+        <schema type="object">
+          <property name="annual_profection" type="object">
+            <property name="year" type="integer"/>
+            <property name="age" type="integer"/>
+            <property name="house" type="integer"/>
+            <property name="ruler" type="string"/>
+            <property name="sign" type="string"/>
+          </property>
+          <property name="monthly_profections" type="array"/>
+        </schema>
+      </response>
+    </responses>
+  </path>
+
+  <path path="/api/v1/firdaria" method="POST">
+    <summary>Calculate Firdaria periods</summary>
+    <description>Calculate Firdaria planetary periods</description>
+    <requestBody required="true">
+      <content type="application/json">
+        <schema type="object">
+          <property name="natal_chart" type="object" required="true"/>
+          <property name="options" type="object">
+            <property name="start_date" type="string"/>
+            <property name="end_date" type="string"/>
+          </property>
+        </schema>
+      </content>
+    </requestBody>
+    <responses>
+      <response code="200">
+        <schema type="object">
+          <property name="major_periods" type="array">
+            <item type="object">
+              <property name="planet" type="string"/>
+              <property name="start_date" type="string"/>
+              <property name="end_date" type="string"/>
+              <property name="duration_years" type="number"/>
+            </item>
+          </property>
+          <property name="sub_periods" type="array"/>
+        </schema>
+      </response>
+    </responses>
+  </path>
+
+  <path path="/api/v1/lots" method="POST">
+    <summary>Calculate Arabic Lots</summary>
+    <description>Calculate Arabic Lots (Parts)</description>
+    <requestBody required="true">
+      <content type="application/json">
+        <schema type="object">
+          <property name="chart" type="object" required="true"/>
+          <property name="lots" type="array" itemType="string">
+            <description>Lots to calculate: fortune, spirit, eros, etc.</description>
+          </property>
+          <property name="options" type="object">
+            <property name="formula" type="string" enum="day,night,sect" default="sect"/>
+          </property>
+        </schema>
+      </content>
+    </requestBody>
+    <responses>
+      <response code="200">
+        <schema type="object">
+          <property name="lots" type="array">
+            <item type="object">
+              <property name="name" type="string"/>
+              <property name="longitude" type="number"/>
+              <property name="sign" type="string"/>
+              <property name="house" type="integer"/>
+              <property name="formula_used" type="string"/>
+            </item>
+          </property>
+        </schema>
+      </response>
+    </responses>
+  </path>
+
+  <path path="/api/v1/bounds" method="POST">
+    <summary>Calculate Egyptian terms/bounds</summary>
+    <description>Calculate Chaldean decans and Egyptian terms</description>
+    <requestBody required="true">
+      <content type="application/json">
+        <schema type="object">
+          <property name="chart" type="object" required="true"/>
+          <property name="options" type="object">
+            <property name="system" type="string" enum="egyptian,ptolemy" default="egyptian"/>
+          </property>
+        </schema>
+      </content>
+    </requestBody>
+    <responses>
+      <response code="200">
+        <schema type="object">
+          <property name="bounds" type="array">
+            <item type="object">
+              <property name="planet" type="string"/>
+              <property name="sign" type="string"/>
+              <property name="start_degree" type="number"/>
+              <property name="end_degree" type="number"/>
+              <property name="ruler" type="string"/>
+            </item>
+          </property>
+        </schema>
+      </response>
+    </responses>
+  </path>
+
+  <path path="/api/v1/antiscia" method="POST">
+    <summary>Calculate antiscia</summary>
+    <description>Calculate antiscion and contra-antiscion points</description>
+    <requestBody required="true">
+      <content type="application/json">
+        <schema type="object">
+          <property name="chart" type="object" required="true"/>
+        </schema>
+      </content>
+    </requestBody>
+    <responses>
+      <response code="200">
+        <schema type="object">
+          <property name="antiscia" type="array">
+            <item type="object">
+              <property name="planet" type="string"/>
+              <property name="longitude" type="number"/>
+              <property name="antiscion_longitude" type="number"/>
+              <property name="contra_antiscion_longitude" type="number"/>
+            </item>
+          </property>
+        </schema>
+      </response>
+    </responses>
+  </path>
+
+  <path path="/api/v1/planetary-hours" method="POST">
+    <summary>Calculate planetary hours</summary>
+    <description>Calculate Chaldean planetary hours for a given date</description>
+    <requestBody required="true">
+      <content type="application/json">
+        <schema type="object">
+          <property name="date" type="string" required="true"/>
+          <property name="latitude" type="number" required="true"/>
+          <property name="longitude" type="number" required="true"/>
+          <property name="timezone" type="string" required="true"/>
+        </schema>
+      </content>
+    </requestBody>
+    <responses>
+      <response code="200">
+        <schema type="object">
+          <property name="day_ruler" type="string"/>
+          <property name="hours" type="array">
+            <item type="object">
+              <property name="hour" type="integer"/>
+              <property name="ruler" type="string"/>
+              <property name="start_time" type="string"/>
+              <property name="end_time" type="string"/>
+              <property name="day_or_night" type="string"/>
+            </item>
+          </property>
+        </schema>
+      </response>
+    </responses>
+  </path>
+
+  <path path="/api/v1/heliacal" method="POST">
+    <summary>Calculate heliacal events</summary>
+    <description>Calculate heliacal risings and settings</description>
+    <requestBody required="true">
+      <content type="application/json">
+        <schema type="object">
+          <property name="planet" type="string" required="true"/>
+          <property name="start_date" type="string" required="true"/>
+          <property name="end_date" type="string" required="true"/>
+          <property name="latitude" type="number" required="true"/>
+          <property name="longitude" type="number" required="true"/>
+          <property name="options" type="object">
+            <property name="event_type" type="string" enum="rising,setting,morning_first,evening_last" default="rising"/>
+          </property>
+        </schema>
+      </content>
+    </requestBody>
+    <responses>
+      <response code="200">
+        <schema type="object">
+          <property name="events" type="array">
+            <item type="object">
+              <property name="date" type="string"/>
+              <property name="type" type="string"/>
+              <property name="planet" type="string"/>
+              <property name="visibility" type="string"/>
+            </item>
+          </property>
+        </schema>
+      </response>
+    </responses>
+  </path>
+
+  <!-- Analysis Endpoints -->
+  <path path="/api/v1/aspects/patterns" method="POST">
+    <summary>Detect aspect patterns</summary>
+    <description>Detect aspect patterns (T-square, Grand Trine, etc.)</description>
+    <requestBody required="true">
+      <content type="application/json">
+        <schema type="object">
+          <property name="chart" type="object" required="true"/>
+          <property name="options" type="object">
+            <property name="patterns" type="array" itemType="string" enum="grand_trine,t_square,grand_cross,yod,kite,stellium"/>
+            <property name="orb" type="number" default="3.0"/>
+          </property>
+        </schema>
+      </content>
+    </requestBody>
+    <responses>
+      <response code="200">
+        <schema type="object">
+          <property name="patterns" type="array">
+            <item type="object">
+              <property name="type" type="string"/>
+              <property name="planets" type="array" itemType="string"/>
+              <property name="orb" type="number"/>
+            </item>
+          </property>
+        </schema>
+      </response>
+    </responses>
+  </path>
+
+  <path path="/api/v1/fixed-stars" method="POST">
+    <summary>Calculate fixed star positions</summary>
+    <description>Calculate fixed star positions and aspects to chart</description>
+    <requestBody required="true">
+      <content type="application/json">
+        <schema type="object">
+          <property name="chart" type="object" required="true"/>
+          <property name="options" type="object">
+            <property name="stars" type="array" itemType="string"/>
+            <property name="magnitude_limit" type="number" default="3.0"/>
+            <property name="include_aspects" type="boolean" default="true"/>
+            <property name="aspect_orb" type="number" default="1.0"/>
+          </property>
+        </schema>
+      </content>
+    </requestBody>
+    <responses>
+      <response code="200">
+        <schema type="object">
+          <property name="stars" type="array">
+            <item type="object">
+              <property name="name" type="string"/>
+              <property name="longitude" type="number"/>
+              <property name="latitude" type="number"/>
+              <property name="magnitude" type="number"/>
+              <property name="constellation" type="string"/>
+              <property name="aspects" type="array"/>
+            </item>
+          </property>
+        </schema>
+      </response>
+    </responses>
+  </path>
+
+  <path path="/api/v1/midpoints" method="POST">
+    <summary>Calculate midpoints</summary>
+    <description>Calculate midpoints and 90-degree dial</description>
+    <requestBody required="true">
+      <content type="application/json">
+        <schema type="object">
+          <property name="chart" type="object" required="true"/>
+          <property name="options" type="object">
+            <property name="dial" type="string" enum="360,90,45" default="360"/>
+            <property name="include_activations" type="boolean" default="true"/>
+          </property>
+        </schema>
+      </content>
+    </requestBody>
+    <responses>
+      <response code="200">
+        <schema type="object">
+          <property name="midpoints" type="array">
+            <item type="object">
+              <property name="planet1" type="string"/>
+              <property name="planet2" type="string"/>
+              <property name="midpoint" type="number"/>
+              <property name="activations" type="array"/>
+            </item>
+          </property>
+        </schema>
+      </response>
+    </responses>
+  </path>
+
+  <path path="/api/v1/synastry" method="POST">
+    <summary>Calculate synastry analysis</summary>
+    <description>Comprehensive synastry analysis between two charts</description>
+    <requestBody required="true">
+      <content type="application/json">
+        <schema type="object">
+          <property name="chart1" type="object" required="true"/>
+          <property name="chart2" type="object" required="true"/>
+          <property name="options" type="object">
+            <property name="include_composite" type="boolean" default="true"/>
+            <property name="include_davison" type="boolean" default="true"/>
+            <property name="aspect_orb" type="number" default="3.0"/>
+          </property>
+        </schema>
+      </content>
+    </requestBody>
+    <responses>
+      <response code="200">
+        <schema type="object">
+          <property name="synastry_aspects" type="array"/>
+          <property name="house_overlays" type="array"/>
+          <property name="element_analysis" type="object"/>
+          <property name="quality_analysis" type="object"/>
+          <property name="composite_chart" type="object"/>
+          <property name="davison_chart" type="object"/>
+        </schema>
+      </response>
+    </responses>
+  </path>
+
+  <!-- Vedic Astrology Endpoints -->
+  <path path="/api/v1/vedic/dasha" method="POST">
+    <summary>Calculate Vimshottari Dasha</summary>
+    <description>Calculate Vimshottari Dasha periods</description>
+    <requestBody required="true">
+      <content type="application/json">
+        <schema type="object">
+          <property name="natal_chart" type="object" required="true"/>
+          <property name="options" type="object">
+            <property name="start_date" type="string"/>
+            <property name="end_date" type="string"/>
+            <property name="levels" type="integer" enum="1,2,3,4" default="3"/>
+          </property>
+        </schema>
+      </content>
+    </requestBody>
+    <responses>
+      <response code="200">
+        <schema type="object">
+          <property name="birth_nakshatra" type="string"/>
+          <property name="birth_lord" type="string"/>
+          <property name="dasha_periods" type="array">
+            <item type="object">
+              <property name="planet" type="string"/>
+              <property name="start_date" type="string"/>
+              <property name="end_date" type="string"/>
+              <property name="sub_periods" type="array"/>
+            </item>
+          </property>
+        </schema>
+      </response>
+    </responses>
+  </path>
+
+  <path path="/api/v1/vedic/ashtakavarga" method="POST">
+    <summary>Calculate Ashtakavarga</summary>
+    <description>Calculate Ashtakavarga bindu tables</description>
+    <requestBody required="true">
+      <content type="application/json">
+        <schema type="object">
+          <property name="natal_chart" type="object" required="true"/>
+          <property name="options" type="object">
+            <property name="include_sarvashtakavarga" type="boolean" default="true"/>
+          </property>
+        </schema>
+      </content>
+    </requestBody>
+    <responses>
+      <response code="200">
+        <schema type="object">
+          <property name="planet_tables" type="object"/>
+          <property name="sarvashtakavarga" type="array" itemType="integer"/>
+          <property name="bindu_strengths" type="object"/>
+        </schema>
+      </response>
+    </responses>
+  </path>
+
+  <path path="/api/v1/vedic/yogas" method="POST">
+    <summary>Detect Vedic Yogas</summary>
+    <description>Detect Raja Yogas, Dhana Yogas, etc.</description>
+    <requestBody required="true">
+      <content type="application/json">
+        <schema type="object">
+          <property name="natal_chart" type="object" required="true"/>
+          <property name="options" type="object">
+            <property name="yoga_types" type="array" itemType="string" enum="raja,dhana,gajakesari,budhaditya,chandra_mangala,vasumati"/>
+          </property>
+        </schema>
+      </content>
+    </requestBody>
+    <responses>
+      <response code="200">
+        <schema type="object">
+          <property name="yogas" type="array">
+            <item type="object">
+              <property name="name" type="string"/>
+              <property name="type" type="string"/>
+              <property name="planets" type="array" itemType="string"/>
+              <property name="strength" type="string" enum="strong,moderate,weak"/>
+              <property name="description" type="string"/>
+            </item>
+          </property>
+        </schema>
+      </response>
+    </responses>
+  </path>
+
+  <!-- Lunar Endpoints -->
+  <path path="/api/v1/lunar/phase" method="POST">
+    <summary>Calculate lunar phase</summary>
+    <description>Calculate moon phase for a given date</description>
+    <requestBody required="true">
+      <content type="application/json">
+        <schema type="object">
+          <property name="date" type="string" required="true"/>
+          <property name="options" type="object">
+            <property name="return_natal_phase" type="boolean" default="false"/>
+          </property>
+        </schema>
+      </content>
+    </requestBody>
+    <responses>
+      <response code="200">
+        <schema type="object">
+          <property name="phase" type="string" enum="new,crescent,first_quarter,gibbous,full,disseminating,last_quarter,balsamic"/>
+          <property name="phase_angle" type="number"/>
+          <property name="illumination" type="number"/>
+          <property name="moon_age" type="number"/>
+        </schema>
+      </response>
+    </responses>
+  </path>
+
+  <path path="/api/v1/lunar/phases" method="POST">
+    <summary>Calculate lunar phases for period</summary>
+    <description>Calculate all lunar phases in a date range</description>
+    <requestBody required="true">
+      <content type="application/json">
+        <schema type="object">
+          <property name="start_date" type="string" required="true"/>
+          <property name="end_date" type="string" required="true"/>
+        </schema>
+      </content>
+    </requestBody>
+    <responses>
+      <response code="200">
+        <schema type="object">
+          <property name="phases" type="array">
+            <item type="object">
+              <property name="date" type="string"/>
+              <property name="phase" type="string"/>
+              <property name="phase_angle" type="number"/>
+            </item>
+          </property>
+        </schema>
+      </response>
+    </responses>
+  </path>
+
+  <path path="/api/v1/lunar/eclipses" method="POST">
+    <summary>Calculate eclipses</summary>
+    <description>Calculate solar and lunar eclipses</description>
+    <requestBody required="true">
+      <content type="application/json">
+        <schema type="object">
+          <property name="start_date" type="string" required="true"/>
+          <property name="end_date" type="string" required="true"/>
+          <property name="options" type="object">
+            <property name="type" type="string" enum="solar,lunar,both" default="both"/>
+          </property>
+        </schema>
+      </content>
+    </requestBody>
+    <responses>
+      <response code="200">
+        <schema type="object">
+          <property name="eclipses" type="array">
+            <item type="object">
+              <property name="date" type="string"/>
+              <property name="type" type="string" enum="solar,lunar"/>
+              <property name="subtype" type="string" enum="total,partial,annular,penumbral"/>
+              <property name="saros_cycle" type="integer"/>
+              <property name="visibility" type="string"/>
+            </item>
+          </property>
+        </schema>
+      </response>
+    </responses>
+  </path>
+
+  <!-- Report Endpoint -->
+  <path path="/api/v1/report/natal" method="POST">
+    <summary>Generate comprehensive natal report</summary>
+    <description>Generate a full natal chart interpretation report</description>
+    <requestBody required="true">
+      <content type="application/json">
+        <schema type="object">
+          <property name="chart" type="object" required="true"/>
+          <property name="options" type="object">
+            <property name="sections" type="array" itemType="string" enum="planets,houses,aspects,patterns,dignities,elements,qualities"/>
+            <property name="language" type="string" default="en"/>
+            <property name="detail_level" type="string" enum="brief,standard,detailed" default="standard"/>
+          </property>
+        </schema>
+      </content>
+    </requestBody>
+    <responses>
+      <response code="200">
+        <schema type="object">
+          <property name="report" type="object">
+            <property name="title" type="string"/>
+            <property name="sections" type="array">
+              <item type="object">
+                <property name="title" type="string"/>
+                <property name="content" type="string"/>
+              </item>
+            </property>
+            <property name="chart_data" type="object"/>
+          </property>
+        </schema>
+      </response>
+    </responses>
+  </path>
+
+  <!-- Components -->
+  <components>
+    <schemas>
+      <schema name="ChartInput">
+        <type>object</type>
+        <properties>
+          <property name="datetime" type="string" format="date-time" required="true"/>
+          <property name="latitude" type="number" format="float" required="true"/>
+          <property name="longitude" type="number" format="float" required="true"/>
+          <property name="timezone" type="string" required="true"/>
+        </properties>
+      </schema>
+      
+      <schema name="PlanetPosition">
+        <type>object</type>
+        <properties>
+          <property name="planet" type="string"/>
+          <property name="longitude" type="number"/>
+          <property name="latitude" type="number"/>
+          <property name="speed" type="number"/>
+          <property name="sign" type="string"/>
+          <property name="degree_in_sign" type="number"/>
+          <property name="house" type="integer"/>
+          <property name="retrograde" type="boolean"/>
+        </properties>
+      </schema>
+      
+      <schema name="Aspect">
+        <type>object</type>
+        <properties>
+          <property name="planet1" type="string"/>
+          <property name="planet2" type="string"/>
+          <property name="aspect_type" type="string"/>
+          <property name="orb" type="number"/>
+          <property name="applying" type="boolean"/>
+        </properties>
+      </schema>
+      
+      <schema name="Error">
+        <type>object</type>
+        <properties>
+          <property name="error" type="string"/>
+          <property name="status" type="integer"/>
+        </properties>
+      </schema>
+    </schemas>
+  </components>
+</openapi>

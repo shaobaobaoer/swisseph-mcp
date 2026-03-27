@@ -4,17 +4,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/shaobaobaoer/solarsage-mcp/internal/aspect"
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/antiscia"
-	"github.com/shaobaobaoer/solarsage-mcp/pkg/ashtakavarga"
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/bounds"
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/chart"
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/composite"
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/dignity"
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/dispositor"
-	"github.com/shaobaobaoer/solarsage-mcp/pkg/divisional"
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/export"
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/firdaria"
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/fixedstars"
@@ -36,8 +33,6 @@ import (
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/symbolic"
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/synastry"
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/transit"
-	"github.com/shaobaobaoer/solarsage-mcp/pkg/vedic"
-	"github.com/shaobaobaoer/solarsage-mcp/pkg/yoga"
 )
 
 // defaultPlanets is the standard set of 10 planets used when none specified.
@@ -111,8 +106,6 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/api/v1/chart/composite", s.requirePOST(s.handleCompositeChart))
 	s.mux.HandleFunc("/api/v1/chart/davison", s.requirePOST(s.handleDavisonChart))
 	s.mux.HandleFunc("/api/v1/chart/harmonic", s.requirePOST(s.handleHarmonicChart))
-	s.mux.HandleFunc("/api/v1/chart/sidereal", s.requirePOST(s.handleSiderealChart))
-	s.mux.HandleFunc("/api/v1/chart/divisional", s.requirePOST(s.handleDivisionalChart))
 	s.mux.HandleFunc("/api/v1/chart/wheel", s.requirePOST(s.handleChartWheel))
 
 	// Predictive
@@ -142,10 +135,7 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/api/v1/midpoints", s.requirePOST(s.handleMidpoints))
 	s.mux.HandleFunc("/api/v1/synastry", s.requirePOST(s.handleSynastry))
 
-	// Vedic
-	s.mux.HandleFunc("/api/v1/vedic/dasha", s.requirePOST(s.handleVimshottariDasha))
-	s.mux.HandleFunc("/api/v1/vedic/ashtakavarga", s.requirePOST(s.handleAshtakavarga))
-	s.mux.HandleFunc("/api/v1/vedic/yogas", s.requirePOST(s.handleYogas))
+
 
 	// Lunar
 	s.mux.HandleFunc("/api/v1/lunar/phase", s.requirePOST(s.handleLunarPhase))
@@ -518,79 +508,6 @@ func (s *Server) handleHarmonicChart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, hc)
-}
-
-func (s *Server) handleSiderealChart(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Latitude  float64        `json:"latitude"`
-		Longitude float64        `json:"longitude"`
-		JDUT      float64        `json:"jd_ut"`
-		Ayanamsa  vedic.Ayanamsa `json:"ayanamsa"`
-		Format    string         `json:"format"`
-	}
-	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	if req.Ayanamsa == "" {
-		req.Ayanamsa = vedic.AyanamsaLahiri
-	}
-
-	sc, err := vedic.CalcSiderealChart(req.Latitude, req.Longitude, req.JDUT, req.Ayanamsa)
-	if err != nil {
-		writeError(w, http.StatusUnprocessableEntity, err.Error())
-		return
-	}
-
-	if req.Format == "csv" {
-		var sb strings.Builder
-		sb.WriteString("Planet,TropicalLon,SiderealLon,SiderealSign,SiderealDeg,Nakshatra,Pada,NakshatraLord,Glyph\n")
-		for _, p := range sc.Planets {
-			sb.WriteString(fmt.Sprintf("%s,%.4f,%.4f,%s,%.4f,%s,%d,%s,%s\n",
-				models.BodyDisplayName(string(p.PlanetID)),
-				p.Longitude, p.SiderealLon,
-				p.SiderealSign, p.SiderealDeg,
-				p.Nakshatra, p.NakshatraPada,
-				models.BodyDisplayName(string(p.NakshatraLord)),
-				models.PlanetGlyph(p.PlanetID),
-			))
-		}
-		writeJSON(w, http.StatusOK, map[string]interface{}{
-			"format":   "csv",
-			"ayanamsa": string(sc.Ayanamsa),
-			"planets":  sb.String(),
-		})
-		return
-	}
-	writeJSON(w, http.StatusOK, sc)
-}
-
-func (s *Server) handleDivisionalChart(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Latitude  float64 `json:"latitude"`
-		Longitude float64 `json:"longitude"`
-		JDUT      float64 `json:"jd_ut"`
-		Varga     string  `json:"varga"`
-		Ayanamsa  string  `json:"ayanamsa"`
-	}
-	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	if req.Varga == "" {
-		req.Varga = "D9"
-	}
-	if req.Ayanamsa == "" {
-		req.Ayanamsa = "LAHIRI"
-	}
-
-	result, err := divisional.CalcDivisionalChart(req.Latitude, req.Longitude, req.JDUT,
-		divisional.VargaType(req.Varga), vedic.Ayanamsa(req.Ayanamsa))
-	if err != nil {
-		writeError(w, http.StatusUnprocessableEntity, err.Error())
-		return
-	}
-	writeJSON(w, http.StatusOK, result)
 }
 
 func (s *Server) handleChartWheel(w http.ResponseWriter, r *http.Request) {
@@ -1515,93 +1432,6 @@ func (s *Server) handleSynastry(w http.ResponseWriter, r *http.Request) {
 
 	score := synastry.CalcSynastryFromCharts(chart1.Planets, chart2.Planets, orbs)
 	writeJSON(w, http.StatusOK, score)
-}
-
-// --- Vedic Endpoints ---
-
-func (s *Server) handleVimshottariDasha(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Latitude  float64        `json:"latitude"`
-		Longitude float64        `json:"longitude"`
-		JDUT      float64        `json:"jd_ut"`
-		Ayanamsa  vedic.Ayanamsa `json:"ayanamsa"`
-	}
-	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	if req.Ayanamsa == "" {
-		req.Ayanamsa = vedic.AyanamsaLahiri
-	}
-
-	sc, err := vedic.CalcSiderealChart(req.Latitude, req.Longitude, req.JDUT, req.Ayanamsa)
-	if err != nil {
-		writeError(w, http.StatusUnprocessableEntity, err.Error())
-		return
-	}
-
-	var moonSidLon float64
-	for _, p := range sc.Planets {
-		if p.PlanetID == models.PlanetMoon {
-			moonSidLon = p.SiderealLon
-			break
-		}
-	}
-
-	periods := vedic.CalcVimshottariDasha(moonSidLon)
-	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"moon_nakshatra": sc.Planets[1].Nakshatra,
-		"moon_sidereal":  moonSidLon,
-		"dasha_periods":  periods,
-	})
-}
-
-func (s *Server) handleAshtakavarga(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Latitude  float64 `json:"latitude"`
-		Longitude float64 `json:"longitude"`
-		JDUT      float64 `json:"jd_ut"`
-		Ayanamsa  string  `json:"ayanamsa"`
-	}
-	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	if req.Ayanamsa == "" {
-		req.Ayanamsa = "LAHIRI"
-	}
-
-	sc, err := vedic.CalcSiderealChart(req.Latitude, req.Longitude, req.JDUT, vedic.Ayanamsa(req.Ayanamsa))
-	if err != nil {
-		writeError(w, http.StatusUnprocessableEntity, err.Error())
-		return
-	}
-
-	writeJSON(w, http.StatusOK, ashtakavarga.CalcAshtakavarga(sc.Planets, sc.SiderealAngles.ASC))
-}
-
-func (s *Server) handleYogas(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Latitude  float64 `json:"latitude"`
-		Longitude float64 `json:"longitude"`
-		JDUT      float64 `json:"jd_ut"`
-		Ayanamsa  string  `json:"ayanamsa"`
-	}
-	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	if req.Ayanamsa == "" {
-		req.Ayanamsa = "LAHIRI"
-	}
-
-	sc, err := vedic.CalcSiderealChart(req.Latitude, req.Longitude, req.JDUT, vedic.Ayanamsa(req.Ayanamsa))
-	if err != nil {
-		writeError(w, http.StatusUnprocessableEntity, err.Error())
-		return
-	}
-
-	writeJSON(w, http.StatusOK, yoga.AnalyzeYogas(sc.Planets, sc.Houses, sc.SiderealAngles.ASC))
 }
 
 // --- Lunar Endpoints ---
