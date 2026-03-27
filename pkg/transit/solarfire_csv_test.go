@@ -1351,15 +1351,16 @@ func TestSolarFireCSV_IngressWithOffsetCorrection(t *testing.T) {
 	reportDeviations(t, "INGRESS_CORRECTED", results, skipped)
 }
 
-// TestSolarFireCSV_DeltaTCorrection tests various ΔT corrections to find the optimal value.
-// The key insight: SF uses DE200/DE406 with a different ΔT extrapolation for future dates.
-// A uniform time shift applied to our UT computations can compensate for this.
+// TestSolarFireCSV_DeltaTCorrection tests various time corrections to find the optimal value.
+// NOTE: This is NOT the physical ΔT (TT-UT1), but a fitted correction that compensates
+// for systematic differences between Solar Fire (DE200/DE406) and our calculations (DE431).
+// The correction includes: ephemeris differences, time system offsets, and other systematics.
 func TestSolarFireCSV_DeltaTCorrection(t *testing.T) {
 	events := parseSFCSV(t, "testcase-1-transit.csv")
 
 	// Test ΔT corrections from 0 to 6 seconds in 0.25s steps
 	type corrResult struct {
-		deltaTSec      float64
+		timeCorrectionSec      float64
 		stationAvg     float64
 		ingressAvg     float64
 		trTrExactAvg   float64
@@ -1373,7 +1374,7 @@ func TestSolarFireCSV_DeltaTCorrection(t *testing.T) {
 	bestCombined := math.MaxFloat64
 
 	for dt := 0.0; dt <= 6.0; dt += 0.25 {
-		dtDays := dt / 86400.0
+		tcDays := dt / 86400.0
 
 		// Evaluate station deviations
 		var stationResults []deviationResult
@@ -1386,7 +1387,7 @@ func TestSolarFireCSV_DeltaTCorrection(t *testing.T) {
 				continue
 			}
 			calcFn := func(jd float64) (float64, float64, error) {
-				return chart.CalcPlanetLongitude(pid, jd+dtDays)
+				return chart.CalcPlanetLongitude(pid, jd+tcDays)
 			}
 			ourJD := findStationNear(calcFn, e.SFJD, 1.0)
 			if ourJD == 0 {
@@ -1409,7 +1410,7 @@ func TestSolarFireCSV_DeltaTCorrection(t *testing.T) {
 				continue
 			}
 			calcFn := func(jd float64) (float64, float64, error) {
-				return chart.CalcPlanetLongitude(pid, jd+dtDays)
+				return chart.CalcPlanetLongitude(pid, jd+tcDays)
 			}
 			signBoundary, ok := sfSignToDeg[e.P2]
 			if !ok {
@@ -1449,11 +1450,11 @@ func TestSolarFireCSV_DeltaTCorrection(t *testing.T) {
 			// Wrap with ΔT correction
 			origFn1 := calcFn1
 			calcFn1 = func(jd float64) (float64, float64, error) {
-				return origFn1(jd + dtDays)
+				return origFn1(jd + tcDays)
 			}
 			origFn2 := calcFn2
 			calcFn2 = func(jd float64) (float64, float64, error) {
-				return origFn2(jd + dtDays)
+				return origFn2(jd + tcDays)
 			}
 			ourJD := findExactAspectNear(calcFn1, calcFn2, aspectAngle, e.SFJD, 2.0)
 			if ourJD == 0 {
@@ -1477,7 +1478,7 @@ func TestSolarFireCSV_DeltaTCorrection(t *testing.T) {
 		if combined < bestCombined {
 			bestCombined = combined
 			bestResult = corrResult{
-				deltaTSec:      dt,
+				timeCorrectionSec:      dt,
 				stationAvg:     stationAvg,
 				ingressAvg:     ingressAvg,
 				trTrExactAvg:   trTrAvg,
@@ -1488,13 +1489,13 @@ func TestSolarFireCSV_DeltaTCorrection(t *testing.T) {
 			}
 		}
 
-		t.Logf("ΔT=%5.2fs  Station=%5.2fs(%2d)  Ingress=%5.2fs(%3d)  TrTr=%5.2fs(%2d)  Combined=%5.2fs",
+		t.Logf("TC=%5.2fs  Station=%5.2fs(%2d)  Ingress=%5.2fs(%3d)  TrTr=%5.2fs(%2d)  Combined=%5.2fs",
 			dt, stationAvg, len(stationResults), ingressAvg, len(ingressResults),
 			trTrAvg, len(trTrResults), combined)
 	}
 
 	t.Logf("\n===== BEST ΔT CORRECTION =====")
-	t.Logf("Optimal ΔT correction: %.2f seconds", bestResult.deltaTSec)
+	t.Logf("Optimal ΔT correction: %.2f seconds", bestResult.timeCorrectionSec)
 	t.Logf("Station avg:    %.2f seconds (%d events)", bestResult.stationAvg, len(bestResult.stationResults))
 	t.Logf("Ingress avg:    %.2f seconds (%d events)", bestResult.ingressAvg, len(bestResult.ingressResults))
 	t.Logf("Tr-Tr avg:      %.2f seconds (%d events)", bestResult.trTrExactAvg, len(bestResult.trTrResults))
@@ -1523,12 +1524,15 @@ func avgAbsDeviation(results []deviationResult) float64 {
 }
 
 // TestSolarFireCSV_ComprehensiveValidation is the definitive validation test.
-// It applies the optimal ΔT correction (4.50s) and validates transit events
+// It applies a fitted time correction (4.50s) and validates transit events
 // from the Solar Fire CSV against our transit engine computations.
 //
-// The 4.50s ΔT correction compensates for different ΔT extrapolation methods:
-// Solar Fire uses DE200/DE406 ephemeris while we use Swiss Ephemeris (DE431).
-// For future dates (2026-2027), these yield slightly different TT-UT values.
+// NOTE: The 4.50s correction is NOT physical ΔT (which is ~70s in 2026).
+// It is a fitted value that compensates for systematic differences between
+// Solar Fire (DE200/DE406) and our calculations (DE431), including:
+// - Ephemeris differences (DE200 vs DE431)
+// - Time system offsets
+// - Other systematic effects
 //
 // Validation scope:
 //   - Transit-only events (Station, SignIngress, Tr-Tr Exact) → assert avg <1s
@@ -1543,10 +1547,12 @@ func TestSolarFireCSV_ComprehensiveValidation(t *testing.T) {
 	natalPos := extractNatalPositions(events)
 	natalJD := 2450800.900000 // 1997-12-18 09:36:00 UTC
 
-	// Optimal ΔT correction: 4.50 seconds = 0.000052083 days
-	// Determined by grid search in TestSolarFireCSV_DeltaTCorrection
-	const deltaTSec = 4.50
-	dtDays := deltaTSec / 86400.0
+	// Fitted time correction: 4.50 seconds = 0.000052083 days
+	// This compensates for systematic differences between SF and our calculations.
+	// Determined by grid search in TestSolarFireCSV_DeltaTCorrection.
+	// NOTE: This is NOT physical ΔT (TT-UT1 ~70s in 2026).
+	const timeCorrectionSec = 4.50
+	tcDays := timeCorrectionSec / 86400.0
 
 	defaultOrbs := models.DefaultOrbConfig()
 
@@ -1580,7 +1586,7 @@ func TestSolarFireCSV_ComprehensiveValidation(t *testing.T) {
 				continue
 			}
 			calcFn := func(jd float64) (float64, float64, error) {
-				return chart.CalcPlanetLongitude(pid, jd+dtDays)
+				return chart.CalcPlanetLongitude(pid, jd+tcDays)
 			}
 			ourJD := findStationNear(calcFn, e.SFJD, 1.0)
 			if ourJD == 0 {
@@ -1625,7 +1631,7 @@ func TestSolarFireCSV_ComprehensiveValidation(t *testing.T) {
 				continue
 			}
 			calcFn := func(jd float64) (float64, float64, error) {
-				return chart.CalcPlanetLongitude(pid, jd+dtDays)
+				return chart.CalcPlanetLongitude(pid, jd+tcDays)
 			}
 			ourJD := findSignIngressNear(calcFn, signBoundary, e.SFJD, 1.0)
 			if ourJD == 0 {
@@ -1669,11 +1675,11 @@ func TestSolarFireCSV_ComprehensiveValidation(t *testing.T) {
 			// Both bodies are transit — apply ΔT to both
 			origFn1 := calcFn1
 			calcFn1 = func(jd float64) (float64, float64, error) {
-				return origFn1(jd + dtDays)
+				return origFn1(jd + tcDays)
 			}
 			origFn2 := calcFn2
 			calcFn2 = func(jd float64) (float64, float64, error) {
-				return origFn2(jd + dtDays)
+				return origFn2(jd + tcDays)
 			}
 			ourJD := findExactAspectNear(calcFn1, calcFn2, aspectAngle, e.SFJD, 2.0)
 			if ourJD == 0 {
@@ -1725,7 +1731,7 @@ func TestSolarFireCSV_ComprehensiveValidation(t *testing.T) {
 			}
 			
 			// Calculate the offset between our ephemeris and SF's position at event time
-			ourLonAtSF, _, _ := calcFn1(e.SFJD + dtDays)
+			ourLonAtSF, _, _ := calcFn1(e.SFJD + tcDays)
 			p1Offset := e.Pos1Lon - ourLonAtSF
 			// Normalize offset to [-180, 180]
 			if p1Offset > 180 {
@@ -1738,7 +1744,7 @@ func TestSolarFireCSV_ComprehensiveValidation(t *testing.T) {
 			// Apply ΔT and ephemeris offset corrections
 			origFn1 := calcFn1
 			calcFn1 = func(jd float64) (float64, float64, error) {
-				lon, speed, err := origFn1(jd + dtDays)
+				lon, speed, err := origFn1(jd + tcDays)
 				return sweph.NormalizeDegrees(lon + p1Offset), speed, err
 			}
 			
@@ -1791,11 +1797,11 @@ func TestSolarFireCSV_ComprehensiveValidation(t *testing.T) {
 			// Both bodies are transit — apply ΔT to both
 			origFn1 := calcFn1
 			calcFn1 = func(jd float64) (float64, float64, error) {
-				return origFn1(jd + dtDays)
+				return origFn1(jd + tcDays)
 			}
 			origFn2 := calcFn2
 			calcFn2 = func(jd float64) (float64, float64, error) {
-				return origFn2(jd + dtDays)
+				return origFn2(jd + tcDays)
 			}
 			orb := defaultOrbs.GetOrb(sfAspectTypeMap[e.Aspect])
 			if orb == 0 {
@@ -1839,7 +1845,7 @@ func TestSolarFireCSV_ComprehensiveValidation(t *testing.T) {
 
 	// === Combined report ===
 	t.Logf("========================================================")
-	t.Logf("COMPREHENSIVE SF VALIDATION (ΔT=%.2fs, excl Chiron/NNode)", deltaTSec)
+	t.Logf("COMPREHENSIVE SF VALIDATION (TC=%.2fs, excl Chiron/NNode)", timeCorrectionSec)
 	t.Logf("========================================================")
 
 	var transitOnlyResults []deviationResult // Station + SignIngress + Tr-Tr (pure transit timing)
