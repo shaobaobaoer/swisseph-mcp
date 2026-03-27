@@ -1,6 +1,7 @@
 # Build output
 bin/
 /api
+/compare
 
 # Third-party dependencies (large ephemeris files)
 third_party/
@@ -21,6 +22,7 @@ Thumbs.db
 
 # Misc
 nohup.out
+*_output.txt
 
 # Claude project files
 .claude/

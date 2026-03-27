@@ -59,6 +59,10 @@ type NatalChartConfig struct {
 	// progASC = ASCOverrideForProgressions + solarArc
 	// This matches Solar Fire's behavior and takes precedence over MCOverrideForASC.
 	ASCOverrideForProgressions float64
+	// PlanetOverrides allows specifying exact natal planet positions.
+	// Use this to match reference data that may use different ephemeris (DE200 vs DE432).
+	// Map key is planet ID (e.g., "MOON", "MERCURY"), value is longitude in degrees.
+	PlanetOverrides map[string]float64
 }
 
 // TimeRangeConfig holds the time range for transit calculation.

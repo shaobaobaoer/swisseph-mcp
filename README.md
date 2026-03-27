@@ -175,6 +175,29 @@ make build-api    # → bin/solarsage-api  (REST API server)
 
 The `make build` step compiles the Swiss Ephemeris C library via CGO and links it into the Go binary. No separate installation of `libswisseph` is needed — everything is vendored under `third_party/`.
 
+### Ephemeris Options
+
+SolarSage supports multiple ephemeris sources:
+
+| Type | Description | Use Case |
+|------|-------------|----------|
+| **Swiss (default)** | Swiss Ephemeris based on JPL DE431 | Highest accuracy, longest time span |
+| **JPL** | Direct JPL files (DE200, DE406, DE440, etc.) | Solar Fire compatibility (DE406) |
+| **Moshier** | Built-in analytical approximation | No files needed, lower precision |
+
+Configure via environment variables:
+
+```bash
+# Use JPL DE406 for Solar Fire compatibility
+export SWISSEPH_TYPE=jpl
+export SWISSEPH_JPL_FILE=de406.eph
+
+# Or stick with Swiss Ephemeris (default)
+export SWISSEPH_TYPE=swiss
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for download links and detailed setup.
+
 ### Run as MCP Server
 
 ```bash

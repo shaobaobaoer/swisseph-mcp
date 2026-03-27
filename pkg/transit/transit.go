@@ -87,6 +87,10 @@ type TransitCalcInput struct {
 	// progASC = NatalASCForProgressions + solarArc
 	// This matches Solar Fire's behavior exactly.
 	NatalASCForProgressions float64
+	// NatalPlanetOverrides allows specifying exact natal planet positions.
+	// Use this to match reference data that may use different ephemeris (DE200 vs DE432).
+	// Map key is planet ID (e.g., "MOON", "MERCURY"), value is longitude in degrees.
+	NatalPlanetOverrides map[string]float64
 
 	TransitLat float64
 	TransitLon float64

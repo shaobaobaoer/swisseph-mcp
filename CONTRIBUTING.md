@@ -70,6 +70,68 @@ third_party/swisseph/
     *.se1       Ephemeris data files (~150 files)
 ```
 
+### JPL Ephemeris (Optional)
+
+SolarSage supports JPL ephemeris files (DE200, DE406, DE431, DE440, DE441) as an alternative to the Swiss Ephemeris. Use JPL ephemeris when:
+
+- **Matching Solar Fire results** — Solar Fire uses DE200/DE406; using DE406 gives identical planetary positions
+- **Maximum precision** — DE440 (2021) is the most accurate modern ephemeris for 1550–2650
+
+#### Download JPL Ephemeris Files
+
+Download from JPL directly (rename after download):
+
+```bash
+cd third_party/swisseph/ephe
+
+# DE406 (recommended for Solar Fire compatibility, 190 MB)
+wget -O de406.eph https://ssd.jpl.nasa.gov/ftp/eph/planets/Linux/de406/lnxm3000p3000.406
+
+# DE440 (highest precision for modern dates, 2.6 GB)
+wget -O de440.eph https://ssd.jpl.nasa.gov/ftp/eph/planets/Linux/de441/linux_m13000p17000.441
+
+# DE200 (legacy, 41 MB)
+wget -O de200.eph https://ssd.jpl.nasa.gov/ftp/eph/planets/Linux/de200/lnxm1600p2170.200
+```
+
+#### Ephemeris Comparison
+
+| Ephemeris | Year Range | Size | Precision | Use Case |
+|-----------|------------|------|-----------|----------|
+| DE440 | 1550–2650 | 2.6 GB | Highest | Modern high-precision work |
+| DE431 | -13000 ~ +17000 | 2.6 GB | Very High | Swiss Ephemeris default |
+| DE406 | -3000 ~ +3000 | 190 MB | High | Solar Fire compatibility |
+| DE200 | 1599–2169 | 41 MB | Moderate | Legacy compatibility |
+
+#### Configure Ephemeris Type
+
+Set environment variables before running:
+
+```bash
+# Use JPL ephemeris (e.g., DE406 for Solar Fire compatibility)
+export SWISSEPH_TYPE=jpl
+export SWISSEPH_JPL_FILE=de406.eph
+
+# Or use Swiss Ephemeris (default)
+export SWISSEPH_TYPE=swiss
+
+# Or use Moshier (built-in, no files needed, lower precision)
+export SWISSEPH_TYPE=moshier
+```
+
+These can also be set programmatically:
+
+```go
+import "github.com/shaobaobaoer/solarsage-mcp/pkg/sweph"
+
+// Switch to JPL DE406
+sweph.SetEphemerisType(sweph.EphemerisJPL)
+sweph.SetJPLFile("de406.eph")
+
+// Switch back to Swiss Ephemeris
+sweph.SetEphemerisType(sweph.EphemerisSwiss)
+```
+
 ### Build
 
 ```bash

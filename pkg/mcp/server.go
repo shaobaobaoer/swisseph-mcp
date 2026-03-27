@@ -171,6 +171,7 @@ func (s *Server) Run() error {
 	// Initialize Swiss Ephemeris
 	absPath, _ := filepath.Abs(s.ephePath)
 	sweph.Init(absPath)
+	sweph.ConfigureFromEnv() // Configure ephemeris type from SWISSEPH_TYPE / SWISSEPH_JPL_FILE
 	defer sweph.Close()
 
 	decoder := json.NewDecoder(os.Stdin)

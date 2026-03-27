@@ -47,7 +47,9 @@ import "C"
 import (
 	"fmt"
 	"math"
+	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"unsafe"
 )
@@ -73,7 +75,9 @@ const (
 
 // Calculation flags
 const (
-	SEFLG_SWIEPH   = C.SEFLG_SWIEPH
+	SEFLG_JPLEPH   = C.SEFLG_JPLEPH // Use JPL ephemeris (DE200, DE406, DE431, etc.)
+	SEFLG_SWIEPH   = C.SEFLG_SWIEPH // Use Swiss Ephemeris (default DE431)
+	SEFLG_MOSEPH   = C.SEFLG_MOSEPH // Use Moshier ephemeris (low precision)
 	SEFLG_SPEED    = C.SEFLG_SPEED
 )
 
@@ -119,7 +123,56 @@ var mu sync.Mutex
 // storedPath holds an absolute ephemeris path to prevent dangling pointer issues
 var storedPath *C.char
 
+// storedJPLFile holds the JPL ephemeris filename for SEFLG_JPLEPH mode
+var storedJPLFile *C.char
+
+// EphemerisType defines which ephemeris to use for calculations
+type EphemerisType int
+
+const (
+	// EphemerisSwiss uses Swiss Ephemeris (default, DE431-based, highly accurate)
+	EphemerisSwiss EphemerisType = iota
+	// EphemerisJPL uses JPL ephemeris (DE200, DE406, DE431, DE440, etc.)
+	// Requires JPL ephemeris file (.eph or unmerged file)
+	EphemerisJPL
+	// EphemerisMoshier uses Moshier ephemeris (built-in, lower precision, no files needed)
+	EphemerisMoshier
+)
+
+// String returns the name of the ephemeris type
+func (e EphemerisType) String() string {
+	switch e {
+	case EphemerisSwiss:
+		return "Swiss Ephemeris (DE431)"
+	case EphemerisJPL:
+		return "JPL Ephemeris"
+	case EphemerisMoshier:
+		return "Moshier Ephemeris"
+	default:
+		return "Unknown"
+	}
+}
+
+// currentEphemeris is the global ephemeris type setting
+var currentEphemeris EphemerisType = EphemerisSwiss
+
+// SetEphemerisType sets the global ephemeris type for all calculations.
+// This affects all subsequent CalcUT calls.
+func SetEphemerisType(ephType EphemerisType) {
+	mu.Lock()
+	defer mu.Unlock()
+	currentEphemeris = ephType
+}
+
+// GetEphemerisType returns the current global ephemeris type.
+func GetEphemerisType() EphemerisType {
+	mu.Lock()
+	defer mu.Unlock()
+	return currentEphemeris
+}
+
 // Init sets the ephemeris path. Converts to absolute path for reliability.
+// This path should contain Swiss Ephemeris files (.se1) or JPL ephemeris files.
 func Init(ephePath string) {
 	mu.Lock()
 	defer mu.Unlock()
@@ -137,11 +190,60 @@ func Init(ephePath string) {
 	C.swe_set_ephe_path(storedPath)
 }
 
+// SetJPLFile sets the JPL ephemeris filename for use with EphemerisJPL mode.
+// Common filenames: "de406.eph", "de440.eph", "linux_p1550p2650.440" (DE440)
+// The file must be in the ephemeris path set by Init().
+func SetJPLFile(filename string) {
+	mu.Lock()
+	defer mu.Unlock()
+	if storedJPLFile != nil {
+		C.free(unsafe.Pointer(storedJPLFile))
+	}
+	storedJPLFile = C.CString(filename)
+	C.swe_set_jpl_file(storedJPLFile)
+}
+
 // Close releases Swiss Ephemeris resources
 func Close() {
 	mu.Lock()
 	defer mu.Unlock()
 	C.swe_close()
+}
+
+// ConfigureFromEnv configures ephemeris settings from environment variables.
+// Environment variables:
+//   - SWISSEPH_TYPE: "swiss" (default), "jpl", or "moshier"
+//   - SWISSEPH_JPL_FILE: JPL ephemeris filename (e.g., "de406.eph", "de440.eph")
+//
+// This function should be called after Init().
+func ConfigureFromEnv() {
+	ephType := os.Getenv("SWISSEPH_TYPE")
+	switch strings.ToLower(ephType) {
+	case "jpl":
+		SetEphemerisType(EphemerisJPL)
+		// Check for JPL file
+		jplFile := os.Getenv("SWISSEPH_JPL_FILE")
+		if jplFile != "" {
+			SetJPLFile(jplFile)
+		}
+	case "moshier":
+		SetEphemerisType(EphemerisMoshier)
+	default:
+		// "swiss" or empty = default Swiss Ephemeris
+		SetEphemerisType(EphemerisSwiss)
+	}
+}
+
+// getFlag returns the appropriate calculation flag based on current ephemeris type
+func getFlag() int {
+	switch currentEphemeris {
+	case EphemerisJPL:
+		return SEFLG_JPLEPH | SEFLG_SPEED
+	case EphemerisMoshier:
+		return SEFLG_MOSEPH | SEFLG_SPEED
+	default:
+		return SEFLG_SWIEPH | SEFLG_SPEED
+	}
 }
 
 // CalcUT calculates planet position at given Julian Day UT
@@ -151,7 +253,7 @@ func CalcUT(jdUT float64, planet int) (*CalcResult, error) {
 
 	var xx [6]C.double
 	var serr [256]C.char
-	iflag := C.int(SEFLG_SWIEPH | SEFLG_SPEED)
+	iflag := C.int(getFlag())
 
 	ret := C.calc_ut(C.double(jdUT), C.int(planet), iflag, &xx[0], &serr[0])
 	if ret < 0 {

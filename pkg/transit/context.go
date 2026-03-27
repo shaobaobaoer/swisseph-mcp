@@ -73,6 +73,7 @@ func normalizeInput(input TransitCalcInput) TransitCalcInput {
 		MCOverride:                input.NatalMC,
 		MCOverrideForASC:          input.NatalMCForASC,
 		ASCOverrideForProgressions: input.NatalASCForProgressions,
+		PlanetOverrides:           input.NatalPlanetOverrides,
 	}
 
 	if input.SpecialPoints != nil {
@@ -149,7 +150,20 @@ func buildNatalRefs(input TransitCalcInput, natalHouses []float64) []NatalRef {
 
 	// Natal planets
 	for _, pid := range input.NatalChart.Planets {
-		lon, _, err := chart.CalcPlanetLongitude(pid, input.NatalChart.JD)
+		var lon float64
+		var err error
+
+		// Check for planet override
+		if input.NatalChart.PlanetOverrides != nil {
+			if override, ok := input.NatalChart.PlanetOverrides[string(pid)]; ok {
+				lon = override
+			} else {
+				lon, _, err = chart.CalcPlanetLongitude(pid, input.NatalChart.JD)
+			}
+		} else {
+			lon, _, err = chart.CalcPlanetLongitude(pid, input.NatalChart.JD)
+		}
+
 		if err != nil {
 			continue
 		}

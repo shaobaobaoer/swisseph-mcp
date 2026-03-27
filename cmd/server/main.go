@@ -25,7 +25,9 @@ func main() {
 			fmt.Println("  --help, -h     Print this help")
 			fmt.Println()
 			fmt.Println("Environment:")
-			fmt.Println("  SWISSEPH_EPHE_PATH  Path to Swiss Ephemeris data files")
+			fmt.Println("  SWISSEPH_EPHE_PATH   Path to Swiss Ephemeris data files")
+			fmt.Println("  SWISSEPH_TYPE        Ephemeris type: \"swiss\" (default), \"jpl\", or \"moshier\"")
+			fmt.Println("  SWISSEPH_JPL_FILE    JPL ephemeris filename (e.g., \"de406.eph\", \"de440.eph\")")
 			return
 		}
 	}

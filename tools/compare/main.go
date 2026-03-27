@@ -40,6 +40,10 @@ type TestCase struct {
 	// NatalASCForProgressions: controls ASC progression method.
 	// Set to -1 to use Solar Arc in Right Ascension method (SF style).
 	NatalASCForProgressions float64
+	// NatalPlanetOverrides allows specifying exact natal planet positions from SF.
+	// Use this to match reference data that may use different ephemeris (DE200 vs DE432).
+	// Map key is planet ID (e.g., "MOON", "MERCURY"), value is longitude in degrees.
+	NatalPlanetOverrides map[string]float64
 	// Natal planets for Tr-Na reference points
 	NatalPlanets []models.PlanetID
 	// Progressed planets for Tr-Sp, Sp-Na, Sp-Sp (defaults to all planets including Chiron)
@@ -106,12 +110,29 @@ func getTestCase1() TestCase {
 		// SF meta precise values (for accurate natal reference positions)
 		NatalASC:    96.529167, // SF meta: 06°Cancer31'45''
 		NatalMC:     351.4975,  // SF meta: 21°Pisces29'51''
-		// SF testcase 1: Chiron is NOT used as natal reference point
+		// SF precise natal planet positions from meta (to match DE200 ephemeris)
+		// These override sweph-computed positions to match SF's ephemeris
+		// Keys must match models.PlanetID string values exactly
+		NatalPlanetOverrides: map[string]float64{
+			"SUN":             266.4833,  // 26°29' Sagittarius
+			"MOON":            138.1164,  // 18°06'59" Leo
+			"MERCURY":         263.9333,  // 23°56' Sagittarius
+			"VENUS":           302.5528,  // 2°33'09" Aquarius
+			"MARS":            300.0972,  // 0°05'50" Aquarius
+			"JUPITER":         319.5479,  // 19°32'52" Aquarius
+			"SATURN":          13.5378,   // 13°32'15" Aries
+			"URANUS":          306.4248,  // 6°25'29" Aquarius
+			"NEPTUNE":         298.4675,  // 28°28'03" Capricorn
+			"PLUTO":           246.2742,  // 6°16'27" Sagittarius
+			"CHIRON":          224.0227,  // 14°01'21" Scorpio
+			"NORTH_NODE_MEAN": 164.4461,  // 14°26'45" Virgo
+		},
+		// SF testcase 1: Chiron IS used as natal reference point for Tr-Na
 		NatalPlanets: []models.PlanetID{
 			models.PlanetSun, models.PlanetMoon, models.PlanetMercury,
 			models.PlanetVenus, models.PlanetMars, models.PlanetJupiter,
 			models.PlanetSaturn, models.PlanetUranus, models.PlanetNeptune,
-			models.PlanetPluto, models.PlanetNorthNodeMean,
+			models.PlanetPluto, models.PlanetChiron, models.PlanetNorthNodeMean,
 		},
 		EventConfig: models.EventConfig{
 			IncludeTrNa:         true,
@@ -245,6 +266,7 @@ func runTestCase(tc TestCase) {
 		NatalMC:                 tc.NatalMC,                 // Override from SF meta
 		NatalMCForASC:           tc.NatalMCForASC,           // Separate override for ASC progression
 		NatalASCForProgressions: tc.NatalASCForProgressions, // Use direct solar arc for ASC progression (SF style)
+		NatalPlanetOverrides:    tc.NatalPlanetOverrides,    // SF precise natal positions
 		TransitLat:   tc.NatalLat,
 		TransitLon:   tc.NatalLon,
 		StartJD:      startJD,
@@ -282,16 +304,17 @@ func runTestCase(tc TestCase) {
 			models.PlanetVenus, models.PlanetMars)
 		fmt.Println("Running Moon transit events...")
 		events2, err = transit.CalcTransitEvents(transit.TransitCalcInput{
-			NatalLat:     tc.NatalLat,
-			NatalLon:     tc.NatalLon,
-			NatalJD:      tc.NatalJD,
-			NatalPlanets: natalPlanets,
-			NatalASC:     tc.NatalASC, // Override from SF meta
-			NatalMC:      tc.NatalMC,  // Override from SF meta
-			TransitLat:   tc.NatalLat,
-			TransitLon:   tc.NatalLon,
-			StartJD:      startJD,
-			EndJD:        endJD,
+			NatalLat:             tc.NatalLat,
+			NatalLon:             tc.NatalLon,
+			NatalJD:              tc.NatalJD,
+			NatalPlanets:         natalPlanets,
+			NatalASC:             tc.NatalASC,             // Override from SF meta
+			NatalMC:              tc.NatalMC,              // Override from SF meta
+			NatalPlanetOverrides: tc.NatalPlanetOverrides, // SF precise natal positions
+			TransitLat:           tc.NatalLat,
+			TransitLon:           tc.NatalLon,
+			StartJD:              startJD,
+			EndJD:                endJD,
 			TransitPlanets: moonTransitPlanets,
 			SpecialPoints: &models.SpecialPointsConfig{
 				NatalPoints: natalPoints,
@@ -740,4 +763,27 @@ func matchExactEvents(sfRows [][]string, computedEvents []models.TransitEvent, t
 	}
 
 	fmt.Printf("\nSF Exact: %d, Paired: %d, No match: %d\n", sfExactCount, len(results), unmatchedSF)
+
+	// Print ALL Tr-Na events sorted by diff
+	fmt.Printf("\n=== ALL Tr-Na Events (sorted by time diff) ===\n")
+	var trNaResults []diffResult
+	for _, r := range results {
+		if r.chartType == "Tr-Na" {
+			trNaResults = append(trNaResults, r)
+		}
+	}
+	// Sort by absolute diff
+	sort.Slice(trNaResults, func(i, j int) bool {
+		ai := trNaResults[i].diffSeconds
+		if ai < 0 { ai = -ai }
+		aj := trNaResults[j].diffSeconds
+		if aj < 0 { aj = -aj }
+		return ai < aj
+	})
+	for _, r := range trNaResults {
+		fmt.Printf("  %+6ds (%+.1fmin) | SF %s %s | Comp %s %s | %s %s %s\n",
+			r.diffSeconds, float64(r.diffSeconds)/60,
+			r.sfDate, r.sfTime, r.compDate, r.compTime,
+			r.p1, r.aspect, r.p2)
+	}
 }

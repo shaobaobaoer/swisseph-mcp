@@ -33,6 +33,7 @@ func main() {
 
 	absPath, _ := filepath.Abs(ephePath)
 	sweph.Init(absPath)
+	sweph.ConfigureFromEnv() // Configure ephemeris type from SWISSEPH_TYPE / SWISSEPH_JPL_FILE
 	defer sweph.Close()
 
 	srv := api.NewServer(api.Config{
