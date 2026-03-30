@@ -43,28 +43,3 @@ func TestDavisonChart_InvalidDatetime2(t *testing.T) {
 	}
 }
 
-
-func TestBonification_OK(t *testing.T) {
-	result, err := Bonification(51.5, -0.1, "2000-01-01T12:00:00Z")
-	if err != nil {
-		t.Fatalf("Bonification: %v", err)
-	}
-	if len(result) == 0 {
-		t.Error("expected non-empty bonification result")
-	}
-}
-
-func TestBonification_InvalidCoords(t *testing.T) {
-	_, err := Bonification(999, -0.1, "2000-01-01")
-	if err == nil {
-		t.Error("expected error for invalid coords")
-	}
-}
-
-func TestBonification_InvalidDatetime(t *testing.T) {
-	_, err := Bonification(51.5, -0.1, "bad")
-	if err == nil {
-		t.Error("expected error for bad datetime")
-	}
-}
-

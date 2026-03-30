@@ -135,17 +135,6 @@ func TestNatalChartWithOptions_InvalidCoords(t *testing.T) {
 	}
 }
 
-func TestBatchGroupCompatibility_InvalidDatetime(t *testing.T) {
-	people := []Person{
-		{Lat: 51.5, Lon: -0.1, Datetime: "2000-01-01"},
-		{Lat: 40.7, Lon: -74, Datetime: "bad"},
-	}
-	_, err := BatchGroupCompatibility(people)
-	if err == nil {
-		t.Error("expected error")
-	}
-}
-
 func TestNatalChartFull_InvalidDatetime(t *testing.T) {
 	_, err := NatalChartFull(51.5, -0.1, "bad")
 	if err == nil {

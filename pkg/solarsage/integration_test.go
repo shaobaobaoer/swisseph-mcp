@@ -114,17 +114,4 @@ func TestFullPipeline(t *testing.T) {
 	}
 	t.Logf("Venus: %s", pos)
 
-	// 14. Batch compatibility
-	people := []Person{
-		{Lat: birthLat, Lon: birthLon, Datetime: birthDT},
-		{Lat: 40.7128, Lon: -74.006, Datetime: partner},
-		{Lat: 35.6762, Lon: 139.6503, Datetime: "1988-11-08T10:00:00Z"},
-	}
-	pairs, err := BatchGroupCompatibility(people)
-	if err != nil {
-		t.Fatalf("BatchGroupCompatibility: %v", err)
-	}
-	for _, p := range pairs {
-		t.Logf("Pair %d-%d: %.0f%%", p.IndexA, p.IndexB, p.Score)
-	}
 }

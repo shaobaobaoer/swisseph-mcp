@@ -37,6 +37,8 @@ var DefaultPlanets = []models.PlanetID{
 	models.PlanetPluto,
 }
 
+// --- Lifecycle ---
+
 // Init initializes the Swiss Ephemeris with the given ephemeris data path.
 func Init(ephePath string) {
 	sweph.Init(ephePath)
@@ -57,6 +59,8 @@ func ValidateCoords(lat, lon float64) error {
 	}
 	return nil
 }
+
+// --- Single Chart ---
 
 // NatalChart calculates a natal chart from a datetime string and coordinates.
 // Accepts ISO 8601 datetime (e.g. "2000-01-01T12:00:00Z").
@@ -132,6 +136,22 @@ func Transits(natalLat, natalLon float64, natalDatetime string, startDatetime, e
 	})
 }
 
+// TransitChart returns the transiting planet positions at a given moment.
+func TransitChart(lat, lon float64, datetime string) (*models.ChartInfo, error) {
+	if err := ValidateCoords(lat, lon); err != nil {
+		return nil, err
+	}
+	jd, err := ParseDatetime(datetime)
+	if err != nil {
+		return nil, fmt.Errorf("transit chart: %w", err)
+	}
+	// Transit charts don't need houses, just planet positions
+	return chart.CalcSingleChart(lat, lon, jd, DefaultPlanets,
+		models.DefaultOrbConfig(), models.HousePlacidus)
+}
+
+// --- Return Charts ---
+
 // SolarReturn calculates the solar return chart for a given year.
 func SolarReturn(natalLat, natalLon float64, natalDatetime string, year int) (*returns.ReturnChart, error) {
 	natalJD, err := ParseDatetime(natalDatetime)
@@ -196,6 +216,10 @@ func Eclipses(startDatetime, endDatetime string) ([]lunar.EclipseInfo, error) {
 	}
 	return lunar.FindEclipses(startJD, endJD)
 }
+
+// --- Lunar ---
+
+// --- Relationship Charts ---
 
 // Compatibility calculates a synastry compatibility score between two people.
 func Compatibility(lat1, lon1 float64, datetime1 string, lat2, lon2 float64, datetime2 string) (*synastry.SynastryScore, error) {
@@ -328,26 +352,7 @@ func DavisonChart(lat1, lon1 float64, datetime1 string, lat2, lon2 float64, date
 	})
 }
 
-
-
-
-// Bonification analyzes bonification and maltreatment for all planets in a chart.
-func Bonification(lat, lon float64, datetime string) ([]dignity.BonMalInfo, error) {
-	if err := ValidateCoords(lat, lon); err != nil {
-		return nil, err
-	}
-	jd, err := ParseDatetime(datetime)
-	if err != nil {
-		return nil, fmt.Errorf("datetime: %w", err)
-	}
-	chartInfo, err := chart.CalcSingleChart(lat, lon, jd, DefaultPlanets,
-		models.DefaultOrbConfig(), models.HousePlacidus)
-	if err != nil {
-		return nil, err
-	}
-	return dignity.CalcChartBonMal(chartInfo.Planets), nil
-}
-
+// --- Utility & Helper Types ---
 
 // Options configures calculation parameters for the convenience API.
 type Options struct {
@@ -398,43 +403,7 @@ func BatchNatalCharts(people []Person) ([]*models.ChartInfo, []error) {
 	return charts, errs
 }
 
-// BatchCompatibility calculates compatibility scores for all pairs in a group.
-type CompatibilityPair struct {
-	IndexA int     `json:"index_a"`
-	IndexB int     `json:"index_b"`
-	Score  float64 `json:"score"`
-}
-
-// BatchGroupCompatibility calculates all pairwise compatibility scores.
-func BatchGroupCompatibility(people []Person) ([]CompatibilityPair, error) {
-	// Pre-calculate all charts
-	charts := make([]*models.ChartInfo, len(people))
-	for i, p := range people {
-		jd, err := ParseDatetime(p.Datetime)
-		if err != nil {
-			return nil, fmt.Errorf("person %d: %w", i, err)
-		}
-		c, err := chart.CalcSingleChart(p.Lat, p.Lon, jd, DefaultPlanets,
-			models.DefaultOrbConfig(), models.HousePlacidus)
-		if err != nil {
-			return nil, fmt.Errorf("person %d chart: %w", i, err)
-		}
-		charts[i] = c
-	}
-
-	// Calculate all pairs
-	var pairs []CompatibilityPair
-	orbs := models.DefaultOrbConfig()
-	for i := 0; i < len(charts); i++ {
-		for j := i + 1; j < len(charts); j++ {
-			score := synastry.CalcSynastryFromCharts(charts[i].Planets, charts[j].Planets, orbs)
-			pairs = append(pairs, CompatibilityPair{
-				IndexA: i, IndexB: j, Score: score.Compatibility,
-			})
-		}
-	}
-	return pairs, nil
-}
+// --- Parsing & Conversion ---
 
 // ParseDatetime converts an ISO 8601 datetime string to Julian Day (UT).
 // Timezone offsets are handled correctly (converted to UT before JD conversion).

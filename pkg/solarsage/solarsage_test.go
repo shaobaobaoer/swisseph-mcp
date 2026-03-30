@@ -245,27 +245,6 @@ func TestBatchNatalCharts(t *testing.T) {
 	}
 }
 
-func TestBatchGroupCompatibility(t *testing.T) {
-	people := []Person{
-		{Lat: 51.5074, Lon: -0.1278, Datetime: "2000-01-01T12:00:00Z"},
-		{Lat: 40.7128, Lon: -74.006, Datetime: "1990-06-15T14:30:00Z"},
-		{Lat: 35.6762, Lon: 139.6503, Datetime: "1985-12-25T08:00:00Z"},
-	}
-	pairs, err := BatchGroupCompatibility(people)
-	if err != nil {
-		t.Fatalf("BatchGroupCompatibility: %v", err)
-	}
-	// 3 people = 3 pairs (0-1, 0-2, 1-2)
-	if len(pairs) != 3 {
-		t.Errorf("Expected 3 pairs, got %d", len(pairs))
-	}
-	for _, p := range pairs {
-		if p.Score < 0 || p.Score > 100 {
-			t.Errorf("Score out of range: %.2f", p.Score)
-		}
-	}
-}
-
 func TestParseDatetime_Timezone(t *testing.T) {
 	// "2000-01-01T20:00:00+08:00" = 2000-01-01T12:00:00Z = J2000.0
 	jd, err := ParseDatetime("2000-01-01T20:00:00+08:00")
