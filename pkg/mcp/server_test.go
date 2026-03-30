@@ -58,7 +58,7 @@ func TestHandleToolsList(t *testing.T) {
 	if !ok {
 		t.Fatal("Result is not toolsListResult")
 	}
-	expectedTools := []string{"geocode", "datetime_to_jd", "jd_to_datetime", "calc_planet_position", "calc_single_chart", "calc_double_chart", "calc_progressions", "calc_solar_arc", "calc_transit", "calc_solar_return", "calc_lunar_return", "calc_dignity", "calc_composite_chart", "calc_aspect_patterns", "calc_lunar_phase", "calc_lunar_phases", "calc_eclipses", "calc_synastry", "calc_davison_chart", "calc_bonification"}
+	expectedTools := []string{"util_geocode", "util_datetime_to_jd", "jd_to_datetime", "util_planet_position", "chart_natal", "chart_double", "chart_progression", "chart_solar_arc", "events", "chart_solar_return", "chart_lunar_return", "analysis_dignity", "chart_composite", "analysis_aspects", "lunar_phase", "lunar_phases", "lunar_eclipses", "analysis_synastry", "chart_davison", "analysis_bonification"}
 	if len(result.Tools) < len(expectedTools) {
 		t.Errorf("Expected at least %d tools, got %d", len(expectedTools), len(result.Tools))
 	}
@@ -76,7 +76,7 @@ func TestHandleToolsList(t *testing.T) {
 func TestHandleGeocode(t *testing.T) {
 	s := NewServer(".")
 	args, _ := json.Marshal(map[string]string{"location_name": "Beijing"})
-	params, _ := json.Marshal(callToolParams{Name: "geocode", Arguments: args})
+	params, _ := json.Marshal(callToolParams{Name: "util_geocode", Arguments: args})
 	req := &jsonRPCRequest{
 		JSONRPC: "2.0",
 		ID:      3,
@@ -88,7 +88,7 @@ func TestHandleGeocode(t *testing.T) {
 		t.Fatal("Expected response, got nil")
 	}
 	if resp.Error != nil {
-		t.Fatalf("geocode error: %v", resp.Error)
+		t.Fatalf("util_geocode error: %v", resp.Error)
 	}
 
 	result, ok := resp.Result.(callToolResult)
@@ -106,7 +106,7 @@ func TestHandleGeocode(t *testing.T) {
 func TestHandleDatetimeToJD(t *testing.T) {
 	s := NewServer(".")
 	args, _ := json.Marshal(map[string]string{"datetime": "2000-01-01T12:00:00+00:00"})
-	params, _ := json.Marshal(callToolParams{Name: "datetime_to_jd", Arguments: args})
+	params, _ := json.Marshal(callToolParams{Name: "util_datetime_to_jd", Arguments: args})
 	req := &jsonRPCRequest{
 		JSONRPC: "2.0",
 		ID:      4,
@@ -115,7 +115,7 @@ func TestHandleDatetimeToJD(t *testing.T) {
 	}
 	resp := s.handleRequest(req)
 	if resp == nil || resp.Error != nil {
-		t.Fatal("datetime_to_jd failed")
+		t.Fatal("util_datetime_to_jd failed")
 	}
 	result := resp.Result.(callToolResult)
 	if result.IsError {
@@ -130,7 +130,7 @@ func TestHandleCalcSingleChart(t *testing.T) {
 		"longitude": 116.4074,
 		"jd_ut":     2451545.0,
 	})
-	params, _ := json.Marshal(callToolParams{Name: "calc_single_chart", Arguments: args})
+	params, _ := json.Marshal(callToolParams{Name: "chart_natal", Arguments: args})
 	req := &jsonRPCRequest{
 		JSONRPC: "2.0",
 		ID:      5,
@@ -139,7 +139,7 @@ func TestHandleCalcSingleChart(t *testing.T) {
 	}
 	resp := s.handleRequest(req)
 	if resp == nil || resp.Error != nil {
-		t.Fatal("calc_single_chart failed")
+		t.Fatal("chart_natal failed")
 	}
 	result := resp.Result.(callToolResult)
 	if result.IsError {
@@ -153,7 +153,7 @@ func TestHandleCalcProgressions(t *testing.T) {
 		"natal_jd_ut":   2448057.5208,
 		"transit_jd_ut": 2460310.667,
 	})
-	params, _ := json.Marshal(callToolParams{Name: "calc_progressions", Arguments: args})
+	params, _ := json.Marshal(callToolParams{Name: "chart_progression", Arguments: args})
 	req := &jsonRPCRequest{
 		JSONRPC: "2.0",
 		ID:      9,
@@ -162,7 +162,7 @@ func TestHandleCalcProgressions(t *testing.T) {
 	}
 	resp := s.handleRequest(req)
 	if resp == nil || resp.Error != nil {
-		t.Fatal("calc_progressions failed")
+		t.Fatal("chart_progression failed")
 	}
 	result := resp.Result.(callToolResult)
 	if result.IsError {
@@ -176,7 +176,7 @@ func TestHandleCalcSolarArc(t *testing.T) {
 		"natal_jd_ut":   2448057.5208,
 		"transit_jd_ut": 2460310.667,
 	})
-	params, _ := json.Marshal(callToolParams{Name: "calc_solar_arc", Arguments: args})
+	params, _ := json.Marshal(callToolParams{Name: "chart_solar_arc", Arguments: args})
 	req := &jsonRPCRequest{
 		JSONRPC: "2.0",
 		ID:      10,
@@ -185,7 +185,7 @@ func TestHandleCalcSolarArc(t *testing.T) {
 	}
 	resp := s.handleRequest(req)
 	if resp == nil || resp.Error != nil {
-		t.Fatal("calc_solar_arc failed")
+		t.Fatal("chart_solar_arc failed")
 	}
 	result := resp.Result.(callToolResult)
 	if result.IsError {
@@ -209,7 +209,7 @@ func TestHandleCalcTransit(t *testing.T) {
 			"include_sign_ingress": true,
 		},
 	})
-	params, _ := json.Marshal(callToolParams{Name: "calc_transit", Arguments: args})
+	params, _ := json.Marshal(callToolParams{Name: "events", Arguments: args})
 	req := &jsonRPCRequest{
 		JSONRPC: "2.0",
 		ID:      6,
@@ -218,7 +218,7 @@ func TestHandleCalcTransit(t *testing.T) {
 	}
 	resp := s.handleRequest(req)
 	if resp == nil || resp.Error != nil {
-		t.Fatal("calc_transit failed")
+		t.Fatal("events failed")
 	}
 	result := resp.Result.(callToolResult)
 	if result.IsError {
@@ -239,7 +239,7 @@ func TestHandleCalcDoubleChart(t *testing.T) {
 			"inner_points": []string{"ASC", "MC"},
 		},
 	})
-	params, _ := json.Marshal(callToolParams{Name: "calc_double_chart", Arguments: args})
+	params, _ := json.Marshal(callToolParams{Name: "chart_double", Arguments: args})
 	req := &jsonRPCRequest{
 		JSONRPC: "2.0",
 		ID:      11,
@@ -248,7 +248,7 @@ func TestHandleCalcDoubleChart(t *testing.T) {
 	}
 	resp := s.handleRequest(req)
 	if resp == nil || resp.Error != nil {
-		t.Fatal("calc_double_chart failed")
+		t.Fatal("chart_double failed")
 	}
 	result := resp.Result.(callToolResult)
 	if result.IsError {
@@ -262,7 +262,7 @@ func TestHandleCalcPlanetPosition(t *testing.T) {
 		"planet": "SUN",
 		"jd_ut":  2451545.0,
 	})
-	params, _ := json.Marshal(callToolParams{Name: "calc_planet_position", Arguments: args})
+	params, _ := json.Marshal(callToolParams{Name: "util_planet_position", Arguments: args})
 	req := &jsonRPCRequest{
 		JSONRPC: "2.0",
 		ID:      12,
@@ -271,7 +271,7 @@ func TestHandleCalcPlanetPosition(t *testing.T) {
 	}
 	resp := s.handleRequest(req)
 	if resp == nil || resp.Error != nil {
-		t.Fatal("calc_planet_position failed")
+		t.Fatal("util_planet_position failed")
 	}
 	result := resp.Result.(callToolResult)
 	if result.IsError {

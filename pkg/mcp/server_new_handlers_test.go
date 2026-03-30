@@ -284,15 +284,15 @@ func TestHandleToolsCall_NewTools(t *testing.T) {
 		name string
 		args string
 	}{
-		{"calc_dignity", `{"latitude":51.5,"longitude":-0.1,"jd_ut":2451545.0}`},
-		{"calc_lunar_phase", `{"jd_ut":2451545.0}`},
-		{"calc_aspect_patterns", `{"latitude":51.5,"longitude":-0.1,"jd_ut":2451545.0}`},
-		{"calc_composite_chart", `{"person1_latitude":51.5,"person1_longitude":-0.1,"person1_jd_ut":2451545.0,"person2_latitude":40.7,"person2_longitude":-74.0,"person2_jd_ut":2451910.0}`},
-		{"calc_solar_return", `{"natal_jd_ut":2451545.0,"natal_latitude":51.5,"natal_longitude":-0.1,"search_jd_ut":2451905.0}`},
-		{"calc_lunar_return", `{"natal_jd_ut":2451545.0,"natal_latitude":51.5,"natal_longitude":-0.1,"search_jd_ut":2451570.0}`},
-		{"calc_synastry", `{"person1_latitude":51.5,"person1_longitude":-0.1,"person1_jd_ut":2451545.0,"person2_latitude":40.7,"person2_longitude":-74.0,"person2_jd_ut":2451910.0}`},
-		{"calc_lunar_phases", `{"start_jd_ut":2451545.0,"end_jd_ut":2451575.0}`},
-		{"calc_eclipses", `{"start_jd_ut":2451545.0,"end_jd_ut":2451910.0}`},
+		{"analysis_dignity", `{"latitude":51.5,"longitude":-0.1,"jd_ut":2451545.0}`},
+		{"lunar_phase", `{"jd_ut":2451545.0}`},
+		{"analysis_aspects", `{"latitude":51.5,"longitude":-0.1,"jd_ut":2451545.0}`},
+		{"chart_composite", `{"person1_latitude":51.5,"person1_longitude":-0.1,"person1_jd_ut":2451545.0,"person2_latitude":40.7,"person2_longitude":-74.0,"person2_jd_ut":2451910.0}`},
+		{"chart_solar_return", `{"natal_jd_ut":2451545.0,"natal_latitude":51.5,"natal_longitude":-0.1,"search_jd_ut":2451905.0}`},
+		{"chart_lunar_return", `{"natal_jd_ut":2451545.0,"natal_latitude":51.5,"natal_longitude":-0.1,"search_jd_ut":2451570.0}`},
+		{"analysis_synastry", `{"person1_latitude":51.5,"person1_longitude":-0.1,"person1_jd_ut":2451545.0,"person2_latitude":40.7,"person2_longitude":-74.0,"person2_jd_ut":2451910.0}`},
+		{"lunar_phases", `{"start_jd_ut":2451545.0,"end_jd_ut":2451575.0}`},
+		{"lunar_eclipses", `{"start_jd_ut":2451545.0,"end_jd_ut":2451910.0}`},
 	}
 
 	for _, tt := range tools {

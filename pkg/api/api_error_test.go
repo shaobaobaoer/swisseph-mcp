@@ -11,23 +11,23 @@ import (
 func TestErrorPaths_InvalidJSON(t *testing.T) {
 	srv := newTestServer("")
 	endpoints := []string{
-		"/api/v1/geocode",
-		"/api/v1/datetime/to-jd",
-		"/api/v1/datetime/from-jd",
-		"/api/v1/planet/position",
+		"/api/v1/util/geocode",
+		"/api/v1/util/datetime/to-jd",
+		"/api/v1/util/datetime/from-jd",
+		"/api/v1/util/planet/position",
 		"/api/v1/chart/natal",
 		"/api/v1/chart/double",
 		"/api/v1/chart/composite",
 		"/api/v1/chart/davison",
-		"/api/v1/transit",
-		"/api/v1/progressions",
-		"/api/v1/solar-arc",
-		"/api/v1/solar-return",
-		"/api/v1/lunar-return",
-		"/api/v1/dignity",
-		"/api/v1/bonification",
-		"/api/v1/aspects/patterns",
-		"/api/v1/synastry",
+		"/api/v1/events",
+		"/api/v1/chart/progression",
+		"/api/v1/chart/solar-arc",
+		"/api/v1/chart/solar-return",
+		"/api/v1/chart/lunar-return",
+		"/api/v1/analysis/dignity",
+		"/api/v1/analysis/bonification",
+		"/api/v1/analysis/aspects",
+		"/api/v1/analysis/synastry",
 		"/api/v1/lunar/phase",
 		"/api/v1/lunar/phases",
 		"/api/v1/lunar/eclipses",
@@ -50,23 +50,23 @@ func TestErrorPaths_InvalidJSON(t *testing.T) {
 func TestErrorPaths_EmptyBody(t *testing.T) {
 	srv := newTestServer("")
 	endpoints := []string{
-		"/api/v1/geocode",
-		"/api/v1/datetime/to-jd",
-		"/api/v1/datetime/from-jd",
-		"/api/v1/planet/position",
+		"/api/v1/util/geocode",
+		"/api/v1/util/datetime/to-jd",
+		"/api/v1/util/datetime/from-jd",
+		"/api/v1/util/planet/position",
 		"/api/v1/chart/natal",
 		"/api/v1/chart/double",
 		"/api/v1/chart/composite",
 		"/api/v1/chart/davison",
-		"/api/v1/transit",
-		"/api/v1/progressions",
-		"/api/v1/solar-arc",
-		"/api/v1/solar-return",
-		"/api/v1/lunar-return",
-		"/api/v1/dignity",
-		"/api/v1/bonification",
-		"/api/v1/aspects/patterns",
-		"/api/v1/synastry",
+		"/api/v1/events",
+		"/api/v1/chart/progression",
+		"/api/v1/chart/solar-arc",
+		"/api/v1/chart/solar-return",
+		"/api/v1/chart/lunar-return",
+		"/api/v1/analysis/dignity",
+		"/api/v1/analysis/bonification",
+		"/api/v1/analysis/aspects",
+		"/api/v1/analysis/synastry",
 		"/api/v1/lunar/phase",
 		"/api/v1/lunar/phases",
 		"/api/v1/lunar/eclipses",
@@ -92,12 +92,12 @@ func TestErrorPaths_MethodNotAllowed(t *testing.T) {
 		"/api/v1/chart/double",
 		"/api/v1/chart/composite",
 		"/api/v1/chart/davison",
-		"/api/v1/transit",
-		"/api/v1/solar-return",
-		"/api/v1/lunar-return",
-		"/api/v1/bonification",
-		"/api/v1/aspects/patterns",
-		"/api/v1/synastry",
+		"/api/v1/events",
+		"/api/v1/chart/solar-return",
+		"/api/v1/chart/lunar-return",
+		"/api/v1/analysis/bonification",
+		"/api/v1/analysis/aspects",
+		"/api/v1/analysis/synastry",
 		"/api/v1/lunar/phases",
 		"/api/v1/lunar/eclipses",
 	}
@@ -138,7 +138,7 @@ func TestOrbOrDefault_WithCustomOrb(t *testing.T) {
 // TestGeocode_EmptyLocationName verifies 400 for empty location_name.
 func TestGeocode_EmptyLocationName(t *testing.T) {
 	srv := newTestServer("")
-	rec := doPost(t, srv, "/api/v1/geocode", map[string]interface{}{
+	rec := doPost(t, srv, "/api/v1/util/geocode", map[string]interface{}{
 		"location_name": "",
 	}, nil)
 
@@ -150,7 +150,7 @@ func TestGeocode_EmptyLocationName(t *testing.T) {
 // TestDatetimeToJD_EmptyDatetime verifies 400 for empty datetime.
 func TestDatetimeToJD_EmptyDatetime(t *testing.T) {
 	srv := newTestServer("")
-	rec := doPost(t, srv, "/api/v1/datetime/to-jd", map[string]interface{}{
+	rec := doPost(t, srv, "/api/v1/util/datetime/to-jd", map[string]interface{}{
 		"datetime": "",
 	}, nil)
 
@@ -162,7 +162,7 @@ func TestDatetimeToJD_EmptyDatetime(t *testing.T) {
 // TestDatetimeToJD_InvalidFormat verifies 422 for bad datetime format.
 func TestDatetimeToJD_InvalidFormat(t *testing.T) {
 	srv := newTestServer("")
-	rec := doPost(t, srv, "/api/v1/datetime/to-jd", map[string]interface{}{
+	rec := doPost(t, srv, "/api/v1/util/datetime/to-jd", map[string]interface{}{
 		"datetime": "not-a-date",
 	}, nil)
 
@@ -174,7 +174,7 @@ func TestDatetimeToJD_InvalidFormat(t *testing.T) {
 // TestJDToDatetime_InvalidTimezone verifies 422 for bad timezone.
 func TestJDToDatetime_InvalidTimezone(t *testing.T) {
 	srv := newTestServer("")
-	rec := doPost(t, srv, "/api/v1/datetime/from-jd", map[string]interface{}{
+	rec := doPost(t, srv, "/api/v1/util/datetime/from-jd", map[string]interface{}{
 		"jd":       2451545.0,
 		"timezone": "Invalid/Zone",
 	}, nil)
@@ -187,7 +187,7 @@ func TestJDToDatetime_InvalidTimezone(t *testing.T) {
 // TestPlanetPosition_InvalidPlanet verifies 422 for bad planet.
 func TestPlanetPosition_InvalidPlanet(t *testing.T) {
 	srv := newTestServer("")
-	rec := doPost(t, srv, "/api/v1/planet/position", map[string]interface{}{
+	rec := doPost(t, srv, "/api/v1/util/planet/position", map[string]interface{}{
 		"planet": "INVALID_PLANET",
 		"jd_ut":  2451545.0,
 	}, nil)

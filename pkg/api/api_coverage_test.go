@@ -128,10 +128,10 @@ func TestNatalChart_CSV(t *testing.T) {
 	}
 }
 
-// TestTransit tests the /api/v1/transit endpoint.
+// TestTransit tests the /api/v1/events endpoint.
 func TestTransit(t *testing.T) {
 	srv := newTestServer("")
-	rec := doPost(t, srv, "/api/v1/transit", map[string]interface{}{
+	rec := doPost(t, srv, "/api/v1/events", map[string]interface{}{
 		"natal_latitude":  51.5,
 		"natal_longitude": -0.1,
 		"natal_jd_ut":     2451545.0,
@@ -152,7 +152,7 @@ func TestTransit(t *testing.T) {
 // TestTransit_CSV tests CSV format for transit.
 func TestTransit_CSV(t *testing.T) {
 	srv := newTestServer("")
-	rec := doPost(t, srv, "/api/v1/transit", map[string]interface{}{
+	rec := doPost(t, srv, "/api/v1/events", map[string]interface{}{
 		"natal_latitude":  51.5,
 		"natal_longitude": -0.1,
 		"natal_jd_ut":     2451545.0,
@@ -171,10 +171,10 @@ func TestTransit_CSV(t *testing.T) {
 	}
 }
 
-// TestSolarReturn tests the /api/v1/solar-return endpoint.
+// TestSolarReturn tests the /api/v1/chart/solar-return endpoint.
 func TestSolarReturn(t *testing.T) {
 	srv := newTestServer("")
-	rec := doPost(t, srv, "/api/v1/solar-return", map[string]interface{}{
+	rec := doPost(t, srv, "/api/v1/chart/solar-return", map[string]interface{}{
 		"natal_jd_ut":    2451545.0,
 		"natal_latitude": 51.5,
 		"natal_longitude": -0.1,
@@ -189,7 +189,7 @@ func TestSolarReturn(t *testing.T) {
 // TestSolarReturn_CSV tests CSV format for solar return.
 func TestSolarReturn_CSV(t *testing.T) {
 	srv := newTestServer("")
-	rec := doPost(t, srv, "/api/v1/solar-return", map[string]interface{}{
+	rec := doPost(t, srv, "/api/v1/chart/solar-return", map[string]interface{}{
 		"natal_jd_ut":     2451545.0,
 		"natal_latitude":  51.5,
 		"natal_longitude": -0.1,
@@ -205,7 +205,7 @@ func TestSolarReturn_CSV(t *testing.T) {
 // TestSolarReturn_Series tests multiple solar returns.
 func TestSolarReturn_Series(t *testing.T) {
 	srv := newTestServer("")
-	rec := doPost(t, srv, "/api/v1/solar-return", map[string]interface{}{
+	rec := doPost(t, srv, "/api/v1/chart/solar-return", map[string]interface{}{
 		"natal_jd_ut":     2451545.0,
 		"natal_latitude":  51.5,
 		"natal_longitude": -0.1,
@@ -218,10 +218,10 @@ func TestSolarReturn_Series(t *testing.T) {
 	}
 }
 
-// TestLunarReturn tests the /api/v1/lunar-return endpoint.
+// TestLunarReturn tests the /api/v1/chart/lunar-return endpoint.
 func TestLunarReturn(t *testing.T) {
 	srv := newTestServer("")
-	rec := doPost(t, srv, "/api/v1/lunar-return", map[string]interface{}{
+	rec := doPost(t, srv, "/api/v1/chart/lunar-return", map[string]interface{}{
 		"natal_jd_ut":     2451545.0,
 		"natal_latitude":  51.5,
 		"natal_longitude": -0.1,
@@ -236,7 +236,7 @@ func TestLunarReturn(t *testing.T) {
 // TestLunarReturn_CSV tests CSV format for lunar return.
 func TestLunarReturn_CSV(t *testing.T) {
 	srv := newTestServer("")
-	rec := doPost(t, srv, "/api/v1/lunar-return", map[string]interface{}{
+	rec := doPost(t, srv, "/api/v1/chart/lunar-return", map[string]interface{}{
 		"natal_jd_ut":     2451545.0,
 		"natal_latitude":  51.5,
 		"natal_longitude": -0.1,
@@ -252,7 +252,7 @@ func TestLunarReturn_CSV(t *testing.T) {
 // TestLunarReturn_Series tests multiple lunar returns.
 func TestLunarReturn_Series(t *testing.T) {
 	srv := newTestServer("")
-	rec := doPost(t, srv, "/api/v1/lunar-return", map[string]interface{}{
+	rec := doPost(t, srv, "/api/v1/chart/lunar-return", map[string]interface{}{
 		"natal_jd_ut":     2451545.0,
 		"natal_latitude":  51.5,
 		"natal_longitude": -0.1,
@@ -268,7 +268,7 @@ func TestLunarReturn_Series(t *testing.T) {
 // TestDignity_CSV tests CSV format for dignity.
 func TestDignity_CSV(t *testing.T) {
 	srv := newTestServer("")
-	rec := doPost(t, srv, "/api/v1/dignity", map[string]interface{}{
+	rec := doPost(t, srv, "/api/v1/analysis/dignity", map[string]interface{}{
 		"latitude":  51.5,
 		"longitude": -0.1,
 		"jd_ut":     2451545.0,
@@ -280,10 +280,10 @@ func TestDignity_CSV(t *testing.T) {
 	}
 }
 
-// TestBonification tests the /api/v1/bonification endpoint.
+// TestBonification tests the /api/v1/analysis/bonification endpoint.
 func TestBonification(t *testing.T) {
 	srv := newTestServer("")
-	rec := doPost(t, srv, "/api/v1/bonification", map[string]interface{}{
+	rec := doPost(t, srv, "/api/v1/analysis/bonification", map[string]interface{}{
 		"latitude":  51.5,
 		"longitude": -0.1,
 		"jd_ut":     2451545.0,
@@ -294,10 +294,10 @@ func TestBonification(t *testing.T) {
 	}
 }
 
-// TestAspectPatterns tests the /api/v1/aspects/patterns endpoint.
+// TestAspectPatterns tests the /api/v1/analysis/aspects endpoint.
 func TestAspectPatterns(t *testing.T) {
 	srv := newTestServer("")
-	rec := doPost(t, srv, "/api/v1/aspects/patterns", map[string]interface{}{
+	rec := doPost(t, srv, "/api/v1/analysis/aspects", map[string]interface{}{
 		"latitude":  51.5,
 		"longitude": -0.1,
 		"jd_ut":     2451545.0,
@@ -316,10 +316,10 @@ func TestAspectPatterns(t *testing.T) {
 	}
 }
 
-// TestSynastry tests the /api/v1/synastry endpoint.
+// TestSynastry tests the /api/v1/analysis/synastry endpoint.
 func TestSynastry(t *testing.T) {
 	srv := newTestServer("")
-	rec := doPost(t, srv, "/api/v1/synastry", map[string]interface{}{
+	rec := doPost(t, srv, "/api/v1/analysis/synastry", map[string]interface{}{
 		"person1_latitude":  51.5,
 		"person1_longitude": -0.1,
 		"person1_jd_ut":     2451545.0,
@@ -400,7 +400,7 @@ func TestEclipses_CSV(t *testing.T) {
 // TestProgressions_CSV tests CSV format for progressions.
 func TestProgressions_CSV(t *testing.T) {
 	srv := newTestServer("")
-	rec := doPost(t, srv, "/api/v1/progressions", map[string]interface{}{
+	rec := doPost(t, srv, "/api/v1/chart/progression", map[string]interface{}{
 		"natal_jd_ut":   2451545.0,
 		"transit_jd_ut": 2460000.0,
 		"format":        "csv",
@@ -414,7 +414,7 @@ func TestProgressions_CSV(t *testing.T) {
 // TestSolarArc_CSV tests CSV format for solar arc.
 func TestSolarArc_CSV(t *testing.T) {
 	srv := newTestServer("")
-	rec := doPost(t, srv, "/api/v1/solar-arc", map[string]interface{}{
+	rec := doPost(t, srv, "/api/v1/chart/solar-arc", map[string]interface{}{
 		"natal_jd_ut":   2451545.0,
 		"transit_jd_ut": 2460000.0,
 		"format":        "csv",

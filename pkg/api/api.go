@@ -79,34 +79,32 @@ func (s *Server) registerRoutes() {
 	// Health check (GET)
 	s.mux.HandleFunc("/api/v1/health", s.handleHealth)
 
-	// Basic
-	s.mux.HandleFunc("/api/v1/geocode", s.requirePOST(s.handleGeocode))
-	s.mux.HandleFunc("/api/v1/datetime/to-jd", s.requirePOST(s.handleDatetimeToJD))
-	s.mux.HandleFunc("/api/v1/datetime/from-jd", s.requirePOST(s.handleJDToDatetime))
-	s.mux.HandleFunc("/api/v1/planet/position", s.requirePOST(s.handlePlanetPosition))
+	// --- Utility Domain ---
+	s.mux.HandleFunc("/api/v1/util/geocode", s.requirePOST(s.handleGeocode))
+	s.mux.HandleFunc("/api/v1/util/datetime/to-jd", s.requirePOST(s.handleDatetimeToJD))
+	s.mux.HandleFunc("/api/v1/util/datetime/from-jd", s.requirePOST(s.handleJDToDatetime))
+	s.mux.HandleFunc("/api/v1/util/planet/position", s.requirePOST(s.handlePlanetPosition))
 
-	// Charts
+	// --- Single Chart Domain ---
 	s.mux.HandleFunc("/api/v1/chart/natal", s.requirePOST(s.handleNatalChart))
+	s.mux.HandleFunc("/api/v1/chart/progression", s.requirePOST(s.handleProgressions))
+	s.mux.HandleFunc("/api/v1/chart/solar-arc", s.requirePOST(s.handleSolarArc))
+	s.mux.HandleFunc("/api/v1/chart/solar-return", s.requirePOST(s.handleSolarReturn))
+	s.mux.HandleFunc("/api/v1/chart/lunar-return", s.requirePOST(s.handleLunarReturn))
 	s.mux.HandleFunc("/api/v1/chart/double", s.requirePOST(s.handleDoubleChart))
 	s.mux.HandleFunc("/api/v1/chart/composite", s.requirePOST(s.handleCompositeChart))
 	s.mux.HandleFunc("/api/v1/chart/davison", s.requirePOST(s.handleDavisonChart))
 
-	// Predictive
-	s.mux.HandleFunc("/api/v1/transit", s.requirePOST(s.handleTransit))
-	s.mux.HandleFunc("/api/v1/progressions", s.requirePOST(s.handleProgressions))
-	s.mux.HandleFunc("/api/v1/solar-arc", s.requirePOST(s.handleSolarArc))
-	s.mux.HandleFunc("/api/v1/solar-return", s.requirePOST(s.handleSolarReturn))
-	s.mux.HandleFunc("/api/v1/lunar-return", s.requirePOST(s.handleLunarReturn))
+	// --- Event Detection Domain ---
+	s.mux.HandleFunc("/api/v1/events", s.requirePOST(s.handleTransit))
 
-	// Traditional
-	s.mux.HandleFunc("/api/v1/dignity", s.requirePOST(s.handleDignity))
-	s.mux.HandleFunc("/api/v1/bonification", s.requirePOST(s.handleBonification))
+	// --- Analysis Domain ---
+	s.mux.HandleFunc("/api/v1/analysis/dignity", s.requirePOST(s.handleDignity))
+	s.mux.HandleFunc("/api/v1/analysis/bonification", s.requirePOST(s.handleBonification))
+	s.mux.HandleFunc("/api/v1/analysis/aspects", s.requirePOST(s.handleAspectPatterns))
+	s.mux.HandleFunc("/api/v1/analysis/synastry", s.requirePOST(s.handleSynastry))
 
-	// Analysis
-	s.mux.HandleFunc("/api/v1/aspects/patterns", s.requirePOST(s.handleAspectPatterns))
-	s.mux.HandleFunc("/api/v1/synastry", s.requirePOST(s.handleSynastry))
-
-	// Lunar
+	// --- Lunar Domain ---
 	s.mux.HandleFunc("/api/v1/lunar/phase", s.requirePOST(s.handleLunarPhase))
 	s.mux.HandleFunc("/api/v1/lunar/phases", s.requirePOST(s.handleLunarPhases))
 	s.mux.HandleFunc("/api/v1/lunar/eclipses", s.requirePOST(s.handleEclipses))

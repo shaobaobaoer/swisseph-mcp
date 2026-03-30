@@ -163,7 +163,7 @@ func TestMethodNotAllowed(t *testing.T) {
 
 func TestPlanetPosition(t *testing.T) {
 	srv := newTestServer("")
-	rec := doPost(t, srv, "/api/v1/planet/position", map[string]interface{}{
+	rec := doPost(t, srv, "/api/v1/util/planet/position", map[string]interface{}{
 		"planet": "SUN",
 		"jd_ut":  2451545.0,
 	}, nil)
@@ -180,7 +180,7 @@ func TestPlanetPosition(t *testing.T) {
 
 func TestDatetimeToJD(t *testing.T) {
 	srv := newTestServer("")
-	rec := doPost(t, srv, "/api/v1/datetime/to-jd", map[string]interface{}{
+	rec := doPost(t, srv, "/api/v1/util/datetime/to-jd", map[string]interface{}{
 		"datetime": "2000-01-01T12:00:00Z",
 	}, nil)
 
@@ -191,7 +191,7 @@ func TestDatetimeToJD(t *testing.T) {
 
 func TestJDToDatetime(t *testing.T) {
 	srv := newTestServer("")
-	rec := doPost(t, srv, "/api/v1/datetime/from-jd", map[string]interface{}{
+	rec := doPost(t, srv, "/api/v1/util/datetime/from-jd", map[string]interface{}{
 		"jd": 2451545.0,
 	}, nil)
 
@@ -213,7 +213,7 @@ func TestLunarPhase(t *testing.T) {
 
 func TestDignity(t *testing.T) {
 	srv := newTestServer("")
-	rec := doPost(t, srv, "/api/v1/dignity", map[string]interface{}{
+	rec := doPost(t, srv, "/api/v1/analysis/dignity", map[string]interface{}{
 		"latitude":  51.5,
 		"longitude": -0.1,
 		"jd_ut":     2451545.0,
@@ -231,7 +231,7 @@ func TestDignity(t *testing.T) {
 
 func TestProgressions(t *testing.T) {
 	srv := newTestServer("")
-	rec := doPost(t, srv, "/api/v1/progressions", map[string]interface{}{
+	rec := doPost(t, srv, "/api/v1/chart/progression", map[string]interface{}{
 		"natal_jd_ut":   2451545.0,
 		"transit_jd_ut": 2460000.0,
 	}, nil)
@@ -243,7 +243,7 @@ func TestProgressions(t *testing.T) {
 
 func TestSolarArc(t *testing.T) {
 	srv := newTestServer("")
-	rec := doPost(t, srv, "/api/v1/solar-arc", map[string]interface{}{
+	rec := doPost(t, srv, "/api/v1/chart/solar-arc", map[string]interface{}{
 		"natal_jd_ut":   2451545.0,
 		"transit_jd_ut": 2460000.0,
 	}, nil)
@@ -256,7 +256,7 @@ func TestSolarArc(t *testing.T) {
 func TestMissingRequiredField(t *testing.T) {
 	srv := newTestServer("")
 	// Geocode requires location_name
-	rec := doPost(t, srv, "/api/v1/geocode", map[string]interface{}{}, nil)
+	rec := doPost(t, srv, "/api/v1/util/geocode", map[string]interface{}{}, nil)
 
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400 for missing required field, got %d: %s", rec.Code, rec.Body.String())

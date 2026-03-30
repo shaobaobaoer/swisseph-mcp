@@ -212,7 +212,7 @@ func (s *Server) handleInitialize(req *jsonRPCRequest) *jsonRPCResponse {
 func (s *Server) handleToolsList(req *jsonRPCRequest) *jsonRPCResponse {
 	tools := []toolDef{
 		{
-			Name:        "geocode",
+			Name:        "util_geocode",
 			Description: "Returns geographic coordinates (lat/lon) and timezone for a location name",
 			InputSchema: json.RawMessage(`{
 				"type": "object",
@@ -223,7 +223,7 @@ func (s *Server) handleToolsList(req *jsonRPCRequest) *jsonRPCResponse {
 			}`),
 		},
 		{
-			Name:        "datetime_to_jd",
+			Name:        "util_datetime_to_jd",
 			Description: "Converts ISO 8601 datetime to Julian Day (UT and TT)",
 			InputSchema: json.RawMessage(`{
 				"type": "object",
@@ -247,7 +247,7 @@ func (s *Server) handleToolsList(req *jsonRPCRequest) *jsonRPCResponse {
 			}`),
 		},
 		{
-			Name:        "calc_planet_position",
+			Name:        "util_planet_position",
 			Description: "Calculate a single planet's ecliptic longitude, latitude, speed, retrograde status and sign",
 			InputSchema: json.RawMessage(`{
 				"type": "object",
@@ -259,7 +259,7 @@ func (s *Server) handleToolsList(req *jsonRPCRequest) *jsonRPCResponse {
 			}`),
 		},
 		{
-			Name:        "calc_single_chart",
+			Name:        "chart_natal",
 			Description: "Single chart calculation: compute planet positions, houses, and aspects at a fixed time. Supports JSON (default) and CSV output.",
 			InputSchema: json.RawMessage(`{
 				"type": "object",
@@ -276,7 +276,7 @@ func (s *Server) handleToolsList(req *jsonRPCRequest) *jsonRPCResponse {
 			}`),
 		},
 		{
-			Name:        "calc_double_chart",
+			Name:        "chart_double",
 			Description: "Double chart calculation: compute inner/outer chart positions and cross-aspects. Supports JSON (default) and CSV output.",
 			InputSchema: json.RawMessage(`{
 				"type": "object",
@@ -299,7 +299,7 @@ func (s *Server) handleToolsList(req *jsonRPCRequest) *jsonRPCResponse {
 			}`),
 		},
 		{
-			Name:        "calc_progressions",
+			Name:        "chart_progression",
 			Description: "Secondary progressions: compute progressed planet positions (1 day = 1 year). Supports JSON and CSV.",
 			InputSchema: json.RawMessage(`{
 				"type": "object",
@@ -313,7 +313,7 @@ func (s *Server) handleToolsList(req *jsonRPCRequest) *jsonRPCResponse {
 			}`),
 		},
 		{
-			Name:        "calc_solar_arc",
+			Name:        "chart_solar_arc",
 			Description: "Solar arc directions: compute solar arc directed planet positions. Supports JSON and CSV.",
 			InputSchema: json.RawMessage(`{
 				"type": "object",
@@ -327,7 +327,7 @@ func (s *Server) handleToolsList(req *jsonRPCRequest) *jsonRPCResponse {
 			}`),
 		},
 		{
-			Name:        "calc_transit",
+			Name:        "events",
 			Description: "Transit calculation: search for all astrological events between transit/progressed/solar-arc and natal bodies over a time range. Supports Tr-Na/Tr-Tr/Tr-Sp/Tr-Sa/Sp-Na/Sp-Sp/Sa-Na, sign/house ingress, stations, void of course.",
 			InputSchema: json.RawMessage(`{
 				"type": "object",
@@ -367,7 +367,7 @@ func (s *Server) handleToolsList(req *jsonRPCRequest) *jsonRPCResponse {
 	// New feature tools
 	tools = append(tools,
 		toolDef{
-			Name:        "calc_solar_return",
+			Name:        "chart_solar_return",
 			Description: "Calculate a solar return chart: the exact moment the Sun returns to its natal longitude, with full chart data",
 			InputSchema: json.RawMessage(`{
 				"type": "object",
@@ -384,7 +384,7 @@ func (s *Server) handleToolsList(req *jsonRPCRequest) *jsonRPCResponse {
 			}`),
 		},
 		toolDef{
-			Name:        "calc_lunar_return",
+			Name:        "chart_lunar_return",
 			Description: "Calculate a lunar return chart: the exact moment the Moon returns to its natal longitude, with full chart data",
 			InputSchema: json.RawMessage(`{
 				"type": "object",
@@ -401,7 +401,7 @@ func (s *Server) handleToolsList(req *jsonRPCRequest) *jsonRPCResponse {
 			}`),
 		},
 		toolDef{
-			Name:        "calc_dignity",
+			Name:        "analysis_dignity",
 			Description: "Calculate essential dignities (rulership, exaltation, detriment, fall), mutual receptions, and sect for a chart",
 			InputSchema: json.RawMessage(`{
 				"type": "object",
@@ -416,7 +416,7 @@ func (s *Server) handleToolsList(req *jsonRPCRequest) *jsonRPCResponse {
 			}`),
 		},
 		toolDef{
-			Name:        "calc_composite_chart",
+			Name:        "chart_composite",
 			Description: "Calculate a composite (midpoint) chart for two people, used in relationship astrology",
 			InputSchema: json.RawMessage(`{
 				"type": "object",
@@ -437,7 +437,7 @@ func (s *Server) handleToolsList(req *jsonRPCRequest) *jsonRPCResponse {
 			}`),
 		},
 		toolDef{
-			Name:        "calc_aspect_patterns",
+			Name:        "analysis_aspects",
 			Description: "Detect aspect patterns (Grand Trine, T-Square, Grand Cross, Yod, Kite, Stellium) in a natal chart",
 			InputSchema: json.RawMessage(`{
 				"type": "object",
@@ -453,7 +453,7 @@ func (s *Server) handleToolsList(req *jsonRPCRequest) *jsonRPCResponse {
 			}`),
 		},
 		toolDef{
-			Name:        "calc_lunar_phase",
+			Name:        "lunar_phase",
 			Description: "Get the current lunar phase, illumination, and phase angle at a given time",
 			InputSchema: json.RawMessage(`{
 				"type": "object",
@@ -464,7 +464,7 @@ func (s *Server) handleToolsList(req *jsonRPCRequest) *jsonRPCResponse {
 			}`),
 		},
 		toolDef{
-			Name:        "calc_lunar_phases",
+			Name:        "lunar_phases",
 			Description: "Find all new moons, full moons, and quarter moons in a date range",
 			InputSchema: json.RawMessage(`{
 				"type": "object",
@@ -476,7 +476,7 @@ func (s *Server) handleToolsList(req *jsonRPCRequest) *jsonRPCResponse {
 			}`),
 		},
 		toolDef{
-			Name:        "calc_eclipses",
+			Name:        "lunar_eclipses",
 			Description: "Find solar and lunar eclipses in a date range with type classification",
 			InputSchema: json.RawMessage(`{
 				"type": "object",
@@ -488,7 +488,7 @@ func (s *Server) handleToolsList(req *jsonRPCRequest) *jsonRPCResponse {
 			}`),
 		},
 		toolDef{
-			Name:        "calc_synastry",
+			Name:        "analysis_synastry",
 			Description: "Calculate synastry compatibility score between two charts with category breakdown (love, passion, communication, etc.)",
 			InputSchema: json.RawMessage(`{
 				"type": "object",
@@ -508,7 +508,7 @@ func (s *Server) handleToolsList(req *jsonRPCRequest) *jsonRPCResponse {
 			}`),
 		},
 		toolDef{
-			Name:        "calc_davison_chart",
+			Name:        "chart_davison",
 			Description: "Calculate Davison relationship chart (time-space midpoint method). Casts a real chart for the midpoint time and location of two birth charts.",
 			InputSchema: json.RawMessage(`{
 				"type": "object",
@@ -526,7 +526,7 @@ func (s *Server) handleToolsList(req *jsonRPCRequest) *jsonRPCResponse {
 			}`),
 		},
 		toolDef{
-			Name:        "calc_bonification",
+			Name:        "analysis_bonification",
 			Description: "Analyze bonification and maltreatment (classical astrology). Evaluates benefic/malefic influences including combustion, besiegement, and planetary aspects.",
 			InputSchema: json.RawMessage(`{
 				"type": "object",
@@ -561,45 +561,45 @@ func (s *Server) handleToolsCall(req *jsonRPCRequest) *jsonRPCResponse {
 	var err error
 
 	switch params.Name {
-	case "geocode":
+	case "util_geocode":
 		result, err = s.handleGeocode(params.Arguments)
-	case "datetime_to_jd":
+	case "util_datetime_to_jd":
 		result, err = s.handleDatetimeToJD(params.Arguments)
 	case "jd_to_datetime":
 		result, err = s.handleJDToDatetime(params.Arguments)
-	case "calc_planet_position":
+	case "util_planet_position":
 		result, err = s.handleCalcPlanetPosition(params.Arguments)
-	case "calc_single_chart":
+	case "chart_natal":
 		result, err = s.handleCalcSingleChart(params.Arguments)
-	case "calc_double_chart":
+	case "chart_double":
 		result, err = s.handleCalcDoubleChart(params.Arguments)
-	case "calc_progressions":
+	case "chart_progression":
 		result, err = s.handleCalcProgressions(params.Arguments)
-	case "calc_solar_arc":
+	case "chart_solar_arc":
 		result, err = s.handleCalcSolarArc(params.Arguments)
-	case "calc_transit":
+	case "events":
 		result, err = s.handleCalcTransit(params.Arguments)
-	case "calc_solar_return":
+	case "chart_solar_return":
 		result, err = s.handleCalcSolarReturn(params.Arguments)
-	case "calc_lunar_return":
+	case "chart_lunar_return":
 		result, err = s.handleCalcLunarReturn(params.Arguments)
-	case "calc_dignity":
+	case "analysis_dignity":
 		result, err = s.handleCalcDignity(params.Arguments)
-	case "calc_composite_chart":
+	case "chart_composite":
 		result, err = s.handleCalcCompositeChart(params.Arguments)
-	case "calc_aspect_patterns":
+	case "analysis_aspects":
 		result, err = s.handleCalcAspectPatterns(params.Arguments)
-	case "calc_lunar_phase":
+	case "lunar_phase":
 		result, err = s.handleCalcLunarPhase(params.Arguments)
-	case "calc_lunar_phases":
+	case "lunar_phases":
 		result, err = s.handleCalcLunarPhases(params.Arguments)
-	case "calc_eclipses":
+	case "lunar_eclipses":
 		result, err = s.handleCalcEclipses(params.Arguments)
-	case "calc_synastry":
+	case "analysis_synastry":
 		result, err = s.handleCalcSynastry(params.Arguments)
-	case "calc_davison_chart":
+	case "chart_davison":
 		result, err = s.handleCalcDavisonChart(params.Arguments)
-	case "calc_bonification":
+	case "analysis_bonification":
 		result, err = s.handleCalcBonification(params.Arguments)
 	default:
 		return errorResponse(req.ID, -32601, "unknown tool: "+params.Name)

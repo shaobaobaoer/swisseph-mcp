@@ -23,7 +23,7 @@ func TestHandleCalcTransit_CSVFormat(t *testing.T) {
 			"include_sign_ingress": true,
 		},
 	})
-	params, _ := json.Marshal(callToolParams{Name: "calc_transit", Arguments: args})
+	params, _ := json.Marshal(callToolParams{Name: "events", Arguments: args})
 	req := &jsonRPCRequest{
 		JSONRPC: "2.0",
 		ID:      20,
@@ -32,7 +32,7 @@ func TestHandleCalcTransit_CSVFormat(t *testing.T) {
 	}
 	resp := s.handleRequest(req)
 	if resp == nil || resp.Error != nil {
-		t.Fatal("calc_transit CSV format failed")
+		t.Fatal("events CSV format failed")
 	}
 	result := resp.Result.(callToolResult)
 	if result.IsError {
@@ -128,7 +128,7 @@ func TestHandleCalcSingleChart_WithCustomPlanets(t *testing.T) {
 		"house_system": "KOCH",
 		"orb_config":   map[string]float64{"conjunction": 10, "opposition": 10},
 	})
-	params, _ := json.Marshal(callToolParams{Name: "calc_single_chart", Arguments: args})
+	params, _ := json.Marshal(callToolParams{Name: "chart_natal", Arguments: args})
 	req := &jsonRPCRequest{
 		JSONRPC: "2.0",
 		ID:      31,
@@ -137,7 +137,7 @@ func TestHandleCalcSingleChart_WithCustomPlanets(t *testing.T) {
 	}
 	resp := s.handleRequest(req)
 	if resp == nil || resp.Error != nil {
-		t.Fatal("calc_single_chart with custom planets failed")
+		t.Fatal("chart_natal with custom planets failed")
 	}
 }
 
@@ -155,7 +155,7 @@ func TestHandleCalcDoubleChart_WithCustomParams(t *testing.T) {
 		"house_system":    "WHOLE_SIGN",
 		"orb_config":      map[string]float64{"conjunction": 10},
 	})
-	params, _ := json.Marshal(callToolParams{Name: "calc_double_chart", Arguments: args})
+	params, _ := json.Marshal(callToolParams{Name: "chart_double", Arguments: args})
 	req := &jsonRPCRequest{
 		JSONRPC: "2.0",
 		ID:      32,
@@ -164,7 +164,7 @@ func TestHandleCalcDoubleChart_WithCustomParams(t *testing.T) {
 	}
 	resp := s.handleRequest(req)
 	if resp == nil || resp.Error != nil {
-		t.Fatal("calc_double_chart with custom params failed")
+		t.Fatal("chart_double with custom params failed")
 	}
 }
 
@@ -175,7 +175,7 @@ func TestHandleCalcProgressions_CustomPlanets(t *testing.T) {
 		"transit_jd_ut": 2460310.667,
 		"planets":       []string{"SUN", "MOON"},
 	})
-	params, _ := json.Marshal(callToolParams{Name: "calc_progressions", Arguments: args})
+	params, _ := json.Marshal(callToolParams{Name: "chart_progression", Arguments: args})
 	req := &jsonRPCRequest{
 		JSONRPC: "2.0",
 		ID:      33,
@@ -184,7 +184,7 @@ func TestHandleCalcProgressions_CustomPlanets(t *testing.T) {
 	}
 	resp := s.handleRequest(req)
 	if resp == nil || resp.Error != nil {
-		t.Fatal("calc_progressions with custom planets failed")
+		t.Fatal("chart_progression with custom planets failed")
 	}
 }
 
@@ -195,7 +195,7 @@ func TestHandleCalcSolarArc_CustomPlanets(t *testing.T) {
 		"transit_jd_ut": 2460310.667,
 		"planets":       []string{"SUN", "MOON"},
 	})
-	params, _ := json.Marshal(callToolParams{Name: "calc_solar_arc", Arguments: args})
+	params, _ := json.Marshal(callToolParams{Name: "chart_solar_arc", Arguments: args})
 	req := &jsonRPCRequest{
 		JSONRPC: "2.0",
 		ID:      34,
@@ -204,6 +204,6 @@ func TestHandleCalcSolarArc_CustomPlanets(t *testing.T) {
 	}
 	resp := s.handleRequest(req)
 	if resp == nil || resp.Error != nil {
-		t.Fatal("calc_solar_arc with custom planets failed")
+		t.Fatal("chart_solar_arc with custom planets failed")
 	}
 }
