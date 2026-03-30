@@ -74,16 +74,6 @@ func TestFullPipeline(t *testing.T) {
 	}
 	t.Logf("Patterns found: %d", len(patterns))
 
-	// 9. Full report
-	report, err := FullReport(birthLat, birthLon, birthDT)
-	if err != nil {
-		t.Fatalf("FullReport: %v", err)
-	}
-	t.Logf("Report: %d lots, %d star conjunctions, %d midpoint activations",
-		len(report.Lots), len(report.FixedStarConjunctions), len(report.MidpointActivations))
-	t.Logf("Elements: Fire=%d Earth=%d Air=%d Water=%d",
-		report.ElementBalance["Fire"], report.ElementBalance["Earth"],
-		report.ElementBalance["Air"], report.ElementBalance["Water"])
 
 	// 10. Compatibility
 	partner := "1992-03-22T08:00:00Z"

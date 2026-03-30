@@ -229,18 +229,6 @@ func TestDignity(t *testing.T) {
 	}
 }
 
-func TestFirdaria(t *testing.T) {
-	srv := newTestServer("")
-	rec := doPost(t, srv, "/api/v1/firdaria", map[string]interface{}{
-		"is_day_birth": true,
-		"age":          30.0,
-	}, nil)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
-	}
-}
-
 func TestProgressions(t *testing.T) {
 	srv := newTestServer("")
 	rec := doPost(t, srv, "/api/v1/progressions", map[string]interface{}{

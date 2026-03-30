@@ -9,32 +9,17 @@ import (
 
 	swisseph "github.com/shaobaobaoer/solarsage-mcp"
 	"github.com/shaobaobaoer/solarsage-mcp/internal/aspect"
-	"github.com/shaobaobaoer/solarsage-mcp/pkg/antiscia"
-	"github.com/shaobaobaoer/solarsage-mcp/pkg/bounds"
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/chart"
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/composite"
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/dignity"
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/export"
-	"github.com/shaobaobaoer/solarsage-mcp/pkg/firdaria"
-	"github.com/shaobaobaoer/solarsage-mcp/pkg/fixedstars"
-	"github.com/shaobaobaoer/solarsage-mcp/pkg/heliacal"
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/geo"
-	"github.com/shaobaobaoer/solarsage-mcp/pkg/harmonic"
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/julian"
-	"github.com/shaobaobaoer/solarsage-mcp/pkg/dispositor"
-	"github.com/shaobaobaoer/solarsage-mcp/pkg/lots"
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/lunar"
-	"github.com/shaobaobaoer/solarsage-mcp/pkg/midpoint"
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/models"
-	"github.com/shaobaobaoer/solarsage-mcp/pkg/planetary"
-	"github.com/shaobaobaoer/solarsage-mcp/pkg/primary"
-	"github.com/shaobaobaoer/solarsage-mcp/pkg/profection"
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/progressions"
-	"github.com/shaobaobaoer/solarsage-mcp/pkg/render"
-	"github.com/shaobaobaoer/solarsage-mcp/pkg/report"
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/returns"
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/synastry"
-	"github.com/shaobaobaoer/solarsage-mcp/pkg/symbolic"
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/sweph"
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/transit"
 )
@@ -468,132 +453,6 @@ func (s *Server) handleToolsList(req *jsonRPCRequest) *jsonRPCResponse {
 			}`),
 		},
 		toolDef{
-			Name:        "calc_fixed_stars",
-			Description: "Find fixed star conjunctions with chart planets from a catalog of 50+ major stars",
-			InputSchema: json.RawMessage(`{
-				"type": "object",
-				"properties": {
-					"latitude": {"type": "number"},
-					"longitude": {"type": "number"},
-					"jd_ut": {"type": "number"},
-					"planets": {"type": "array", "items": {"type": "string"}},
-					"house_system": {"type": "string", "default": "PLACIDUS"},
-					"orb": {"type": "number", "default": 1.5, "description": "Conjunction orb in degrees (default 1.5)"}
-				},
-				"required": ["latitude", "longitude", "jd_ut"]
-			}`),
-		},
-		toolDef{
-			Name:        "calc_midpoints",
-			Description: "Compute midpoint tree with 90-degree Cosmobiology dial sort and planet-on-midpoint activations",
-			InputSchema: json.RawMessage(`{
-				"type": "object",
-				"properties": {
-					"latitude": {"type": "number"},
-					"longitude": {"type": "number"},
-					"jd_ut": {"type": "number"},
-					"planets": {"type": "array", "items": {"type": "string"}},
-					"house_system": {"type": "string", "default": "PLACIDUS"},
-					"orb": {"type": "number", "default": 1.5, "description": "Midpoint activation orb (default 1.5)"}
-				},
-				"required": ["latitude", "longitude", "jd_ut"]
-			}`),
-		},
-		toolDef{
-			Name:        "calc_harmonic_chart",
-			Description: "Calculate Nth harmonic (divisional) chart. Common harmonics: 5th (quintile), 7th (septile), 9th (novile)",
-			InputSchema: json.RawMessage(`{
-				"type": "object",
-				"properties": {
-					"latitude": {"type": "number"},
-					"longitude": {"type": "number"},
-					"jd_ut": {"type": "number"},
-					"harmonic": {"type": "integer", "description": "Harmonic number (1-180)"},
-					"planets": {"type": "array", "items": {"type": "string"}},
-					"house_system": {"type": "string", "default": "PLACIDUS"},
-					"orb_config": {"type": "object"}
-				},
-				"required": ["latitude", "longitude", "jd_ut", "harmonic"]
-			}`),
-		},
-		toolDef{
-			Name:        "calc_planetary_hours",
-			Description: "Calculate the 24 Chaldean planetary hours for a given date and location, with sunrise/sunset times",
-			InputSchema: json.RawMessage(`{
-				"type": "object",
-				"properties": {
-					"latitude": {"type": "number"},
-					"longitude": {"type": "number"},
-					"jd_ut": {"type": "number"}
-				},
-				"required": ["latitude", "longitude", "jd_ut"]
-			}`),
-		},
-		toolDef{
-			Name:        "calc_profection",
-			Description: "Calculate annual and monthly profections (time-lord technique) for a given age",
-			InputSchema: json.RawMessage(`{
-				"type": "object",
-				"properties": {
-					"latitude": {"type": "number"},
-					"longitude": {"type": "number"},
-					"natal_jd_ut": {"type": "number"},
-					"age": {"type": "integer", "description": "Age in years for annual profection"},
-					"house_system": {"type": "string", "default": "PLACIDUS"},
-					"include_monthly": {"type": "boolean", "default": false},
-					"start_age": {"type": "integer", "description": "Start age for timeline (optional)"},
-					"end_age": {"type": "integer", "description": "End age for timeline (optional)"}
-				},
-				"required": ["latitude", "longitude", "natal_jd_ut", "age"]
-			}`),
-		},
-		toolDef{
-			Name:        "calc_antiscia",
-			Description: "Calculate antiscia (solstice mirror points) and contra-antiscia (equinox mirror points) for all chart planets",
-			InputSchema: json.RawMessage(`{
-				"type": "object",
-				"properties": {
-					"latitude": {"type": "number"},
-					"longitude": {"type": "number"},
-					"jd_ut": {"type": "number"},
-					"planets": {"type": "array", "items": {"type": "string"}},
-					"house_system": {"type": "string", "default": "PLACIDUS"},
-					"orb": {"type": "number", "default": 2.0, "description": "Orb for finding antiscia pairs"}
-				},
-				"required": ["latitude", "longitude", "jd_ut"]
-			}`),
-		},
-		toolDef{
-			Name:        "calc_lots",
-			Description: "Calculate Arabic lots/parts (Fortune, Spirit, Eros, Necessity, Victory, Nemesis, and more) with day/night reversal",
-			InputSchema: json.RawMessage(`{
-				"type": "object",
-				"properties": {
-					"latitude": {"type": "number"},
-					"longitude": {"type": "number"},
-					"jd_ut": {"type": "number"},
-					"planets": {"type": "array", "items": {"type": "string"}},
-					"house_system": {"type": "string", "default": "PLACIDUS"}
-				},
-				"required": ["latitude", "longitude", "jd_ut"]
-			}`),
-		},
-		toolDef{
-			Name:        "calc_bounds",
-			Description: "Calculate Chaldean decans and Egyptian/Ptolemaic terms (bounds) for all chart planets",
-			InputSchema: json.RawMessage(`{
-				"type": "object",
-				"properties": {
-					"latitude": {"type": "number"},
-					"longitude": {"type": "number"},
-					"jd_ut": {"type": "number"},
-					"planets": {"type": "array", "items": {"type": "string"}},
-					"house_system": {"type": "string", "default": "PLACIDUS"}
-				},
-				"required": ["latitude", "longitude", "jd_ut"]
-			}`),
-		},
-		toolDef{
 			Name:        "calc_lunar_phase",
 			Description: "Get the current lunar phase, illumination, and phase angle at a given time",
 			InputSchema: json.RawMessage(`{
@@ -649,66 +508,6 @@ func (s *Server) handleToolsList(req *jsonRPCRequest) *jsonRPCResponse {
 			}`),
 		},
 		toolDef{
-			Name:        "calc_dispositors",
-			Description: "Calculate dispositorship chains and final dispositor for a natal chart",
-			InputSchema: json.RawMessage(`{
-				"type": "object",
-				"properties": {
-					"latitude": {"type": "number"},
-					"longitude": {"type": "number"},
-					"jd_ut": {"type": "number"},
-					"planets": {"type": "array", "items": {"type": "string"}},
-					"house_system": {"type": "string", "default": "PLACIDUS"},
-					"traditional": {"type": "boolean", "default": false, "description": "Use traditional rulers (Mars for Scorpio, etc.)"}
-				},
-				"required": ["latitude", "longitude", "jd_ut"]
-			}`),
-		},
-		toolDef{
-			Name:        "calc_natal_report",
-			Description: "Generate a comprehensive natal chart analysis combining all techniques: dignities, dispositors, patterns, lots, faces, antiscia, fixed stars, midpoints, element/modality balance, and more",
-			InputSchema: json.RawMessage(`{
-				"type": "object",
-				"properties": {
-					"latitude": {"type": "number"},
-					"longitude": {"type": "number"},
-					"jd_ut": {"type": "number"}
-				},
-				"required": ["latitude", "longitude", "jd_ut"]
-			}`),
-		},
-
-		toolDef{
-			Name:        "calc_chart_wheel",
-			Description: "Generate chart wheel rendering coordinates (x/y positions for planets, houses, aspects, signs) for SVG/Canvas visualization",
-			InputSchema: json.RawMessage(`{
-				"type": "object",
-				"properties": {
-					"latitude": {"type": "number"},
-					"longitude": {"type": "number"},
-					"jd_ut": {"type": "number"},
-					"planets": {"type": "array", "items": {"type": "string"}},
-					"house_system": {"type": "string", "default": "PLACIDUS"},
-					"radius": {"type": "number", "default": 0.4, "description": "Chart radius (0-0.5, default 0.4)"}
-				},
-				"required": ["latitude", "longitude", "jd_ut"]
-			}`),
-		},
-		toolDef{
-			Name:        "calc_firdaria",
-			Description: "Calculate Firdaria (Persian planetary period system) for traditional astrology. Returns major periods, sub-periods, and current active period.",
-			InputSchema: json.RawMessage(`{
-				"type": "object",
-				"properties": {
-					"is_day_birth": {"type": "boolean", "description": "True if Sun was above horizon at birth"},
-					"age": {"type": "number", "description": "Current age in years"},
-					"start_age": {"type": "number", "description": "Start age for timeline (optional)"},
-					"end_age": {"type": "number", "description": "End age for timeline (optional)"}
-				},
-				"required": ["is_day_birth", "age"]
-			}`),
-		},
-		toolDef{
 			Name:        "calc_davison_chart",
 			Description: "Calculate Davison relationship chart (time-space midpoint method). Casts a real chart for the midpoint time and location of two birth charts.",
 			InputSchema: json.RawMessage(`{
@@ -727,25 +526,6 @@ func (s *Server) handleToolsList(req *jsonRPCRequest) *jsonRPCResponse {
 			}`),
 		},
 		toolDef{
-			Name:        "calc_primary_directions",
-			Description: "Calculate Primary Directions (oldest Western predictive technique). Uses diurnal rotation to advance chart points. Supports Naibod and Ptolemy keys.",
-			InputSchema: json.RawMessage(`{
-				"type": "object",
-				"properties": {
-					"latitude": {"type": "number"},
-					"longitude": {"type": "number"},
-					"natal_jd_ut": {"type": "number"},
-					"planets": {"type": "array", "items": {"type": "string"}},
-					"aspects": {"type": "array", "items": {"type": "string"}, "description": "Aspect types to check (default: major aspects)"},
-					"direction_key": {"type": "string", "enum": ["NAIBOD", "PTOLEMY", "SOLAR_ARC"], "default": "NAIBOD"},
-					"max_age": {"type": "number", "default": 100},
-					"house_system": {"type": "string", "default": "PLACIDUS"}
-				},
-				"required": ["latitude", "longitude", "natal_jd_ut"]
-			}`),
-		},
-
-		toolDef{
 			Name:        "calc_bonification",
 			Description: "Analyze bonification and maltreatment (classical astrology). Evaluates benefic/malefic influences including combustion, besiegement, and planetary aspects.",
 			InputSchema: json.RawMessage(`{
@@ -758,40 +538,6 @@ func (s *Server) handleToolsList(req *jsonRPCRequest) *jsonRPCResponse {
 					"house_system": {"type": "string", "default": "PLACIDUS"}
 				},
 				"required": ["latitude", "longitude", "jd_ut"]
-			}`),
-		},
-		toolDef{
-			Name:        "calc_symbolic_directions",
-			Description: "Calculate Symbolic Directions (1-degree-per-year, Naibod, Profection, or custom rate). Advances all natal positions by a fixed arc per year of life.",
-			InputSchema: json.RawMessage(`{
-				"type": "object",
-				"properties": {
-					"latitude": {"type": "number"},
-					"longitude": {"type": "number"},
-					"natal_jd_ut": {"type": "number"},
-					"age": {"type": "number", "description": "Age in years"},
-					"method": {"type": "string", "enum": ["ONE_DEGREE", "NAIBOD", "PROFECTION", "CUSTOM"], "default": "ONE_DEGREE"},
-					"custom_rate": {"type": "number", "description": "Custom rate in degrees/year (only for CUSTOM method)"},
-					"planets": {"type": "array", "items": {"type": "string"}},
-					"house_system": {"type": "string", "default": "PLACIDUS"}
-				},
-				"required": ["latitude", "longitude", "natal_jd_ut", "age"]
-			}`),
-		},
-		toolDef{
-			Name:        "calc_heliacal_events",
-			Description: "Calculate heliacal risings and settings of visible planets (Mercury-Saturn). Uses Swiss Ephemeris visibility algorithms for classical astrology.",
-			InputSchema: json.RawMessage(`{
-				"type": "object",
-				"properties": {
-					"latitude": {"type": "number"},
-					"longitude": {"type": "number"},
-					"altitude": {"type": "number", "default": 0, "description": "Observer altitude in meters"},
-					"start_jd_ut": {"type": "number"},
-					"end_jd_ut": {"type": "number"},
-					"planets": {"type": "array", "items": {"type": "string"}, "description": "Planets to check (default: Mercury, Venus, Mars, Jupiter, Saturn)"}
-				},
-				"required": ["latitude", "longitude", "start_jd_ut", "end_jd_ut"]
 			}`),
 		},
 	)
@@ -843,22 +589,6 @@ func (s *Server) handleToolsCall(req *jsonRPCRequest) *jsonRPCResponse {
 		result, err = s.handleCalcCompositeChart(params.Arguments)
 	case "calc_aspect_patterns":
 		result, err = s.handleCalcAspectPatterns(params.Arguments)
-	case "calc_fixed_stars":
-		result, err = s.handleCalcFixedStars(params.Arguments)
-	case "calc_midpoints":
-		result, err = s.handleCalcMidpoints(params.Arguments)
-	case "calc_harmonic_chart":
-		result, err = s.handleCalcHarmonicChart(params.Arguments)
-	case "calc_planetary_hours":
-		result, err = s.handleCalcPlanetaryHours(params.Arguments)
-	case "calc_profection":
-		result, err = s.handleCalcProfection(params.Arguments)
-	case "calc_antiscia":
-		result, err = s.handleCalcAntiscia(params.Arguments)
-	case "calc_lots":
-		result, err = s.handleCalcLots(params.Arguments)
-	case "calc_bounds":
-		result, err = s.handleCalcBounds(params.Arguments)
 	case "calc_lunar_phase":
 		result, err = s.handleCalcLunarPhase(params.Arguments)
 	case "calc_lunar_phases":
@@ -867,24 +597,10 @@ func (s *Server) handleToolsCall(req *jsonRPCRequest) *jsonRPCResponse {
 		result, err = s.handleCalcEclipses(params.Arguments)
 	case "calc_synastry":
 		result, err = s.handleCalcSynastry(params.Arguments)
-	case "calc_dispositors":
-		result, err = s.handleCalcDispositors(params.Arguments)
-	case "calc_natal_report":
-		result, err = s.handleCalcNatalReport(params.Arguments)
-	case "calc_chart_wheel":
-		result, err = s.handleCalcChartWheel(params.Arguments)
-	case "calc_firdaria":
-		result, err = s.handleCalcFirdaria(params.Arguments)
 	case "calc_davison_chart":
 		result, err = s.handleCalcDavisonChart(params.Arguments)
-	case "calc_primary_directions":
-		result, err = s.handleCalcPrimaryDirections(params.Arguments)
 	case "calc_bonification":
 		result, err = s.handleCalcBonification(params.Arguments)
-	case "calc_symbolic_directions":
-		result, err = s.handleCalcSymbolicDirections(params.Arguments)
-	case "calc_heliacal_events":
-		result, err = s.handleCalcHeliacalEvents(params.Arguments)
 	default:
 		return errorResponse(req.ID, -32601, "unknown tool: "+params.Name)
 	}
@@ -1476,265 +1192,6 @@ func (s *Server) handleCalcAspectPatterns(args json.RawMessage) (interface{}, er
 	}, nil
 }
 
-func (s *Server) handleCalcFixedStars(args json.RawMessage) (interface{}, error) {
-	var input struct {
-		Latitude    float64            `json:"latitude"`
-		Longitude   float64            `json:"longitude"`
-		JDUT        float64            `json:"jd_ut"`
-		Planets     []models.PlanetID  `json:"planets"`
-		HouseSystem models.HouseSystem `json:"house_system"`
-		Orb         float64            `json:"orb"`
-	}
-	if err := json.Unmarshal(args, &input); err != nil {
-		return nil, err
-	}
-	if len(input.Planets) == 0 {
-		input.Planets = defaultPlanets
-	}
-	if input.HouseSystem == "" {
-		input.HouseSystem = models.HousePlacidus
-	}
-	if input.Orb <= 0 {
-		input.Orb = 1.5
-	}
-
-	chartInfo, err := chart.CalcSingleChart(input.Latitude, input.Longitude, input.JDUT,
-		input.Planets, models.DefaultOrbConfig(), input.HouseSystem)
-	if err != nil {
-		return nil, err
-	}
-
-	conjunctions := fixedstars.FindConjunctions(chartInfo.Planets, input.Orb, input.JDUT)
-
-	return map[string]interface{}{
-		"conjunctions":  conjunctions,
-		"catalog_count": len(fixedstars.Catalog),
-	}, nil
-}
-
-func (s *Server) handleCalcMidpoints(args json.RawMessage) (interface{}, error) {
-	var input struct {
-		Latitude    float64            `json:"latitude"`
-		Longitude   float64            `json:"longitude"`
-		JDUT        float64            `json:"jd_ut"`
-		Planets     []models.PlanetID  `json:"planets"`
-		HouseSystem models.HouseSystem `json:"house_system"`
-		Orb         float64            `json:"orb"`
-	}
-	if err := json.Unmarshal(args, &input); err != nil {
-		return nil, err
-	}
-	if len(input.Planets) == 0 {
-		input.Planets = defaultPlanets
-	}
-	if input.HouseSystem == "" {
-		input.HouseSystem = models.HousePlacidus
-	}
-
-	chartInfo, err := chart.CalcSingleChart(input.Latitude, input.Longitude, input.JDUT,
-		input.Planets, models.DefaultOrbConfig(), input.HouseSystem)
-	if err != nil {
-		return nil, err
-	}
-
-	tree := midpoint.CalcMidpoints(chartInfo.Planets, input.Orb)
-	return tree, nil
-}
-
-func (s *Server) handleCalcHarmonicChart(args json.RawMessage) (interface{}, error) {
-	var input struct {
-		Latitude    float64            `json:"latitude"`
-		Longitude   float64            `json:"longitude"`
-		JDUT        float64            `json:"jd_ut"`
-		Harmonic    int                `json:"harmonic"`
-		Planets     []models.PlanetID  `json:"planets"`
-		HouseSystem models.HouseSystem `json:"house_system"`
-		OrbConfig   *models.OrbConfig  `json:"orb_config"`
-		Format      string             `json:"format"`
-	}
-	if err := json.Unmarshal(args, &input); err != nil {
-		return nil, err
-	}
-	if len(input.Planets) == 0 {
-		input.Planets = defaultPlanets
-	}
-	if input.HouseSystem == "" {
-		input.HouseSystem = models.HousePlacidus
-	}
-
-	hc, err := harmonic.CalcHarmonicChart(input.Latitude, input.Longitude, input.JDUT,
-		input.Harmonic, input.Planets, orbOrDefault(input.OrbConfig, models.DefaultOrbConfig()), input.HouseSystem)
-	if err != nil {
-		return nil, err
-	}
-
-	if input.Format == "csv" {
-		return map[string]interface{}{
-			"format":   "csv",
-			"harmonic": hc.Harmonic,
-			"planets":  export.PositionsToCSV(hc.Planets),
-			"aspects":  export.AspectsToCSV(hc.Aspects),
-		}, nil
-	}
-	return hc, nil
-}
-
-func (s *Server) handleCalcPlanetaryHours(args json.RawMessage) (interface{}, error) {
-	var input struct {
-		Latitude  float64 `json:"latitude"`
-		Longitude float64 `json:"longitude"`
-		JDUT      float64 `json:"jd_ut"`
-	}
-	if err := json.Unmarshal(args, &input); err != nil {
-		return nil, err
-	}
-	return planetary.CalcPlanetaryHours(input.JDUT, input.Latitude, input.Longitude)
-}
-
-func (s *Server) handleCalcProfection(args json.RawMessage) (interface{}, error) {
-	var input struct {
-		Latitude       float64            `json:"latitude"`
-		Longitude      float64            `json:"longitude"`
-		NatalJDUT      float64            `json:"natal_jd_ut"`
-		Age            int                `json:"age"`
-		HouseSystem    models.HouseSystem `json:"house_system"`
-		IncludeMonthly bool               `json:"include_monthly"`
-		StartAge       *int               `json:"start_age"`
-		EndAge         *int               `json:"end_age"`
-	}
-	if err := json.Unmarshal(args, &input); err != nil {
-		return nil, err
-	}
-	if input.HouseSystem == "" {
-		input.HouseSystem = models.HousePlacidus
-	}
-
-	chartInfo, err := chart.CalcSingleChart(input.Latitude, input.Longitude, input.NatalJDUT,
-		defaultPlanets, models.DefaultOrbConfig(), input.HouseSystem)
-	if err != nil {
-		return nil, err
-	}
-
-	result := make(map[string]interface{})
-	annual := profection.CalcAnnualProfection(chartInfo.Angles.ASC, chartInfo.Houses, input.Age)
-	result["annual"] = annual
-
-	if input.IncludeMonthly {
-		result["monthly"] = profection.CalcMonthlyProfections(chartInfo.Angles.ASC, input.Age)
-	}
-
-	if input.StartAge != nil && input.EndAge != nil {
-		result["timeline"] = profection.ProfectionTimeline(chartInfo.Angles.ASC, chartInfo.Houses, *input.StartAge, *input.EndAge)
-	}
-
-	return result, nil
-}
-
-func (s *Server) handleCalcAntiscia(args json.RawMessage) (interface{}, error) {
-	var input struct {
-		Latitude    float64            `json:"latitude"`
-		Longitude   float64            `json:"longitude"`
-		JDUT        float64            `json:"jd_ut"`
-		Planets     []models.PlanetID  `json:"planets"`
-		HouseSystem models.HouseSystem `json:"house_system"`
-		Orb         float64            `json:"orb"`
-	}
-	if err := json.Unmarshal(args, &input); err != nil {
-		return nil, err
-	}
-	if len(input.Planets) == 0 {
-		input.Planets = defaultPlanets
-	}
-	if input.HouseSystem == "" {
-		input.HouseSystem = models.HousePlacidus
-	}
-
-	chartInfo, err := chart.CalcSingleChart(input.Latitude, input.Longitude, input.JDUT,
-		input.Planets, models.DefaultOrbConfig(), input.HouseSystem)
-	if err != nil {
-		return nil, err
-	}
-
-	points := antiscia.CalcChartAntiscia(chartInfo.Planets)
-	pairs := antiscia.FindAntisciaPairs(chartInfo.Planets, input.Orb)
-
-	return map[string]interface{}{
-		"antiscia_points": points,
-		"antiscia_pairs":  pairs,
-	}, nil
-}
-
-func (s *Server) handleCalcLots(args json.RawMessage) (interface{}, error) {
-	var input struct {
-		Latitude    float64            `json:"latitude"`
-		Longitude   float64            `json:"longitude"`
-		JDUT        float64            `json:"jd_ut"`
-		Planets     []models.PlanetID  `json:"planets"`
-		HouseSystem models.HouseSystem `json:"house_system"`
-		Format      string             `json:"format"`
-	}
-	if err := json.Unmarshal(args, &input); err != nil {
-		return nil, err
-	}
-	if len(input.Planets) == 0 {
-		input.Planets = defaultPlanets
-	}
-	if input.HouseSystem == "" {
-		input.HouseSystem = models.HousePlacidus
-	}
-
-	chartInfo, err := chart.CalcSingleChart(input.Latitude, input.Longitude, input.JDUT,
-		input.Planets, models.DefaultOrbConfig(), input.HouseSystem)
-	if err != nil {
-		return nil, err
-	}
-
-	isDayChart := chart.IsDayChart(input.JDUT, chartInfo.Angles.ASC)
-	lotResults := lots.CalcStandardLots(chartInfo.Planets, chartInfo.Angles.ASC, isDayChart)
-
-	if input.Format == "csv" {
-		return map[string]interface{}{
-			"format": "csv",
-			"lots":   export.LotsToCSV(lotResults),
-		}, nil
-	}
-
-	return map[string]interface{}{
-		"lots":         lotResults,
-		"is_day_chart": isDayChart,
-	}, nil
-}
-
-func (s *Server) handleCalcBounds(args json.RawMessage) (interface{}, error) {
-	var input struct {
-		Latitude    float64            `json:"latitude"`
-		Longitude   float64            `json:"longitude"`
-		JDUT        float64            `json:"jd_ut"`
-		Planets     []models.PlanetID  `json:"planets"`
-		HouseSystem models.HouseSystem `json:"house_system"`
-	}
-	if err := json.Unmarshal(args, &input); err != nil {
-		return nil, err
-	}
-	if len(input.Planets) == 0 {
-		input.Planets = defaultPlanets
-	}
-	if input.HouseSystem == "" {
-		input.HouseSystem = models.HousePlacidus
-	}
-
-	chartInfo, err := chart.CalcSingleChart(input.Latitude, input.Longitude, input.JDUT,
-		input.Planets, models.DefaultOrbConfig(), input.HouseSystem)
-	if err != nil {
-		return nil, err
-	}
-
-	faces := bounds.CalcChartFaces(chartInfo.Planets)
-	return map[string]interface{}{
-		"faces": faces,
-	}, nil
-}
-
 func (s *Server) handleCalcLunarPhase(args json.RawMessage) (interface{}, error) {
 	var input struct {
 		JDUT float64 `json:"jd_ut"`
@@ -1835,100 +1292,6 @@ func (s *Server) handleCalcSynastry(args json.RawMessage) (interface{}, error) {
 	return score, nil
 }
 
-func (s *Server) handleCalcDispositors(args json.RawMessage) (interface{}, error) {
-	var input struct {
-		Latitude    float64            `json:"latitude"`
-		Longitude   float64            `json:"longitude"`
-		JDUT        float64            `json:"jd_ut"`
-		Planets     []models.PlanetID  `json:"planets"`
-		HouseSystem models.HouseSystem `json:"house_system"`
-		Traditional bool               `json:"traditional"`
-	}
-	if err := json.Unmarshal(args, &input); err != nil {
-		return nil, err
-	}
-	if len(input.Planets) == 0 {
-		input.Planets = defaultPlanets
-	}
-	if input.HouseSystem == "" {
-		input.HouseSystem = models.HousePlacidus
-	}
-
-	chartInfo, err := chart.CalcSingleChart(input.Latitude, input.Longitude, input.JDUT,
-		input.Planets, models.DefaultOrbConfig(), input.HouseSystem)
-	if err != nil {
-		return nil, err
-	}
-
-	return dispositor.CalcDispositors(chartInfo.Planets, input.Traditional), nil
-}
-
-func (s *Server) handleCalcChartWheel(args json.RawMessage) (interface{}, error) {
-	var input struct {
-		Latitude    float64            `json:"latitude"`
-		Longitude   float64            `json:"longitude"`
-		JDUT        float64            `json:"jd_ut"`
-		Planets     []models.PlanetID  `json:"planets"`
-		HouseSystem models.HouseSystem `json:"house_system"`
-		Radius      float64            `json:"radius"`
-	}
-	if err := json.Unmarshal(args, &input); err != nil {
-		return nil, err
-	}
-	if len(input.Planets) == 0 {
-		input.Planets = defaultPlanets
-	}
-	if input.HouseSystem == "" {
-		input.HouseSystem = models.HousePlacidus
-	}
-
-	chartInfo, err := chart.CalcSingleChart(input.Latitude, input.Longitude, input.JDUT,
-		input.Planets, models.DefaultOrbConfig(), input.HouseSystem)
-	if err != nil {
-		return nil, err
-	}
-
-	wheel := render.CalcChartWheel(chartInfo, input.Radius)
-	signs := render.CalcSignSegments(chartInfo.Angles.ASC, input.Radius)
-
-	return map[string]interface{}{
-		"wheel": wheel,
-		"signs": signs,
-	}, nil
-}
-
-func (s *Server) handleCalcNatalReport(args json.RawMessage) (interface{}, error) {
-	var input struct {
-		Latitude  float64 `json:"latitude"`
-		Longitude float64 `json:"longitude"`
-		JDUT      float64 `json:"jd_ut"`
-	}
-	if err := json.Unmarshal(args, &input); err != nil {
-		return nil, err
-	}
-	return report.GenerateNatalReport(input.Latitude, input.Longitude, input.JDUT)
-}
-
-func (s *Server) handleCalcFirdaria(args json.RawMessage) (interface{}, error) {
-	var input struct {
-		IsDayBirth bool     `json:"is_day_birth"`
-		Age        float64  `json:"age"`
-		StartAge   *float64 `json:"start_age"`
-		EndAge     *float64 `json:"end_age"`
-	}
-	if err := json.Unmarshal(args, &input); err != nil {
-		return nil, err
-	}
-
-	result := firdaria.CalcFirdaria(input.IsDayBirth, input.Age)
-
-	if input.StartAge != nil && input.EndAge != nil {
-		result.Periods = firdaria.CalcFirdariaTimeline(input.IsDayBirth, *input.StartAge, *input.EndAge)
-	}
-
-	return result, nil
-}
-
 func (s *Server) handleCalcDavisonChart(args json.RawMessage) (interface{}, error) {
 	var input struct {
 		Person1Lat  float64            `json:"person1_latitude"`
@@ -1960,49 +1323,6 @@ func (s *Server) handleCalcDavisonChart(args json.RawMessage) (interface{}, erro
 	})
 }
 
-func (s *Server) handleCalcPrimaryDirections(args json.RawMessage) (interface{}, error) {
-	var input struct {
-		Latitude     float64            `json:"latitude"`
-		Longitude    float64            `json:"longitude"`
-		NatalJDUT    float64            `json:"natal_jd_ut"`
-		Planets      []models.PlanetID  `json:"planets"`
-		Aspects      []models.AspectType `json:"aspects"`
-		DirectionKey string             `json:"direction_key"`
-		MaxAge       float64            `json:"max_age"`
-		HouseSystem  models.HouseSystem `json:"house_system"`
-	}
-	if err := json.Unmarshal(args, &input); err != nil {
-		return nil, err
-	}
-	if input.HouseSystem == "" {
-		input.HouseSystem = models.HousePlacidus
-	}
-	if input.MaxAge == 0 {
-		input.MaxAge = 100
-	}
-	key := primary.KeyNaibod
-	if input.DirectionKey != "" {
-		key = primary.DirectionKey(input.DirectionKey)
-	}
-	if len(input.Aspects) == 0 {
-		input.Aspects = []models.AspectType{
-			models.AspectConjunction, models.AspectOpposition,
-			models.AspectTrine, models.AspectSquare, models.AspectSextile,
-		}
-	}
-
-	return primary.CalcPrimaryDirections(primary.PrimaryDirectionInput{
-		NatalJD:     input.NatalJDUT,
-		GeoLat:      input.Latitude,
-		GeoLon:      input.Longitude,
-		Planets:     input.Planets,
-		Aspects:     input.Aspects,
-		Key:         key,
-		MaxAge:      input.MaxAge,
-		HouseSystem: input.HouseSystem,
-	})
-}
-
 func (s *Server) handleCalcBonification(args json.RawMessage) (interface{}, error) {
 	var input struct {
 		Latitude    float64            `json:"latitude"`
@@ -2028,58 +1348,6 @@ func (s *Server) handleCalcBonification(args json.RawMessage) (interface{}, erro
 	}
 
 	return dignity.CalcChartBonMal(chartInfo.Planets), nil
-}
-
-func (s *Server) handleCalcSymbolicDirections(args json.RawMessage) (interface{}, error) {
-	var input struct {
-		Latitude    float64            `json:"latitude"`
-		Longitude   float64            `json:"longitude"`
-		NatalJDUT   float64            `json:"natal_jd_ut"`
-		Age         float64            `json:"age"`
-		Method      string             `json:"method"`
-		CustomRate  float64            `json:"custom_rate"`
-		Planets     []models.PlanetID  `json:"planets"`
-		HouseSystem models.HouseSystem `json:"house_system"`
-	}
-	if err := json.Unmarshal(args, &input); err != nil {
-		return nil, err
-	}
-	if input.HouseSystem == "" {
-		input.HouseSystem = models.HousePlacidus
-	}
-	method := symbolic.MethodOneDegree
-	if input.Method != "" {
-		method = symbolic.DirectionMethod(input.Method)
-	}
-
-	return symbolic.CalcSymbolicDirections(symbolic.SymbolicInput{
-		NatalJD:     input.NatalJDUT,
-		GeoLat:      input.Latitude,
-		GeoLon:      input.Longitude,
-		Age:         input.Age,
-		Method:      method,
-		CustomRate:  input.CustomRate,
-		Planets:     input.Planets,
-		OrbConfig:   models.DefaultOrbConfig(),
-		HouseSystem: input.HouseSystem,
-	})
-}
-
-func (s *Server) handleCalcHeliacalEvents(args json.RawMessage) (interface{}, error) {
-	var input struct {
-		Latitude  float64           `json:"latitude"`
-		Longitude float64           `json:"longitude"`
-		Altitude  float64           `json:"altitude"`
-		StartJDUT float64           `json:"start_jd_ut"`
-		EndJDUT   float64           `json:"end_jd_ut"`
-		Planets   []models.PlanetID `json:"planets"`
-	}
-	if err := json.Unmarshal(args, &input); err != nil {
-		return nil, err
-	}
-
-	return heliacal.CalcHeliacalEvents(input.Latitude, input.Longitude, input.Altitude,
-		input.StartJDUT, input.EndJDUT, input.Planets)
 }
 
 // buildTransitInput extracts common transit input from JSON arguments

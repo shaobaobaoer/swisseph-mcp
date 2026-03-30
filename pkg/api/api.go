@@ -6,31 +6,16 @@ import (
 	"net/http"
 
 	"github.com/shaobaobaoer/solarsage-mcp/internal/aspect"
-	"github.com/shaobaobaoer/solarsage-mcp/pkg/antiscia"
-	"github.com/shaobaobaoer/solarsage-mcp/pkg/bounds"
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/chart"
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/composite"
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/dignity"
-	"github.com/shaobaobaoer/solarsage-mcp/pkg/dispositor"
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/export"
-	"github.com/shaobaobaoer/solarsage-mcp/pkg/firdaria"
-	"github.com/shaobaobaoer/solarsage-mcp/pkg/fixedstars"
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/geo"
-	"github.com/shaobaobaoer/solarsage-mcp/pkg/harmonic"
-	"github.com/shaobaobaoer/solarsage-mcp/pkg/heliacal"
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/julian"
-	"github.com/shaobaobaoer/solarsage-mcp/pkg/lots"
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/lunar"
-	"github.com/shaobaobaoer/solarsage-mcp/pkg/midpoint"
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/models"
-	"github.com/shaobaobaoer/solarsage-mcp/pkg/planetary"
-	"github.com/shaobaobaoer/solarsage-mcp/pkg/primary"
-	"github.com/shaobaobaoer/solarsage-mcp/pkg/profection"
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/progressions"
-	"github.com/shaobaobaoer/solarsage-mcp/pkg/render"
-	"github.com/shaobaobaoer/solarsage-mcp/pkg/report"
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/returns"
-	"github.com/shaobaobaoer/solarsage-mcp/pkg/symbolic"
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/synastry"
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/transit"
 )
@@ -105,45 +90,26 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/api/v1/chart/double", s.requirePOST(s.handleDoubleChart))
 	s.mux.HandleFunc("/api/v1/chart/composite", s.requirePOST(s.handleCompositeChart))
 	s.mux.HandleFunc("/api/v1/chart/davison", s.requirePOST(s.handleDavisonChart))
-	s.mux.HandleFunc("/api/v1/chart/harmonic", s.requirePOST(s.handleHarmonicChart))
-	s.mux.HandleFunc("/api/v1/chart/wheel", s.requirePOST(s.handleChartWheel))
 
 	// Predictive
 	s.mux.HandleFunc("/api/v1/transit", s.requirePOST(s.handleTransit))
 	s.mux.HandleFunc("/api/v1/progressions", s.requirePOST(s.handleProgressions))
 	s.mux.HandleFunc("/api/v1/solar-arc", s.requirePOST(s.handleSolarArc))
-	s.mux.HandleFunc("/api/v1/primary-directions", s.requirePOST(s.handlePrimaryDirections))
-	s.mux.HandleFunc("/api/v1/symbolic-directions", s.requirePOST(s.handleSymbolicDirections))
 	s.mux.HandleFunc("/api/v1/solar-return", s.requirePOST(s.handleSolarReturn))
 	s.mux.HandleFunc("/api/v1/lunar-return", s.requirePOST(s.handleLunarReturn))
 
 	// Traditional
 	s.mux.HandleFunc("/api/v1/dignity", s.requirePOST(s.handleDignity))
 	s.mux.HandleFunc("/api/v1/bonification", s.requirePOST(s.handleBonification))
-	s.mux.HandleFunc("/api/v1/dispositors", s.requirePOST(s.handleDispositors))
-	s.mux.HandleFunc("/api/v1/profection", s.requirePOST(s.handleProfection))
-	s.mux.HandleFunc("/api/v1/firdaria", s.requirePOST(s.handleFirdaria))
-	s.mux.HandleFunc("/api/v1/lots", s.requirePOST(s.handleLots))
-	s.mux.HandleFunc("/api/v1/bounds", s.requirePOST(s.handleBounds))
-	s.mux.HandleFunc("/api/v1/antiscia", s.requirePOST(s.handleAntiscia))
-	s.mux.HandleFunc("/api/v1/planetary-hours", s.requirePOST(s.handlePlanetaryHours))
-	s.mux.HandleFunc("/api/v1/heliacal", s.requirePOST(s.handleHeliacal))
 
 	// Analysis
 	s.mux.HandleFunc("/api/v1/aspects/patterns", s.requirePOST(s.handleAspectPatterns))
-	s.mux.HandleFunc("/api/v1/fixed-stars", s.requirePOST(s.handleFixedStars))
-	s.mux.HandleFunc("/api/v1/midpoints", s.requirePOST(s.handleMidpoints))
 	s.mux.HandleFunc("/api/v1/synastry", s.requirePOST(s.handleSynastry))
-
-
 
 	// Lunar
 	s.mux.HandleFunc("/api/v1/lunar/phase", s.requirePOST(s.handleLunarPhase))
 	s.mux.HandleFunc("/api/v1/lunar/phases", s.requirePOST(s.handleLunarPhases))
 	s.mux.HandleFunc("/api/v1/lunar/eclipses", s.requirePOST(s.handleEclipses))
-
-	// Report
-	s.mux.HandleFunc("/api/v1/report/natal", s.requirePOST(s.handleNatalReport))
 }
 
 // requirePOST wraps a handler to reject non-POST methods.
@@ -224,7 +190,7 @@ func (s *Server) handleGeocode(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleDatetimeToJD(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Datetime string             `json:"datetime"`
+		Datetime string              `json:"datetime"`
 		Calendar models.CalendarType `json:"calendar"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
@@ -281,12 +247,12 @@ func (s *Server) handlePlanetPosition(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"planet":       req.Planet,
-		"longitude":    lon,
-		"speed":        speed,
+		"planet":        req.Planet,
+		"longitude":     lon,
+		"speed":         speed,
 		"is_retrograde": speed < 0,
-		"sign":         models.SignFromLongitude(lon),
-		"sign_degree":  models.SignDegreeFromLongitude(lon),
+		"sign":          models.SignFromLongitude(lon),
+		"sign_degree":   models.SignDegreeFromLongitude(lon),
 	})
 }
 
@@ -334,14 +300,14 @@ func (s *Server) handleNatalChart(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleDoubleChart(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		InnerLatitude  float64                    `json:"inner_latitude"`
-		InnerLongitude float64                    `json:"inner_longitude"`
-		InnerJDUT      float64                    `json:"inner_jd_ut"`
-		InnerPlanets   []models.PlanetID          `json:"inner_planets"`
-		OuterLatitude  float64                    `json:"outer_latitude"`
-		OuterLongitude float64                    `json:"outer_longitude"`
-		OuterJDUT      float64                    `json:"outer_jd_ut"`
-		OuterPlanets   []models.PlanetID          `json:"outer_planets"`
+		InnerLatitude  float64                     `json:"inner_latitude"`
+		InnerLongitude float64                     `json:"inner_longitude"`
+		InnerJDUT      float64                     `json:"inner_jd_ut"`
+		InnerPlanets   []models.PlanetID           `json:"inner_planets"`
+		OuterLatitude  float64                     `json:"outer_latitude"`
+		OuterLongitude float64                     `json:"outer_longitude"`
+		OuterJDUT      float64                     `json:"outer_jd_ut"`
+		OuterPlanets   []models.PlanetID           `json:"outer_planets"`
 		SpecialPoints  *models.SpecialPointsConfig `json:"special_points"`
 		HouseSystem    models.HouseSystem          `json:"house_system"`
 		OrbConfig      *models.OrbConfig           `json:"orb_config"`
@@ -467,83 +433,6 @@ func (s *Server) handleDavisonChart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, result)
-}
-
-func (s *Server) handleHarmonicChart(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Latitude    float64            `json:"latitude"`
-		Longitude   float64            `json:"longitude"`
-		JDUT        float64            `json:"jd_ut"`
-		Harmonic    int                `json:"harmonic"`
-		Planets     []models.PlanetID  `json:"planets"`
-		HouseSystem models.HouseSystem `json:"house_system"`
-		OrbConfig   *models.OrbConfig  `json:"orb_config"`
-		Format      string             `json:"format"`
-	}
-	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	if len(req.Planets) == 0 {
-		req.Planets = defaultPlanets
-	}
-	if req.HouseSystem == "" {
-		req.HouseSystem = models.HousePlacidus
-	}
-
-	hc, err := harmonic.CalcHarmonicChart(req.Latitude, req.Longitude, req.JDUT,
-		req.Harmonic, req.Planets, orbOrDefault(req.OrbConfig, models.DefaultOrbConfig()), req.HouseSystem)
-	if err != nil {
-		writeError(w, http.StatusUnprocessableEntity, err.Error())
-		return
-	}
-
-	if req.Format == "csv" {
-		writeJSON(w, http.StatusOK, map[string]interface{}{
-			"format":   "csv",
-			"harmonic": hc.Harmonic,
-			"planets":  export.PositionsToCSV(hc.Planets),
-			"aspects":  export.AspectsToCSV(hc.Aspects),
-		})
-		return
-	}
-	writeJSON(w, http.StatusOK, hc)
-}
-
-func (s *Server) handleChartWheel(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Latitude    float64            `json:"latitude"`
-		Longitude   float64            `json:"longitude"`
-		JDUT        float64            `json:"jd_ut"`
-		Planets     []models.PlanetID  `json:"planets"`
-		HouseSystem models.HouseSystem `json:"house_system"`
-		Radius      float64            `json:"radius"`
-	}
-	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	if len(req.Planets) == 0 {
-		req.Planets = defaultPlanets
-	}
-	if req.HouseSystem == "" {
-		req.HouseSystem = models.HousePlacidus
-	}
-
-	chartInfo, err := chart.CalcSingleChart(req.Latitude, req.Longitude, req.JDUT,
-		req.Planets, models.DefaultOrbConfig(), req.HouseSystem)
-	if err != nil {
-		writeError(w, http.StatusUnprocessableEntity, err.Error())
-		return
-	}
-
-	wheel := render.CalcChartWheel(chartInfo, req.Radius)
-	signs := render.CalcSignSegments(chartInfo.Angles.ASC, req.Radius)
-
-	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"wheel": wheel,
-		"signs": signs,
-	})
 }
 
 // --- Predictive Endpoints ---
@@ -744,96 +633,6 @@ func (s *Server) handleSolarArc(w http.ResponseWriter, r *http.Request) {
 		"solar_arc_offset": offset,
 		"planets":          dp,
 	})
-}
-
-func (s *Server) handlePrimaryDirections(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Latitude     float64             `json:"latitude"`
-		Longitude    float64             `json:"longitude"`
-		NatalJDUT    float64             `json:"natal_jd_ut"`
-		Planets      []models.PlanetID   `json:"planets"`
-		Aspects      []models.AspectType `json:"aspects"`
-		DirectionKey string              `json:"direction_key"`
-		MaxAge       float64             `json:"max_age"`
-		HouseSystem  models.HouseSystem  `json:"house_system"`
-	}
-	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	if req.HouseSystem == "" {
-		req.HouseSystem = models.HousePlacidus
-	}
-	if req.MaxAge == 0 {
-		req.MaxAge = 100
-	}
-	key := primary.KeyNaibod
-	if req.DirectionKey != "" {
-		key = primary.DirectionKey(req.DirectionKey)
-	}
-	if len(req.Aspects) == 0 {
-		req.Aspects = []models.AspectType{
-			models.AspectConjunction, models.AspectOpposition,
-			models.AspectTrine, models.AspectSquare, models.AspectSextile,
-		}
-	}
-
-	result, err := primary.CalcPrimaryDirections(primary.PrimaryDirectionInput{
-		NatalJD:     req.NatalJDUT,
-		GeoLat:      req.Latitude,
-		GeoLon:      req.Longitude,
-		Planets:     req.Planets,
-		Aspects:     req.Aspects,
-		Key:         key,
-		MaxAge:      req.MaxAge,
-		HouseSystem: req.HouseSystem,
-	})
-	if err != nil {
-		writeError(w, http.StatusUnprocessableEntity, err.Error())
-		return
-	}
-	writeJSON(w, http.StatusOK, result)
-}
-
-func (s *Server) handleSymbolicDirections(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Latitude    float64            `json:"latitude"`
-		Longitude   float64            `json:"longitude"`
-		NatalJDUT   float64            `json:"natal_jd_ut"`
-		Age         float64            `json:"age"`
-		Method      string             `json:"method"`
-		CustomRate  float64            `json:"custom_rate"`
-		Planets     []models.PlanetID  `json:"planets"`
-		HouseSystem models.HouseSystem `json:"house_system"`
-	}
-	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	if req.HouseSystem == "" {
-		req.HouseSystem = models.HousePlacidus
-	}
-	method := symbolic.MethodOneDegree
-	if req.Method != "" {
-		method = symbolic.DirectionMethod(req.Method)
-	}
-
-	result, err := symbolic.CalcSymbolicDirections(symbolic.SymbolicInput{
-		NatalJD:     req.NatalJDUT,
-		GeoLat:      req.Latitude,
-		GeoLon:      req.Longitude,
-		Age:         req.Age,
-		Method:      method,
-		CustomRate:  req.CustomRate,
-		Planets:     req.Planets,
-		OrbConfig:   models.DefaultOrbConfig(),
-		HouseSystem: req.HouseSystem,
-	})
-	if err != nil {
-		writeError(w, http.StatusUnprocessableEntity, err.Error())
-		return
-	}
-	writeJSON(w, http.StatusOK, result)
 }
 
 func (s *Server) handleSolarReturn(w http.ResponseWriter, r *http.Request) {
@@ -1038,249 +837,6 @@ func (s *Server) handleBonification(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, dignity.CalcChartBonMal(chartInfo.Planets))
 }
 
-func (s *Server) handleDispositors(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Latitude    float64            `json:"latitude"`
-		Longitude   float64            `json:"longitude"`
-		JDUT        float64            `json:"jd_ut"`
-		Planets     []models.PlanetID  `json:"planets"`
-		HouseSystem models.HouseSystem `json:"house_system"`
-		Traditional bool               `json:"traditional"`
-	}
-	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	if len(req.Planets) == 0 {
-		req.Planets = defaultPlanets
-	}
-	if req.HouseSystem == "" {
-		req.HouseSystem = models.HousePlacidus
-	}
-
-	chartInfo, err := chart.CalcSingleChart(req.Latitude, req.Longitude, req.JDUT,
-		req.Planets, models.DefaultOrbConfig(), req.HouseSystem)
-	if err != nil {
-		writeError(w, http.StatusUnprocessableEntity, err.Error())
-		return
-	}
-
-	writeJSON(w, http.StatusOK, dispositor.CalcDispositors(chartInfo.Planets, req.Traditional))
-}
-
-func (s *Server) handleProfection(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Latitude       float64            `json:"latitude"`
-		Longitude      float64            `json:"longitude"`
-		NatalJDUT      float64            `json:"natal_jd_ut"`
-		Age            int                `json:"age"`
-		HouseSystem    models.HouseSystem `json:"house_system"`
-		IncludeMonthly bool               `json:"include_monthly"`
-		StartAge       *int               `json:"start_age"`
-		EndAge         *int               `json:"end_age"`
-	}
-	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	if req.HouseSystem == "" {
-		req.HouseSystem = models.HousePlacidus
-	}
-
-	chartInfo, err := chart.CalcSingleChart(req.Latitude, req.Longitude, req.NatalJDUT,
-		defaultPlanets, models.DefaultOrbConfig(), req.HouseSystem)
-	if err != nil {
-		writeError(w, http.StatusUnprocessableEntity, err.Error())
-		return
-	}
-
-	result := make(map[string]interface{})
-	annual := profection.CalcAnnualProfection(chartInfo.Angles.ASC, chartInfo.Houses, req.Age)
-	result["annual"] = annual
-
-	if req.IncludeMonthly {
-		result["monthly"] = profection.CalcMonthlyProfections(chartInfo.Angles.ASC, req.Age)
-	}
-	if req.StartAge != nil && req.EndAge != nil {
-		result["timeline"] = profection.ProfectionTimeline(chartInfo.Angles.ASC, chartInfo.Houses, *req.StartAge, *req.EndAge)
-	}
-
-	writeJSON(w, http.StatusOK, result)
-}
-
-func (s *Server) handleFirdaria(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		IsDayBirth bool     `json:"is_day_birth"`
-		Age        float64  `json:"age"`
-		StartAge   *float64 `json:"start_age"`
-		EndAge     *float64 `json:"end_age"`
-	}
-	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-
-	result := firdaria.CalcFirdaria(req.IsDayBirth, req.Age)
-	if req.StartAge != nil && req.EndAge != nil {
-		result.Periods = firdaria.CalcFirdariaTimeline(req.IsDayBirth, *req.StartAge, *req.EndAge)
-	}
-
-	writeJSON(w, http.StatusOK, result)
-}
-
-func (s *Server) handleLots(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Latitude    float64            `json:"latitude"`
-		Longitude   float64            `json:"longitude"`
-		JDUT        float64            `json:"jd_ut"`
-		Planets     []models.PlanetID  `json:"planets"`
-		HouseSystem models.HouseSystem `json:"house_system"`
-		Format      string             `json:"format"`
-	}
-	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	if len(req.Planets) == 0 {
-		req.Planets = defaultPlanets
-	}
-	if req.HouseSystem == "" {
-		req.HouseSystem = models.HousePlacidus
-	}
-
-	chartInfo, err := chart.CalcSingleChart(req.Latitude, req.Longitude, req.JDUT,
-		req.Planets, models.DefaultOrbConfig(), req.HouseSystem)
-	if err != nil {
-		writeError(w, http.StatusUnprocessableEntity, err.Error())
-		return
-	}
-
-	isDayChart := chart.IsDayChart(req.JDUT, chartInfo.Angles.ASC)
-	lotResults := lots.CalcStandardLots(chartInfo.Planets, chartInfo.Angles.ASC, isDayChart)
-
-	if req.Format == "csv" {
-		writeJSON(w, http.StatusOK, map[string]interface{}{
-			"format": "csv",
-			"lots":   export.LotsToCSV(lotResults),
-		})
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"lots":         lotResults,
-		"is_day_chart": isDayChart,
-	})
-}
-
-func (s *Server) handleBounds(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Latitude    float64            `json:"latitude"`
-		Longitude   float64            `json:"longitude"`
-		JDUT        float64            `json:"jd_ut"`
-		Planets     []models.PlanetID  `json:"planets"`
-		HouseSystem models.HouseSystem `json:"house_system"`
-	}
-	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	if len(req.Planets) == 0 {
-		req.Planets = defaultPlanets
-	}
-	if req.HouseSystem == "" {
-		req.HouseSystem = models.HousePlacidus
-	}
-
-	chartInfo, err := chart.CalcSingleChart(req.Latitude, req.Longitude, req.JDUT,
-		req.Planets, models.DefaultOrbConfig(), req.HouseSystem)
-	if err != nil {
-		writeError(w, http.StatusUnprocessableEntity, err.Error())
-		return
-	}
-
-	faces := bounds.CalcChartFaces(chartInfo.Planets)
-	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"faces": faces,
-	})
-}
-
-func (s *Server) handleAntiscia(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Latitude    float64            `json:"latitude"`
-		Longitude   float64            `json:"longitude"`
-		JDUT        float64            `json:"jd_ut"`
-		Planets     []models.PlanetID  `json:"planets"`
-		HouseSystem models.HouseSystem `json:"house_system"`
-		Orb         float64            `json:"orb"`
-	}
-	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	if len(req.Planets) == 0 {
-		req.Planets = defaultPlanets
-	}
-	if req.HouseSystem == "" {
-		req.HouseSystem = models.HousePlacidus
-	}
-
-	chartInfo, err := chart.CalcSingleChart(req.Latitude, req.Longitude, req.JDUT,
-		req.Planets, models.DefaultOrbConfig(), req.HouseSystem)
-	if err != nil {
-		writeError(w, http.StatusUnprocessableEntity, err.Error())
-		return
-	}
-
-	points := antiscia.CalcChartAntiscia(chartInfo.Planets)
-	pairs := antiscia.FindAntisciaPairs(chartInfo.Planets, req.Orb)
-
-	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"antiscia_points": points,
-		"antiscia_pairs":  pairs,
-	})
-}
-
-func (s *Server) handlePlanetaryHours(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Latitude  float64 `json:"latitude"`
-		Longitude float64 `json:"longitude"`
-		JDUT      float64 `json:"jd_ut"`
-	}
-	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-
-	result, err := planetary.CalcPlanetaryHours(req.JDUT, req.Latitude, req.Longitude)
-	if err != nil {
-		writeError(w, http.StatusUnprocessableEntity, err.Error())
-		return
-	}
-	writeJSON(w, http.StatusOK, result)
-}
-
-func (s *Server) handleHeliacal(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Latitude  float64           `json:"latitude"`
-		Longitude float64           `json:"longitude"`
-		Altitude  float64           `json:"altitude"`
-		StartJDUT float64           `json:"start_jd_ut"`
-		EndJDUT   float64           `json:"end_jd_ut"`
-		Planets   []models.PlanetID `json:"planets"`
-	}
-	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-
-	result, err := heliacal.CalcHeliacalEvents(req.Latitude, req.Longitude, req.Altitude,
-		req.StartJDUT, req.EndJDUT, req.Planets)
-	if err != nil {
-		writeError(w, http.StatusUnprocessableEntity, err.Error())
-		return
-	}
-	writeJSON(w, http.StatusOK, result)
-}
-
 // --- Analysis Endpoints ---
 
 func (s *Server) handleAspectPatterns(w http.ResponseWriter, r *http.Request) {
@@ -1323,74 +879,6 @@ func (s *Server) handleAspectPatterns(w http.ResponseWriter, r *http.Request) {
 		"patterns": patterns,
 		"aspects":  chartInfo.Aspects,
 	})
-}
-
-func (s *Server) handleFixedStars(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Latitude    float64            `json:"latitude"`
-		Longitude   float64            `json:"longitude"`
-		JDUT        float64            `json:"jd_ut"`
-		Planets     []models.PlanetID  `json:"planets"`
-		HouseSystem models.HouseSystem `json:"house_system"`
-		Orb         float64            `json:"orb"`
-	}
-	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	if len(req.Planets) == 0 {
-		req.Planets = defaultPlanets
-	}
-	if req.HouseSystem == "" {
-		req.HouseSystem = models.HousePlacidus
-	}
-	if req.Orb <= 0 {
-		req.Orb = 1.5
-	}
-
-	chartInfo, err := chart.CalcSingleChart(req.Latitude, req.Longitude, req.JDUT,
-		req.Planets, models.DefaultOrbConfig(), req.HouseSystem)
-	if err != nil {
-		writeError(w, http.StatusUnprocessableEntity, err.Error())
-		return
-	}
-
-	conjunctions := fixedstars.FindConjunctions(chartInfo.Planets, req.Orb, req.JDUT)
-	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"conjunctions":  conjunctions,
-		"catalog_count": len(fixedstars.Catalog),
-	})
-}
-
-func (s *Server) handleMidpoints(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Latitude    float64            `json:"latitude"`
-		Longitude   float64            `json:"longitude"`
-		JDUT        float64            `json:"jd_ut"`
-		Planets     []models.PlanetID  `json:"planets"`
-		HouseSystem models.HouseSystem `json:"house_system"`
-		Orb         float64            `json:"orb"`
-	}
-	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	if len(req.Planets) == 0 {
-		req.Planets = defaultPlanets
-	}
-	if req.HouseSystem == "" {
-		req.HouseSystem = models.HousePlacidus
-	}
-
-	chartInfo, err := chart.CalcSingleChart(req.Latitude, req.Longitude, req.JDUT,
-		req.Planets, models.DefaultOrbConfig(), req.HouseSystem)
-	if err != nil {
-		writeError(w, http.StatusUnprocessableEntity, err.Error())
-		return
-	}
-
-	tree := midpoint.CalcMidpoints(chartInfo.Planets, req.Orb)
-	writeJSON(w, http.StatusOK, tree)
 }
 
 func (s *Server) handleSynastry(w http.ResponseWriter, r *http.Request) {
@@ -1513,25 +1001,4 @@ func (s *Server) handleEclipses(w http.ResponseWriter, r *http.Request) {
 		"eclipses": eclipses,
 		"count":    len(eclipses),
 	})
-}
-
-// --- Report Endpoint ---
-
-func (s *Server) handleNatalReport(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Latitude  float64 `json:"latitude"`
-		Longitude float64 `json:"longitude"`
-		JDUT      float64 `json:"jd_ut"`
-	}
-	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-
-	result, err := report.GenerateNatalReport(req.Latitude, req.Longitude, req.JDUT)
-	if err != nil {
-		writeError(w, http.StatusUnprocessableEntity, err.Error())
-		return
-	}
-	writeJSON(w, http.StatusOK, result)
 }

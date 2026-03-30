@@ -21,15 +21,10 @@ import (
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/chart"
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/composite"
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/dignity"
-	"github.com/shaobaobaoer/solarsage-mcp/pkg/firdaria"
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/lunar"
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/models"
-	"github.com/shaobaobaoer/solarsage-mcp/pkg/primary"
-	"github.com/shaobaobaoer/solarsage-mcp/pkg/render"
-	"github.com/shaobaobaoer/solarsage-mcp/pkg/report"
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/returns"
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/sweph"
-	"github.com/shaobaobaoer/solarsage-mcp/pkg/symbolic"
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/synastry"
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/transit"
 )
@@ -110,18 +105,30 @@ func Transits(natalLat, natalLon float64, natalDatetime string, startDatetime, e
 	}
 
 	return transit.CalcTransitEvents(transit.TransitCalcInput{
-		NatalLat:          natalLat,
-		NatalLon:          natalLon,
-		NatalJD:           natalJD,
-		NatalPlanets:      DefaultPlanets,
-		TransitLat:        natalLat,
-		TransitLon:        natalLon,
-		StartJD:           startJD,
-		EndJD:             endJD,
-		TransitPlanets:    DefaultPlanets,
-		EventConfig:       models.DefaultEventConfig(),
-		OrbConfigTransit:  models.DefaultOrbConfig(),
-		HouseSystem:       models.HousePlacidus,
+		NatalChart: transit.NatalChartConfig{
+			Lat:     natalLat,
+			Lon:     natalLon,
+			JD:      natalJD,
+			Planets: DefaultPlanets,
+		},
+		TimeRange: transit.TimeRangeConfig{
+			StartJD: startJD,
+			EndJD:   endJD,
+		},
+		Charts: transit.ChartSetConfig{
+			Transit: &transit.TransitChartConfig{
+				Lat:         natalLat,
+				Lon:         natalLon,
+				Planets:     DefaultPlanets,
+				Orbs:        models.DefaultOrbConfig(),
+				HouseSystem: models.HousePlacidus,
+			},
+		},
+		EventFilter: transit.EventFilterConfig{
+			TrNa:        true,
+			SignIngress: true,
+			Station:     true,
+		},
 	})
 }
 
@@ -269,39 +276,6 @@ func AspectPatterns(lat, lon float64, datetime string) ([]aspect.AspectPattern, 
 	return aspect.FindPatterns(chartInfo.Aspects, bodies, orbs), nil
 }
 
-// FullReport generates a comprehensive natal chart analysis combining all techniques:
-// chart positions, dignities, dispositors, patterns, lots, faces, antiscia,
-// fixed stars, midpoints, element/modality balance, and more.
-func FullReport(lat, lon float64, datetime string) (*report.ChartReport, error) {
-	if err := ValidateCoords(lat, lon); err != nil {
-		return nil, err
-	}
-	jd, err := ParseDatetime(datetime)
-	if err != nil {
-		return nil, fmt.Errorf("datetime: %w", err)
-	}
-	return report.GenerateNatalReport(lat, lon, jd)
-}
-
-
-
-// ChartWheel generates chart wheel rendering coordinates for visualization.
-func ChartWheel(lat, lon float64, datetime string) (*render.ChartWheel, error) {
-	if err := ValidateCoords(lat, lon); err != nil {
-		return nil, err
-	}
-	jd, err := ParseDatetime(datetime)
-	if err != nil {
-		return nil, fmt.Errorf("datetime: %w", err)
-	}
-	chartInfo, err := chart.CalcSingleChart(lat, lon, jd, DefaultPlanets,
-		models.DefaultOrbConfig(), models.HousePlacidus)
-	if err != nil {
-		return nil, err
-	}
-	return render.CalcChartWheel(chartInfo, 0.4), nil
-}
-
 // PlanetPosition returns a single planet's position at a datetime.
 func PlanetPosition(planet string, datetime string) (*models.PlanetPosition, error) {
 	jd, err := ParseDatetime(datetime)
@@ -326,11 +300,6 @@ func PlanetPosition(planet string, datetime string) (*models.PlanetPosition, err
 	}, nil
 }
 
-// Firdaria calculates Firdaria planetary periods for a given age.
-// isDayBirth should be true for daytime births, false for nighttime births.
-func Firdaria(isDayBirth bool, age float64) *firdaria.FirdariaResult {
-	return firdaria.CalcFirdaria(isDayBirth, age)
-}
 
 // DavisonChart calculates a Davison relationship chart for two people.
 // The Davison chart uses the midpoint in time and space between two birth charts.
@@ -359,27 +328,6 @@ func DavisonChart(lat1, lon1 float64, datetime1 string, lat2, lon2 float64, date
 	})
 }
 
-// PrimaryDirections calculates primary directions for a natal chart.
-// Uses the Naibod key and Placidus houses by default.
-func PrimaryDirections(lat, lon float64, datetime string, maxAge float64) (*primary.PrimaryDirectionResult, error) {
-	if err := ValidateCoords(lat, lon); err != nil {
-		return nil, err
-	}
-	jd, err := ParseDatetime(datetime)
-	if err != nil {
-		return nil, fmt.Errorf("datetime: %w", err)
-	}
-	return primary.CalcPrimaryDirections(primary.PrimaryDirectionInput{
-		NatalJD:     jd,
-		GeoLat:      lat,
-		GeoLon:      lon,
-		Planets:     DefaultPlanets,
-		Aspects:     []models.AspectType{models.AspectConjunction, models.AspectOpposition, models.AspectSquare, models.AspectTrine, models.AspectSextile},
-		Key:         primary.KeyNaibod,
-		MaxAge:      maxAge,
-		HouseSystem: models.HousePlacidus,
-	})
-}
 
 
 
@@ -400,27 +348,6 @@ func Bonification(lat, lon float64, datetime string) ([]dignity.BonMalInfo, erro
 	return dignity.CalcChartBonMal(chartInfo.Planets), nil
 }
 
-// SymbolicDirections calculates symbolic directions at a given age.
-// Uses the one-degree-per-year method by default.
-func SymbolicDirections(lat, lon float64, datetime string, age float64) (*symbolic.SymbolicDirectionResult, error) {
-	if err := ValidateCoords(lat, lon); err != nil {
-		return nil, err
-	}
-	jd, err := ParseDatetime(datetime)
-	if err != nil {
-		return nil, fmt.Errorf("datetime: %w", err)
-	}
-	return symbolic.CalcSymbolicDirections(symbolic.SymbolicInput{
-		NatalJD:     jd,
-		GeoLat:      lat,
-		GeoLon:      lon,
-		Age:         age,
-		Method:      symbolic.MethodOneDegree,
-		Planets:     DefaultPlanets,
-		OrbConfig:   models.DefaultOrbConfig(),
-		HouseSystem: models.HousePlacidus,
-	})
-}
 
 // Options configures calculation parameters for the convenience API.
 type Options struct {

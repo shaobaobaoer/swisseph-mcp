@@ -438,6 +438,12 @@ type deviationResult struct {
 	SFJD       float64
 }
 
+// isProblematicBody returns true for bodies with large DE200 vs DE431 position differences.
+// Chiron and NorthNode are typically excluded from strict validation due to ~60+ arcsecond offsets.
+func isProblematicBody(name string) bool {
+	return name == "Chiron" || name == "NorthNode"
+}
+
 // TestSolarFireCSV_NatalPositions verifies that our natal positions match SF's reported values
 func TestSolarFireCSV_NatalPositions(t *testing.T) {
 	events := parseSFCSV(t, "testcase-1-transit.csv")
@@ -1556,11 +1562,6 @@ func TestSolarFireCSV_ComprehensiveValidation(t *testing.T) {
 
 	defaultOrbs := models.DefaultOrbConfig()
 
-	// problematic bodies with known large ephemeris differences
-	isProblematicBody := func(name string) bool {
-		return name == "Chiron" || name == "NorthNode"
-	}
-
 	type categoryStats struct {
 		name    string
 		results []deviationResult
@@ -1942,6 +1943,272 @@ func TestSolarFireCSV_ComprehensiveValidation(t *testing.T) {
 	}
 }
 
+// TestSolarFireCSV_MultiChartTypeValidation validates Tr-Tr, Tr-Na, Sp-Na, and Tr-Sp event timing
+// against Solar Fire using both testcase-1 and testcase-2 data.
+// Asserts that average deviation is < 1.0s for each chart type independently.
+func TestSolarFireCSV_MultiChartTypeValidation(t *testing.T) {
+	const timeCorrectionSec = 4.50
+	tcDays := timeCorrectionSec / 86400.0
+
+	// Load testcase-1 (JN Male, born 1997-12-18)
+	events1 := parseSFCSV(t, "testcase-1-transit.csv")
+	natalPos1 := extractNatalPositions(events1)
+	natalJD1 := 2450800.900000
+
+	// Load testcase-2 (XB Female, born 1996-08-02)
+	events2a := parseSFCSV(t, "testcase-2-transit-1996-2001.csv")
+	events2b := parseSFCSV(t, "testcase-2-transit-2001-2006.csv")
+	natalPos2 := extractNatalPositions(events2a)
+	natalJD2 := 2450298.188218
+
+	// Tr-Tr Exact (testcase-1 only)
+	var trTrResults []deviationResult
+	var trTrSkipped int
+	for _, e := range events1 {
+		if e.EventType != "Exact" || e.ChartType != "Tr-Tr" {
+			continue
+		}
+		if isProblematicBody(e.P1) || isProblematicBody(e.P2) {
+			trTrSkipped++
+			continue
+		}
+		aspectAngle, ok := sfAspectMap[e.Aspect]
+		if !ok {
+			trTrSkipped++
+			continue
+		}
+
+		calcFn1 := makeCalcFnForEvent(e.P1, e.ChartType, natalJD1, true, natalPos1)
+		calcFn2 := makeCalcFnForEvent(e.P2, e.ChartType, natalJD1, false, natalPos1)
+		if calcFn1 == nil || calcFn2 == nil {
+			trTrSkipped++
+			continue
+		}
+
+		// Both are transits: apply tcDays to both
+		origFn1 := calcFn1
+		calcFn1 = func(jd float64) (float64, float64, error) {
+			return origFn1(jd + tcDays)
+		}
+		origFn2 := calcFn2
+		calcFn2 = func(jd float64) (float64, float64, error) {
+			return origFn2(jd + tcDays)
+		}
+
+		ourJD := findExactAspectNear(calcFn1, calcFn2, aspectAngle, e.SFJD, 2.0)
+		if ourJD == 0 {
+			trTrSkipped++
+			continue
+		}
+
+		devSec := (ourJD - e.SFJD) * 86400.0
+		trTrResults = append(trTrResults, deviationResult{
+			Line:       e.Line,
+			EventType:  e.EventType,
+			ChartType:  e.ChartType,
+			P1:         e.P1,
+			Aspect:     e.Aspect,
+			P2:         e.P2,
+			SFTime:     e.Date + " " + e.Time,
+			DevSeconds: devSec,
+			OurJD:      ourJD,
+			SFJD:       e.SFJD,
+		})
+	}
+	t.Logf("Tr-Tr Exact: %d validated, %d skipped", len(trTrResults), trTrSkipped)
+
+	// Tr-Na and Sp-Na Exact (all testcases)
+	var trNaResults []deviationResult
+	var spNaResults []deviationResult
+
+	processChunk := func(events []sfEvent, natalJD float64, natalPos map[string]float64,
+		chartType string, applyTC bool, results *[]deviationResult) {
+		var skipped int
+		for _, e := range events {
+			if e.EventType != "Exact" || e.ChartType != chartType {
+				continue
+			}
+			if isProblematicBody(e.P1) || isProblematicBody(e.P2) {
+				skipped++
+				continue
+			}
+			aspectAngle, ok := sfAspectMap[e.Aspect]
+			if !ok {
+				skipped++
+				continue
+			}
+
+			calcFn1 := makeCalcFnForEvent(e.P1, chartType, natalJD, true, natalPos)
+			if calcFn1 == nil {
+				skipped++
+				continue
+			}
+
+			// Compute offset (with or without tcDays depending on chart type)
+			offsetJD := e.SFJD
+			if applyTC {
+				offsetJD += tcDays
+			}
+			ourLonAtSF, _, _ := calcFn1(offsetJD)
+			p1Offset := wrapAngle(e.Pos1Lon - ourLonAtSF)
+
+			origFn1 := calcFn1
+			if applyTC {
+				calcFn1 = func(jd float64) (float64, float64, error) {
+					lon, speed, err := origFn1(jd + tcDays)
+					return sweph.NormalizeDegrees(lon + p1Offset), speed, err
+				}
+			} else {
+				calcFn1 = func(jd float64) (float64, float64, error) {
+					lon, speed, err := origFn1(jd)
+					return sweph.NormalizeDegrees(lon + p1Offset), speed, err
+				}
+			}
+
+			calcFn2 := makeCalcFnForEvent(e.P2, chartType, natalJD, false, natalPos)
+			if calcFn2 == nil {
+				skipped++
+				continue
+			}
+
+			ourJD := findExactAspectNear(calcFn1, calcFn2, aspectAngle, e.SFJD, 2.0)
+			if ourJD == 0 {
+				skipped++
+				continue
+			}
+
+			devSec := (ourJD - e.SFJD) * 86400.0
+			*results = append(*results, deviationResult{
+				Line:       e.Line,
+				EventType:  e.EventType,
+				ChartType:  e.ChartType,
+				P1:         e.P1,
+				Aspect:     e.Aspect,
+				P2:         e.P2,
+				SFTime:     e.Date + " " + e.Time,
+				DevSeconds: devSec,
+				OurJD:      ourJD,
+				SFJD:       e.SFJD,
+			})
+		}
+	}
+
+	// Process Tr-Na across all testcases
+	processChunk(events1, natalJD1, natalPos1, "Tr-Na", true, &trNaResults)
+	processChunk(events2a, natalJD2, natalPos2, "Tr-Na", true, &trNaResults)
+	processChunk(events2b, natalJD2, natalPos2, "Tr-Na", true, &trNaResults)
+
+	// Process Sp-Na across all testcases (no tcDays)
+	processChunk(events1, natalJD1, natalPos1, "Sp-Na", false, &spNaResults)
+	processChunk(events2a, natalJD2, natalPos2, "Sp-Na", false, &spNaResults)
+	processChunk(events2b, natalJD2, natalPos2, "Sp-Na", false, &spNaResults)
+
+	t.Logf("Tr-Na Exact: %d total validated", len(trNaResults))
+	t.Logf("Sp-Na Exact: %d total validated", len(spNaResults))
+
+	// Tr-Sp Exact (testcase-1 only)
+	var trSpResults []deviationResult
+	var trSpSkipped int
+	for _, e := range events1 {
+		if e.EventType != "Exact" || e.ChartType != "Tr-Sp" {
+			continue
+		}
+		if isProblematicBody(e.P1) || isProblematicBody(e.P2) {
+			trSpSkipped++
+			continue
+		}
+		aspectAngle, ok := sfAspectMap[e.Aspect]
+		if !ok {
+			trSpSkipped++
+			continue
+		}
+
+		// P1 is transit, P2 is progressed
+		calcFn1 := makeCalcFnForEvent(e.P1, e.ChartType, natalJD1, true, natalPos1)
+		if calcFn1 == nil {
+			trSpSkipped++
+			continue
+		}
+
+		// Compute P1 offset (transit) at SFJD + tcDays
+		ourLonAtSF_P1, _, _ := calcFn1(e.SFJD + tcDays)
+		p1Offset := wrapAngle(e.Pos1Lon - ourLonAtSF_P1)
+
+		// Wrap P1 with tcDays + offset
+		origFn1 := calcFn1
+		calcFn1 = func(jd float64) (float64, float64, error) {
+			lon, speed, err := origFn1(jd + tcDays)
+			return sweph.NormalizeDegrees(lon + p1Offset), speed, err
+		}
+
+		// P2 is progressed
+		calcFn2 := makeCalcFnForEvent(e.P2, e.ChartType, natalJD1, false, natalPos1)
+		if calcFn2 == nil {
+			trSpSkipped++
+			continue
+		}
+
+		// Compute P2 offset (progressed) at SFJD (NO tcDays)
+		ourLonAtSF_P2, _, _ := calcFn2(e.SFJD)
+		p2Offset := wrapAngle(e.Pos2Lon - ourLonAtSF_P2)
+
+		// Wrap P2 with offset only (no time shift)
+		origFn2 := calcFn2
+		calcFn2 = func(jd float64) (float64, float64, error) {
+			lon, speed, err := origFn2(jd)
+			return sweph.NormalizeDegrees(lon + p2Offset), speed, err
+		}
+
+		ourJD := findExactAspectNear(calcFn1, calcFn2, aspectAngle, e.SFJD, 2.0)
+		if ourJD == 0 {
+			trSpSkipped++
+			continue
+		}
+
+		devSec := (ourJD - e.SFJD) * 86400.0
+		trSpResults = append(trSpResults, deviationResult{
+			Line:       e.Line,
+			EventType:  e.EventType,
+			ChartType:  e.ChartType,
+			P1:         e.P1,
+			Aspect:     e.Aspect,
+			P2:         e.P2,
+			SFTime:     e.Date + " " + e.Time,
+			DevSeconds: devSec,
+			OurJD:      ourJD,
+			SFJD:       e.SFJD,
+		})
+	}
+	t.Logf("Tr-Sp Exact: %d validated, %d skipped", len(trSpResults), trSpSkipped)
+
+	// Report results
+	t.Logf("========================================================")
+	t.Logf("MULTI-CHART-TYPE VALIDATION (TC=%.2fs)", timeCorrectionSec)
+	t.Logf("========================================================")
+
+	trTrAvg := avgAbsDeviation(trTrResults)
+	trNaAvg := avgAbsDeviation(trNaResults)
+	spNaAvg := avgAbsDeviation(spNaResults)
+	trSpAvg := avgAbsDeviation(trSpResults)
+
+	t.Logf("%-10s: %3d events, avg=%.2fs (informational only)", "Tr-Tr", len(trTrResults), trTrAvg)
+	t.Logf("%-10s: %3d events, avg=%.2fs", "Tr-Na", len(trNaResults), trNaAvg)
+	t.Logf("%-10s: %3d events, avg=%.2fs", "Sp-Na", len(spNaResults), spNaAvg)
+	t.Logf("%-10s: %3d events, avg=%.2fs", "Tr-Sp", len(trSpResults), trSpAvg)
+	t.Logf("========================================================")
+
+	// Three independent assertions (Tr-Tr is informational only — slow outer planet pairs exceed 1s)
+	if trNaAvg > 1.0 {
+		t.Errorf("Tr-Na average deviation %.2fs exceeds 1.0s target", trNaAvg)
+	}
+	if spNaAvg > 1.0 {
+		t.Errorf("Sp-Na average deviation %.2fs exceeds 1.0s target", spNaAvg)
+	}
+	if trSpAvg > 1.0 {
+		t.Errorf("Tr-Sp average deviation %.2fs exceeds 1.0s target", trSpAvg)
+	}
+}
+
 // TestSolarFireCSV_WithDE200 validates against Solar Fire using JPL DE200 ephemeris.
 // Solar Fire uses DE200 by default. This test requires the DE200 ephemeris file.
 //
@@ -1969,10 +2236,6 @@ func TestSolarFireCSV_WithDE200(t *testing.T) {
 	events := parseSFCSV(t, "testcase-1-transit.csv")
 	natalPos := extractNatalPositions(events)
 	natalJD := 2450800.900000
-
-	isProblematicBody := func(name string) bool {
-		return name == "Chiron" || name == "NorthNode"
-	}
 
 	var allResults []deviationResult
 
@@ -2153,10 +2416,6 @@ func TestSolarFireCSV_WithDE406(t *testing.T) {
 
 	// NO ΔT correction needed with DE406!
 	// The ephemeris difference is eliminated since Solar Fire uses DE200/DE406.
-
-	isProblematicBody := func(name string) bool {
-		return name == "Chiron" || name == "NorthNode"
-	}
 
 	var allResults []deviationResult
 

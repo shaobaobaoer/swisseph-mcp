@@ -273,6 +273,8 @@ const (
 	ChartNatal        ChartType = "NATAL"
 	ChartProgressions ChartType = "PROGRESSIONS"
 	ChartSolarArc     ChartType = "SOLAR_ARC"
+	ChartSolarReturn  ChartType = "SOLAR_RETURN"
+	ChartLunarReturn  ChartType = "LUNAR_RETURN"
 )
 
 // EventType represents a transit event type
@@ -587,6 +589,8 @@ var chartTypeShortMap = map[ChartType]string{
 	ChartNatal:        "Na",
 	ChartProgressions: "Sp",
 	ChartSolarArc:     "Sa",
+	ChartSolarReturn:  "Sr",
+	ChartLunarReturn:  "Lr",
 }
 
 // ChartTypeShort returns the short code for a ChartType (e.g. "Tr", "Na", "Sp", "Sa")

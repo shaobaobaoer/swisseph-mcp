@@ -38,20 +38,28 @@ func TestSolarFire_NeptuneStation2026(t *testing.T) {
 	endJD := sweph.JulDay(2026, 12, 31, 0, true)
 
 	events, err := CalcTransitEvents(TransitCalcInput{
-		NatalLat:     perthLat,
-		NatalLon:     perthLon,
-		NatalJD:      nJD,
-		NatalPlanets: []models.PlanetID{},
-		TransitLat:   perthLat,
-		TransitLon:   perthLon,
-		StartJD:      startJD,
-		EndJD:        endJD,
-		TransitPlanets: []models.PlanetID{models.PlanetNeptune},
-		EventConfig: models.EventConfig{
-			IncludeStation: true,
+		NatalChart: NatalChartConfig{
+			Lat:     perthLat,
+			Lon:     perthLon,
+			JD:      nJD,
+			Planets: []models.PlanetID{},
 		},
-		OrbConfigTransit: models.DefaultOrbConfig(),
-		HouseSystem:      models.HousePlacidus,
+		TimeRange: TimeRangeConfig{
+			StartJD: startJD,
+			EndJD:   endJD,
+		},
+		Charts: ChartSetConfig{
+			Transit: &TransitChartConfig{
+				Lat:         perthLat,
+				Lon:         perthLon,
+				Planets:     []models.PlanetID{models.PlanetNeptune},
+				Orbs:        models.DefaultOrbConfig(),
+				HouseSystem: models.HousePlacidus,
+			},
+		},
+		EventFilter: EventFilterConfig{
+			Station: true,
+		},
 	})
 	if err != nil {
 		t.Fatalf("Station search: %v", err)
@@ -104,20 +112,28 @@ func TestSolarFire_MoonSignIngress(t *testing.T) {
 	endJD := sweph.JulDay(2026, 2, 1, 16.0, true)     // Feb 2 00:00 AWST
 
 	events, err := CalcTransitEvents(TransitCalcInput{
-		NatalLat:     perthLat,
-		NatalLon:     perthLon,
-		NatalJD:      nJD,
-		NatalPlanets: []models.PlanetID{},
-		TransitLat:   perthLat,
-		TransitLon:   perthLon,
-		StartJD:      startJD,
-		EndJD:        endJD,
-		TransitPlanets: []models.PlanetID{models.PlanetMoon},
-		EventConfig: models.EventConfig{
-			IncludeSignIngress: true,
+		NatalChart: NatalChartConfig{
+			Lat:     perthLat,
+			Lon:     perthLon,
+			JD:      nJD,
+			Planets: []models.PlanetID{},
 		},
-		OrbConfigTransit: models.DefaultOrbConfig(),
-		HouseSystem:      models.HousePlacidus,
+		TimeRange: TimeRangeConfig{
+			StartJD: startJD,
+			EndJD:   endJD,
+		},
+		Charts: ChartSetConfig{
+			Transit: &TransitChartConfig{
+				Lat:         perthLat,
+				Lon:         perthLon,
+				Planets:     []models.PlanetID{models.PlanetMoon},
+				Orbs:        models.DefaultOrbConfig(),
+				HouseSystem: models.HousePlacidus,
+			},
+		},
+		EventFilter: EventFilterConfig{
+			SignIngress: true,
+		},
 	})
 	if err != nil {
 		t.Fatalf("Sign ingress search: %v", err)
@@ -155,25 +171,41 @@ func TestSolarFire_RetrogradeTripleHit(t *testing.T) {
 	// Actually, let's just do a targeted test: set natal Saturn at specific position
 	// by choosing an appropriate natal JD where some planet is at ~177°
 	// For simplicity, test that Neptune has station events in 2026
+	customOrbs := models.OrbConfig{
+		Conjunction:     2,
+		Opposition:      2,
+		Trine:           2,
+		Square:          2,
+		Sextile:         2,
+		Quincunx:        1,
+		SemiSextile:     1,
+		SemiSquare:      1,
+		Sesquiquadrate:  1,
+	}
 	events, err := CalcTransitEvents(TransitCalcInput{
-		NatalLat:     perthLat,
-		NatalLon:     perthLon,
-		NatalJD:      natalJD,
-		NatalPlanets: []models.PlanetID{models.PlanetSun, models.PlanetMoon, models.PlanetMars},
-		TransitLat:   perthLat,
-		TransitLon:   perthLon,
-		StartJD:      startJD,
-		EndJD:        endJD,
-		TransitPlanets: []models.PlanetID{models.PlanetNeptune},
-		EventConfig: models.EventConfig{
-			IncludeTrNa:    true,
-			IncludeStation: true,
+		NatalChart: NatalChartConfig{
+			Lat:     perthLat,
+			Lon:     perthLon,
+			JD:      natalJD,
+			Planets: []models.PlanetID{models.PlanetSun, models.PlanetMoon, models.PlanetMars},
 		},
-		OrbConfigTransit: models.OrbConfig{
-			Conjunction: 2, Opposition: 2, Trine: 2, Square: 2,
-			Sextile: 2, Quincunx: 1, SemiSextile: 1, SemiSquare: 1, Sesquiquadrate: 1,
+		TimeRange: TimeRangeConfig{
+			StartJD: startJD,
+			EndJD:   endJD,
 		},
-		HouseSystem: models.HousePlacidus,
+		Charts: ChartSetConfig{
+			Transit: &TransitChartConfig{
+				Lat:         perthLat,
+				Lon:         perthLon,
+				Planets:     []models.PlanetID{models.PlanetNeptune},
+				Orbs:        customOrbs,
+				HouseSystem: models.HousePlacidus,
+			},
+		},
+		EventFilter: EventFilterConfig{
+			TrNa:    true,
+			Station: true,
+		},
 	})
 	if err != nil {
 		t.Fatalf("Triple hit search: %v", err)
@@ -227,20 +259,28 @@ func TestSolarFire_NeptuneOppositionSaturn(t *testing.T) {
 	endJD := sweph.JulDay(2026, 3, 1, 0, true)
 
 	events, err := CalcTransitEvents(TransitCalcInput{
-		NatalLat:     perthLat,
-		NatalLon:     perthLon,
-		NatalJD:      nJD,
-		NatalPlanets: []models.PlanetID{models.PlanetSaturn},
-		TransitLat:   perthLat,
-		TransitLon:   perthLon,
-		StartJD:      startJD,
-		EndJD:        endJD,
-		TransitPlanets: []models.PlanetID{models.PlanetNeptune},
-		EventConfig: models.EventConfig{
-			IncludeTrNa: true,
+		NatalChart: NatalChartConfig{
+			Lat:     perthLat,
+			Lon:     perthLon,
+			JD:      nJD,
+			Planets: []models.PlanetID{models.PlanetSaturn},
 		},
-		OrbConfigTransit: models.DefaultOrbConfig(),
-		HouseSystem:      models.HousePlacidus,
+		TimeRange: TimeRangeConfig{
+			StartJD: startJD,
+			EndJD:   endJD,
+		},
+		Charts: ChartSetConfig{
+			Transit: &TransitChartConfig{
+				Lat:         perthLat,
+				Lon:         perthLon,
+				Planets:     []models.PlanetID{models.PlanetNeptune},
+				Orbs:        models.DefaultOrbConfig(),
+				HouseSystem: models.HousePlacidus,
+			},
+		},
+		EventFilter: EventFilterConfig{
+			TrNa: true,
+		},
 	})
 	if err != nil {
 		t.Fatalf("Neptune-Saturn aspect: %v", err)
@@ -287,23 +327,31 @@ func TestSolarFire_FullYearTransit(t *testing.T) {
 	}
 
 	events, err := CalcTransitEvents(TransitCalcInput{
-		NatalLat:     perthLat,
-		NatalLon:     perthLon,
-		NatalJD:      nJD,
-		NatalPlanets: allPlanets,
-		TransitLat:   perthLat,
-		TransitLon:   perthLon,
-		StartJD:      startJD,
-		EndJD:        endJD,
-		TransitPlanets: allPlanets,
-		EventConfig: models.EventConfig{
-			IncludeTrNa:         true,
-			IncludeSignIngress:  true,
-			IncludeHouseIngress: true,
-			IncludeStation:      true,
+		NatalChart: NatalChartConfig{
+			Lat:     perthLat,
+			Lon:     perthLon,
+			JD:      nJD,
+			Planets: allPlanets,
 		},
-		OrbConfigTransit: models.DefaultOrbConfig(),
-		HouseSystem:      models.HousePlacidus,
+		TimeRange: TimeRangeConfig{
+			StartJD: startJD,
+			EndJD:   endJD,
+		},
+		Charts: ChartSetConfig{
+			Transit: &TransitChartConfig{
+				Lat:         perthLat,
+				Lon:         perthLon,
+				Planets:     allPlanets,
+				Orbs:        models.DefaultOrbConfig(),
+				HouseSystem: models.HousePlacidus,
+			},
+		},
+		EventFilter: EventFilterConfig{
+			TrNa:        true,
+			SignIngress: true,
+			HouseIngress: true,
+			Station:     true,
+		},
 	})
 	if err != nil {
 		t.Fatalf("Full year transit: %v", err)
@@ -349,20 +397,28 @@ func TestSolarFire_NeptuneHouseIngress(t *testing.T) {
 	endJD := sweph.JulDay(2026, 8, 1, 0, true)
 
 	events, err := CalcTransitEvents(TransitCalcInput{
-		NatalLat:     perthLat,
-		NatalLon:     perthLon,
-		NatalJD:      nJD,
-		NatalPlanets: []models.PlanetID{},
-		TransitLat:   perthLat,
-		TransitLon:   perthLon,
-		StartJD:      startJD,
-		EndJD:        endJD,
-		TransitPlanets: []models.PlanetID{models.PlanetNeptune},
-		EventConfig: models.EventConfig{
-			IncludeHouseIngress: true,
+		NatalChart: NatalChartConfig{
+			Lat:     perthLat,
+			Lon:     perthLon,
+			JD:      nJD,
+			Planets: []models.PlanetID{},
 		},
-		OrbConfigTransit: models.DefaultOrbConfig(),
-		HouseSystem:      models.HousePlacidus,
+		TimeRange: TimeRangeConfig{
+			StartJD: startJD,
+			EndJD:   endJD,
+		},
+		Charts: ChartSetConfig{
+			Transit: &TransitChartConfig{
+				Lat:         perthLat,
+				Lon:         perthLon,
+				Planets:     []models.PlanetID{models.PlanetNeptune},
+				Orbs:        models.DefaultOrbConfig(),
+				HouseSystem: models.HousePlacidus,
+			},
+		},
+		EventFilter: EventFilterConfig{
+			HouseIngress: true,
+		},
 	})
 	if err != nil {
 		t.Fatalf("House ingress search: %v", err)

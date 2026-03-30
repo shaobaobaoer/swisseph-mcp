@@ -182,31 +182,6 @@ func TestAspectPatterns(t *testing.T) {
 	_ = patterns
 }
 
-func TestFullReport(t *testing.T) {
-	report, err := FullReport(51.5074, -0.1278, "2000-01-01T12:00:00Z")
-	if err != nil {
-		t.Fatalf("FullReport: %v", err)
-	}
-	if report.Chart == nil {
-		t.Error("Chart is nil")
-	}
-	if len(report.Dignities) == 0 {
-		t.Error("No dignities")
-	}
-	if report.Dispositors == nil {
-		t.Error("No dispositors")
-	}
-	if len(report.ElementBalance) != 4 {
-		t.Errorf("Expected 4 elements, got %d", len(report.ElementBalance))
-	}
-}
-
-func TestFullReport_InvalidCoords(t *testing.T) {
-	_, err := FullReport(999, 0, "2000-01-01T12:00:00Z")
-	if err == nil {
-		t.Error("Expected error for invalid coords")
-	}
-}
 
 func TestPlanetPosition(t *testing.T) {
 	pos, err := PlanetPosition("Sun", "2000-01-01T12:00:00Z")

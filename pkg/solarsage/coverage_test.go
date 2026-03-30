@@ -113,12 +113,6 @@ func TestAspectPatterns_InvalidDatetime(t *testing.T) {
 	}
 }
 
-func TestFullReport_InvalidDatetime(t *testing.T) {
-	_, err := FullReport(51.5, -0.1, "bad")
-	if err == nil {
-		t.Error("expected error")
-	}
-}
 
 func TestPlanetPosition_InvalidDatetime(t *testing.T) {
 	_, err := PlanetPosition("Sun", "bad")
@@ -207,29 +201,3 @@ func TestParseHouseSystem(t *testing.T) {
 	}
 }
 
-func TestChartWheel_OK(t *testing.T) {
-	wheel, err := ChartWheel(51.5, -0.1, "2000-01-01T12:00:00Z")
-	if err != nil {
-		t.Fatalf("ChartWheel: %v", err)
-	}
-	if len(wheel.Planets) != 10 {
-		t.Errorf("Expected 10 planets, got %d", len(wheel.Planets))
-	}
-	if len(wheel.Houses) != 12 {
-		t.Errorf("Expected 12 houses, got %d", len(wheel.Houses))
-	}
-}
-
-func TestChartWheel_InvalidDatetime(t *testing.T) {
-	_, err := ChartWheel(51.5, -0.1, "bad")
-	if err == nil {
-		t.Error("expected error")
-	}
-}
-
-func TestChartWheel_InvalidCoords(t *testing.T) {
-	_, err := ChartWheel(999, -0.1, "2000-01-01")
-	if err == nil {
-		t.Error("expected error")
-	}
-}

@@ -4,22 +4,6 @@ import (
 	"testing"
 )
 
-func TestFirdaria_OK(t *testing.T) {
-	result := Firdaria(true, 30.0)
-	if result == nil {
-		t.Fatal("expected non-nil result")
-	}
-	if result.CurrentPeriod == nil {
-		t.Error("expected current period")
-	}
-}
-
-func TestFirdaria_NightBirth(t *testing.T) {
-	result := Firdaria(false, 45.0)
-	if result == nil {
-		t.Fatal("expected non-nil result")
-	}
-}
 
 func TestDavisonChart_OK(t *testing.T) {
 	dc, err := DavisonChart(51.5, -0.1, "2000-01-01T12:00:00Z", 48.85, 2.35, "1995-06-15T08:00:00Z")
@@ -59,29 +43,6 @@ func TestDavisonChart_InvalidDatetime2(t *testing.T) {
 	}
 }
 
-func TestPrimaryDirections_OK(t *testing.T) {
-	result, err := PrimaryDirections(51.5, -0.1, "2000-01-01T12:00:00Z", 50)
-	if err != nil {
-		t.Fatalf("PrimaryDirections: %v", err)
-	}
-	if result == nil {
-		t.Fatal("expected non-nil result")
-	}
-}
-
-func TestPrimaryDirections_InvalidCoords(t *testing.T) {
-	_, err := PrimaryDirections(999, -0.1, "2000-01-01", 50)
-	if err == nil {
-		t.Error("expected error for invalid coords")
-	}
-}
-
-func TestPrimaryDirections_InvalidDatetime(t *testing.T) {
-	_, err := PrimaryDirections(51.5, -0.1, "bad", 50)
-	if err == nil {
-		t.Error("expected error for bad datetime")
-	}
-}
 
 func TestBonification_OK(t *testing.T) {
 	result, err := Bonification(51.5, -0.1, "2000-01-01T12:00:00Z")
@@ -107,26 +68,3 @@ func TestBonification_InvalidDatetime(t *testing.T) {
 	}
 }
 
-func TestSymbolicDirections_OK(t *testing.T) {
-	result, err := SymbolicDirections(51.5, -0.1, "2000-01-01T12:00:00Z", 30.0)
-	if err != nil {
-		t.Fatalf("SymbolicDirections: %v", err)
-	}
-	if result == nil {
-		t.Fatal("expected non-nil result")
-	}
-}
-
-func TestSymbolicDirections_InvalidCoords(t *testing.T) {
-	_, err := SymbolicDirections(999, -0.1, "2000-01-01", 30.0)
-	if err == nil {
-		t.Error("expected error for invalid coords")
-	}
-}
-
-func TestSymbolicDirections_InvalidDatetime(t *testing.T) {
-	_, err := SymbolicDirections(51.5, -0.1, "bad", 30.0)
-	if err == nil {
-		t.Error("expected error for bad datetime")
-	}
-}

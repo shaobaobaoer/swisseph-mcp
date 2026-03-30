@@ -152,41 +152,6 @@ func TestHandleCalcCompositeChart_CSV(t *testing.T) {
 	}
 }
 
-func TestHandleCalcHarmonicChart_CSV(t *testing.T) {
-	s := newTestServer()
-	args := json.RawMessage(`{
-		"latitude": 51.5074,
-		"longitude": -0.1278,
-		"jd_ut": 2451545.0,
-		"harmonic": 7,
-		"format": "csv"
-	}`)
-	result, err := s.handleCalcHarmonicChart(args)
-	if err != nil {
-		t.Fatalf("handleCalcHarmonicChart CSV: %v", err)
-	}
-	if result == nil {
-		t.Fatal("result is nil")
-	}
-}
-
-func TestHandleCalcLots_CSV(t *testing.T) {
-	s := newTestServer()
-	args := json.RawMessage(`{
-		"latitude": 51.5074,
-		"longitude": -0.1278,
-		"jd_ut": 2451545.0,
-		"format": "csv"
-	}`)
-	result, err := s.handleCalcLots(args)
-	if err != nil {
-		t.Fatalf("handleCalcLots CSV: %v", err)
-	}
-	if result == nil {
-		t.Fatal("result is nil")
-	}
-}
-
 func TestHandleCalcLunarPhases_CSV(t *testing.T) {
 	s := newTestServer()
 	args := json.RawMessage(`{
@@ -220,42 +185,5 @@ func TestHandleCalcEclipses_CSV(t *testing.T) {
 }
 
 // Test with custom parameters
-
-func TestHandleCalcPrimaryDirections_CustomKey(t *testing.T) {
-	s := newTestServer()
-	args := json.RawMessage(`{
-		"latitude": 51.5074,
-		"longitude": -0.1278,
-		"natal_jd_ut": 2451545.0,
-		"max_age": 30,
-		"direction_key": "PTOLEMY",
-		"aspects": ["CONJUNCTION", "OPPOSITION"]
-	}`)
-	result, err := s.handleCalcPrimaryDirections(args)
-	if err != nil {
-		t.Fatalf("handleCalcPrimaryDirections custom: %v", err)
-	}
-	if result == nil {
-		t.Fatal("result is nil")
-	}
-}
-
-func TestHandleCalcSymbolicDirections_CustomMethod(t *testing.T) {
-	s := newTestServer()
-	args := json.RawMessage(`{
-		"latitude": 51.5074,
-		"longitude": -0.1278,
-		"natal_jd_ut": 2451545.0,
-		"age": 30,
-		"method": "NAIBOD"
-	}`)
-	result, err := s.handleCalcSymbolicDirections(args)
-	if err != nil {
-		t.Fatalf("handleCalcSymbolicDirections custom: %v", err)
-	}
-	if result == nil {
-		t.Fatal("result is nil")
-	}
-}
 
 
