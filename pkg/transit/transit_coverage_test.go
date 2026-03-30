@@ -8,27 +8,32 @@ import (
 
 func TestCalcTransitEvents_WithTransitSpecialPoints(t *testing.T) {
 	events, err := CalcTransitEvents(TransitCalcInput{
-		NatalLat:     39.9042,
-		NatalLon:     116.4074,
-		NatalJD:      natalJD,
-		NatalPlanets: []models.PlanetID{models.PlanetSun},
-		TransitLat:   39.9042,
-		TransitLon:   116.4074,
-		StartJD:      startJD,
-		EndJD:        startJD + 10,
-		TransitPlanets: []models.PlanetID{models.PlanetMoon},
-		SpecialPoints: &models.SpecialPointsConfig{
-			TransitPoints: []models.SpecialPointID{models.PointASC, models.PointMC},
-			NatalPoints:   []models.SpecialPointID{models.PointASC, models.PointMC},
+		NatalChart: NatalChartConfig{
+			Lat:     39.9042,
+			Lon:     116.4074,
+			JD:      natalJD,
+			Planets: []models.PlanetID{models.PlanetSun},
+			Points:  []models.SpecialPointID{models.PointASC, models.PointMC},
 		},
-		EventConfig: models.EventConfig{
-			IncludeTrNa: true,
-			IncludeTrTr: true,
+		TimeRange: TimeRangeConfig{
+			StartJD: startJD,
+			EndJD:   startJD + 10,
 		},
-		OrbConfigTransit:      orbs,
-		OrbConfigProgressions: orbs,
-		OrbConfigSolarArc:     orbs,
-		HouseSystem:           models.HousePlacidus,
+		Charts: ChartSetConfig{
+			Transit: &TransitChartConfig{
+				Lat:         39.9042,
+				Lon:         116.4074,
+				Planets:     []models.PlanetID{models.PlanetMoon},
+				Points:      []models.SpecialPointID{models.PointASC, models.PointMC},
+				Orbs:        orbs,
+				HouseSystem: models.HousePlacidus,
+			},
+		},
+		EventFilter: EventFilterConfig{
+			TrNa: true,
+			TrTr: true,
+		},
+		HouseSystem: models.HousePlacidus,
 	})
 	if err != nil {
 		t.Fatalf("CalcTransitEvents with special points error: %v", err)
@@ -38,30 +43,38 @@ func TestCalcTransitEvents_WithTransitSpecialPoints(t *testing.T) {
 
 func TestCalcTransitEvents_WithProgressionsSpecialPoints(t *testing.T) {
 	events, err := CalcTransitEvents(TransitCalcInput{
-		NatalLat:     39.9042,
-		NatalLon:     116.4074,
-		NatalJD:      natalJD,
-		NatalPlanets: []models.PlanetID{models.PlanetSun},
-		TransitLat:   39.9042,
-		TransitLon:   116.4074,
-		StartJD:      startJD,
-		EndJD:        startJD + 30,
-		TransitPlanets: []models.PlanetID{models.PlanetSun},
-		ProgressionsConfig: &models.ProgressionsConfig{
-			Enabled: true,
-			Planets: []models.PlanetID{models.PlanetSun, models.PlanetMoon},
+		NatalChart: NatalChartConfig{
+			Lat:     39.9042,
+			Lon:     116.4074,
+			JD:      natalJD,
+			Planets: []models.PlanetID{models.PlanetSun},
 		},
-		SpecialPoints: &models.SpecialPointsConfig{
-			ProgressionsPoints: []models.SpecialPointID{models.PointASC, models.PointMC},
+		TimeRange: TimeRangeConfig{
+			StartJD: startJD,
+			EndJD:   startJD + 30,
 		},
-		EventConfig: models.EventConfig{
-			IncludeTrSp: true,
-			IncludeSpNa: true,
+		Charts: ChartSetConfig{
+			Transit: &TransitChartConfig{
+				Lat:         39.9042,
+				Lon:         116.4074,
+				Planets:     []models.PlanetID{models.PlanetSun},
+				Orbs:        orbs,
+				HouseSystem: models.HousePlacidus,
+			},
+			Progressions: &ProgressionsChartConfig{
+				Planets:     []models.PlanetID{models.PlanetSun, models.PlanetMoon},
+				Points:      []models.SpecialPointID{models.PointASC, models.PointMC},
+				Orbs:        orbs,
+				Lat:         39.9042,
+				Lon:         116.4074,
+				HouseSystem: models.HousePlacidus,
+			},
 		},
-		OrbConfigTransit:      orbs,
-		OrbConfigProgressions: orbs,
-		OrbConfigSolarArc:     orbs,
-		HouseSystem:           models.HousePlacidus,
+		EventFilter: EventFilterConfig{
+			TrSp: true,
+			SpNa: true,
+		},
+		HouseSystem: models.HousePlacidus,
 	})
 	if err != nil {
 		t.Fatalf("CalcTransitEvents with progressions special points error: %v", err)
@@ -71,29 +84,37 @@ func TestCalcTransitEvents_WithProgressionsSpecialPoints(t *testing.T) {
 
 func TestCalcTransitEvents_WithSolarArcSpecialPoints(t *testing.T) {
 	events, err := CalcTransitEvents(TransitCalcInput{
-		NatalLat:     39.9042,
-		NatalLon:     116.4074,
-		NatalJD:      natalJD,
-		NatalPlanets: []models.PlanetID{models.PlanetSun},
-		TransitLat:   39.9042,
-		TransitLon:   116.4074,
-		StartJD:      startJD,
-		EndJD:        startJD + 30,
-		TransitPlanets: []models.PlanetID{models.PlanetSun},
-		SolarArcConfig: &models.SolarArcConfig{
-			Enabled: true,
-			Planets: []models.PlanetID{models.PlanetSun, models.PlanetMoon},
+		NatalChart: NatalChartConfig{
+			Lat:     39.9042,
+			Lon:     116.4074,
+			JD:      natalJD,
+			Planets: []models.PlanetID{models.PlanetSun},
 		},
-		SpecialPoints: &models.SpecialPointsConfig{
-			SolarArcPoints: []models.SpecialPointID{models.PointASC, models.PointMC},
+		TimeRange: TimeRangeConfig{
+			StartJD: startJD,
+			EndJD:   startJD + 30,
 		},
-		EventConfig: models.EventConfig{
-			IncludeSaNa: true,
+		Charts: ChartSetConfig{
+			Transit: &TransitChartConfig{
+				Lat:         39.9042,
+				Lon:         116.4074,
+				Planets:     []models.PlanetID{models.PlanetSun},
+				Orbs:        orbs,
+				HouseSystem: models.HousePlacidus,
+			},
+			SolarArc: &SolarArcChartConfig{
+				Planets:     []models.PlanetID{models.PlanetSun, models.PlanetMoon},
+				Points:      []models.SpecialPointID{models.PointASC, models.PointMC},
+				Orbs:        orbs,
+				Lat:         39.9042,
+				Lon:         116.4074,
+				HouseSystem: models.HousePlacidus,
+			},
 		},
-		OrbConfigTransit:      orbs,
-		OrbConfigProgressions: orbs,
-		OrbConfigSolarArc:     orbs,
-		HouseSystem:           models.HousePlacidus,
+		EventFilter: EventFilterConfig{
+			SaNa: true,
+		},
+		HouseSystem: models.HousePlacidus,
 	})
 	if err != nil {
 		t.Fatalf("CalcTransitEvents with solar arc special points error: %v", err)

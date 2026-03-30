@@ -31,25 +31,32 @@ var defaultPlanets = []models.PlanetID{
 
 func TestCalcTransitEvents_TrNa(t *testing.T) {
 	events, err := CalcTransitEvents(TransitCalcInput{
-		NatalLat:     39.9042,
-		NatalLon:     116.4074,
-		NatalJD:      natalJD,
-		NatalPlanets: defaultPlanets,
-		TransitLat:   39.9042,
-		TransitLon:   116.4074,
-		StartJD:      startJD,
-		EndJD:        startJD + 30,
-		TransitPlanets: []models.PlanetID{
-			models.PlanetSun, models.PlanetMercury,
+		NatalChart: NatalChartConfig{
+			Lat:     39.9042,
+			Lon:     116.4074,
+			JD:      natalJD,
+			Planets: defaultPlanets,
 		},
-		EventConfig: models.EventConfig{
-			IncludeTrNa:         true,
-			IncludeSignIngress:  true,
-			IncludeHouseIngress: true,
-			IncludeStation:      true,
+		TimeRange: TimeRangeConfig{
+			StartJD: startJD,
+			EndJD:   startJD + 30,
 		},
-		OrbConfigTransit: orbs,
-		HouseSystem:      models.HousePlacidus,
+		Charts: ChartSetConfig{
+			Transit: &TransitChartConfig{
+				Lat:         39.9042,
+				Lon:         116.4074,
+				Planets:     []models.PlanetID{models.PlanetSun, models.PlanetMercury},
+				Orbs:        orbs,
+				HouseSystem: models.HousePlacidus,
+			},
+		},
+		EventFilter: EventFilterConfig{
+			TrNa:         true,
+			SignIngress:  true,
+			HouseIngress: true,
+			Station:      true,
+		},
+		HouseSystem: models.HousePlacidus,
 	})
 	if err != nil {
 		t.Fatalf("CalcTransitEvents Tr-Na: %v", err)
@@ -102,22 +109,29 @@ func TestCalcTransitEvents_TrNa(t *testing.T) {
 
 func TestCalcTransitEvents_TrTr(t *testing.T) {
 	events, err := CalcTransitEvents(TransitCalcInput{
-		NatalLat:     39.9042,
-		NatalLon:     116.4074,
-		NatalJD:      natalJD,
-		NatalPlanets: defaultPlanets,
-		TransitLat:   39.9042,
-		TransitLon:   116.4074,
-		StartJD:      startJD,
-		EndJD:        startJD + 90, // 3 months for more Tr-Tr events
-		TransitPlanets: []models.PlanetID{
-			models.PlanetSun, models.PlanetMercury, models.PlanetVenus,
+		NatalChart: NatalChartConfig{
+			Lat:     39.9042,
+			Lon:     116.4074,
+			JD:      natalJD,
+			Planets: defaultPlanets,
 		},
-		EventConfig: models.EventConfig{
-			IncludeTrTr: true,
+		TimeRange: TimeRangeConfig{
+			StartJD: startJD,
+			EndJD:   startJD + 90, // 3 months for more Tr-Tr events
 		},
-		OrbConfigTransit: orbs,
-		HouseSystem:      models.HousePlacidus,
+		Charts: ChartSetConfig{
+			Transit: &TransitChartConfig{
+				Lat:         39.9042,
+				Lon:         116.4074,
+				Planets:     []models.PlanetID{models.PlanetSun, models.PlanetMercury, models.PlanetVenus},
+				Orbs:        orbs,
+				HouseSystem: models.HousePlacidus,
+			},
+		},
+		EventFilter: EventFilterConfig{
+			TrTr: true,
+		},
+		HouseSystem: models.HousePlacidus,
 	})
 	if err != nil {
 		t.Fatalf("CalcTransitEvents Tr-Tr: %v", err)
@@ -141,27 +155,27 @@ func TestCalcTransitEvents_TrTr(t *testing.T) {
 
 func TestCalcTransitEvents_SpNa(t *testing.T) {
 	events, err := CalcTransitEvents(TransitCalcInput{
-		NatalLat:     39.9042,
-		NatalLon:     116.4074,
-		NatalJD:      natalJD,
-		NatalPlanets: defaultPlanets,
-		TransitLat:   39.9042,
-		TransitLon:   116.4074,
-		StartJD:      startJD,
-		EndJD:        startJD + 365.25, // 1 year
-		TransitPlanets: []models.PlanetID{},
-		ProgressionsConfig: &models.ProgressionsConfig{
-			Enabled: true,
-			Planets: []models.PlanetID{
-				models.PlanetSun, models.PlanetMoon,
+		NatalChart: NatalChartConfig{
+			Lat:     39.9042,
+			Lon:     116.4074,
+			JD:      natalJD,
+			Planets: defaultPlanets,
+		},
+		TimeRange: TimeRangeConfig{
+			StartJD: startJD,
+			EndJD:   startJD + 365.25, // 1 year
+		},
+		Charts: ChartSetConfig{
+			Progressions: &ProgressionsChartConfig{
+				Planets:     []models.PlanetID{models.PlanetSun, models.PlanetMoon},
+				Orbs:        models.OrbConfig{Conjunction: 1, Opposition: 1, Trine: 1, Square: 1, Sextile: 1, Quincunx: 0.5},
+				Lat:         39.9042,
+				Lon:         116.4074,
+				HouseSystem: models.HousePlacidus,
 			},
 		},
-		EventConfig: models.EventConfig{
-			IncludeSpNa: true,
-		},
-		OrbConfigProgressions: models.OrbConfig{
-			Conjunction: 1, Opposition: 1, Trine: 1, Square: 1,
-			Sextile: 1, Quincunx: 0.5,
+		EventFilter: EventFilterConfig{
+			SpNa: true,
 		},
 		HouseSystem: models.HousePlacidus,
 	})
@@ -186,28 +200,27 @@ func TestCalcTransitEvents_SpNa(t *testing.T) {
 
 func TestCalcTransitEvents_SaNa(t *testing.T) {
 	events, err := CalcTransitEvents(TransitCalcInput{
-		NatalLat:     39.9042,
-		NatalLon:     116.4074,
-		NatalJD:      natalJD,
-		NatalPlanets: defaultPlanets,
-		TransitLat:   39.9042,
-		TransitLon:   116.4074,
-		StartJD:      startJD,
-		EndJD:        startJD + 365.25,
-		TransitPlanets: []models.PlanetID{},
-		SolarArcConfig: &models.SolarArcConfig{
-			Enabled: true,
-			Planets: []models.PlanetID{
-				models.PlanetSun, models.PlanetMoon, models.PlanetMars,
-				models.PlanetJupiter, models.PlanetSaturn,
+		NatalChart: NatalChartConfig{
+			Lat:     39.9042,
+			Lon:     116.4074,
+			JD:      natalJD,
+			Planets: defaultPlanets,
+		},
+		TimeRange: TimeRangeConfig{
+			StartJD: startJD,
+			EndJD:   startJD + 365.25,
+		},
+		Charts: ChartSetConfig{
+			SolarArc: &SolarArcChartConfig{
+				Planets:     []models.PlanetID{models.PlanetSun, models.PlanetMoon, models.PlanetMars, models.PlanetJupiter, models.PlanetSaturn},
+				Orbs:        models.OrbConfig{Conjunction: 1, Opposition: 1, Trine: 1, Square: 1, Sextile: 1, Quincunx: 0.5},
+				Lat:         39.9042,
+				Lon:         116.4074,
+				HouseSystem: models.HousePlacidus,
 			},
 		},
-		EventConfig: models.EventConfig{
-			IncludeSaNa: true,
-		},
-		OrbConfigSolarArc: models.OrbConfig{
-			Conjunction: 1, Opposition: 1, Trine: 1, Square: 1,
-			Sextile: 1, Quincunx: 0.5,
+		EventFilter: EventFilterConfig{
+			SaNa: true,
 		},
 		HouseSystem: models.HousePlacidus,
 	})
@@ -229,20 +242,29 @@ func TestCalcTransitEvents_SaNa(t *testing.T) {
 func TestCalcTransitEvents_Station(t *testing.T) {
 	// Mercury stations ~3-4 times per year
 	events, err := CalcTransitEvents(TransitCalcInput{
-		NatalLat:     39.9042,
-		NatalLon:     116.4074,
-		NatalJD:      natalJD,
-		NatalPlanets: defaultPlanets,
-		TransitLat:   39.9042,
-		TransitLon:   116.4074,
-		StartJD:      startJD,
-		EndJD:        startJD + 365.25,
-		TransitPlanets: []models.PlanetID{models.PlanetMercury},
-		EventConfig: models.EventConfig{
-			IncludeStation: true,
+		NatalChart: NatalChartConfig{
+			Lat:     39.9042,
+			Lon:     116.4074,
+			JD:      natalJD,
+			Planets: defaultPlanets,
 		},
-		OrbConfigTransit: orbs,
-		HouseSystem:      models.HousePlacidus,
+		TimeRange: TimeRangeConfig{
+			StartJD: startJD,
+			EndJD:   startJD + 365.25,
+		},
+		Charts: ChartSetConfig{
+			Transit: &TransitChartConfig{
+				Lat:         39.9042,
+				Lon:         116.4074,
+				Planets:     []models.PlanetID{models.PlanetMercury},
+				Orbs:        orbs,
+				HouseSystem: models.HousePlacidus,
+			},
+		},
+		EventFilter: EventFilterConfig{
+			Station: true,
+		},
+		HouseSystem: models.HousePlacidus,
 	})
 	if err != nil {
 		t.Fatalf("CalcTransitEvents Station: %v", err)
@@ -266,20 +288,29 @@ func TestCalcTransitEvents_Station(t *testing.T) {
 func TestCalcTransitEvents_SignIngress(t *testing.T) {
 	// Sun enters a new sign approximately every 30 days
 	events, err := CalcTransitEvents(TransitCalcInput{
-		NatalLat:     39.9042,
-		NatalLon:     116.4074,
-		NatalJD:      natalJD,
-		NatalPlanets: defaultPlanets,
-		TransitLat:   39.9042,
-		TransitLon:   116.4074,
-		StartJD:      startJD,
-		EndJD:        startJD + 365.25,
-		TransitPlanets: []models.PlanetID{models.PlanetSun},
-		EventConfig: models.EventConfig{
-			IncludeSignIngress: true,
+		NatalChart: NatalChartConfig{
+			Lat:     39.9042,
+			Lon:     116.4074,
+			JD:      natalJD,
+			Planets: defaultPlanets,
 		},
-		OrbConfigTransit: orbs,
-		HouseSystem:      models.HousePlacidus,
+		TimeRange: TimeRangeConfig{
+			StartJD: startJD,
+			EndJD:   startJD + 365.25,
+		},
+		Charts: ChartSetConfig{
+			Transit: &TransitChartConfig{
+				Lat:         39.9042,
+				Lon:         116.4074,
+				Planets:     []models.PlanetID{models.PlanetSun},
+				Orbs:        orbs,
+				HouseSystem: models.HousePlacidus,
+			},
+		},
+		EventFilter: EventFilterConfig{
+			SignIngress: true,
+		},
+		HouseSystem: models.HousePlacidus,
 	})
 	if err != nil {
 		t.Fatalf("CalcTransitEvents SignIngress: %v", err)
@@ -303,22 +334,31 @@ func TestCalcTransitEvents_SignIngress(t *testing.T) {
 
 func TestCalcTransitEvents_VoidOfCourse(t *testing.T) {
 	events, err := CalcTransitEvents(TransitCalcInput{
-		NatalLat:     39.9042,
-		NatalLon:     116.4074,
-		NatalJD:      natalJD,
-		NatalPlanets: defaultPlanets,
-		TransitLat:   39.9042,
-		TransitLon:   116.4074,
-		StartJD:      startJD,
-		EndJD:        startJD + 14, // 2 weeks
-		TransitPlanets: []models.PlanetID{models.PlanetMoon},
-		EventConfig: models.EventConfig{
-			IncludeTrNa:         true,
-			IncludeSignIngress:  true,
-			IncludeVoidOfCourse: true,
+		NatalChart: NatalChartConfig{
+			Lat:     39.9042,
+			Lon:     116.4074,
+			JD:      natalJD,
+			Planets: defaultPlanets,
 		},
-		OrbConfigTransit: orbs,
-		HouseSystem:      models.HousePlacidus,
+		TimeRange: TimeRangeConfig{
+			StartJD: startJD,
+			EndJD:   startJD + 14, // 2 weeks
+		},
+		Charts: ChartSetConfig{
+			Transit: &TransitChartConfig{
+				Lat:         39.9042,
+				Lon:         116.4074,
+				Planets:     []models.PlanetID{models.PlanetMoon},
+				Orbs:        orbs,
+				HouseSystem: models.HousePlacidus,
+			},
+		},
+		EventFilter: EventFilterConfig{
+			TrNa:         true,
+			SignIngress:  true,
+			VoidOfCourse: true,
+		},
+		HouseSystem: models.HousePlacidus,
 	})
 	if err != nil {
 		t.Fatalf("CalcTransitEvents VOC: %v", err)
@@ -354,18 +394,27 @@ func TestCalcTransitEvents_VoidOfCourse(t *testing.T) {
 func TestCalcTransitEvents_EmptyConfig(t *testing.T) {
 	// All event types disabled → should return empty
 	events, err := CalcTransitEvents(TransitCalcInput{
-		NatalLat:     39.9042,
-		NatalLon:     116.4074,
-		NatalJD:      natalJD,
-		NatalPlanets: defaultPlanets,
-		TransitLat:   39.9042,
-		TransitLon:   116.4074,
-		StartJD:      startJD,
-		EndJD:        startJD + 30,
-		TransitPlanets: []models.PlanetID{models.PlanetSun},
-		EventConfig: models.EventConfig{}, // all false
-		OrbConfigTransit: orbs,
-		HouseSystem:      models.HousePlacidus,
+		NatalChart: NatalChartConfig{
+			Lat:     39.9042,
+			Lon:     116.4074,
+			JD:      natalJD,
+			Planets: defaultPlanets,
+		},
+		TimeRange: TimeRangeConfig{
+			StartJD: startJD,
+			EndJD:   startJD + 30,
+		},
+		Charts: ChartSetConfig{
+			Transit: &TransitChartConfig{
+				Lat:         39.9042,
+				Lon:         116.4074,
+				Planets:     []models.PlanetID{models.PlanetSun},
+				Orbs:        orbs,
+				HouseSystem: models.HousePlacidus,
+			},
+		},
+		EventFilter: EventFilterConfig{}, // all false
+		HouseSystem: models.HousePlacidus,
 	})
 	if err != nil {
 		t.Fatalf("Empty config: %v", err)
@@ -454,29 +503,34 @@ func TestBuildMonoIntervals(t *testing.T) {
 
 func TestCalcTransitEvents_TrSp(t *testing.T) {
 	events, err := CalcTransitEvents(TransitCalcInput{
-		NatalLat:     39.9042,
-		NatalLon:     116.4074,
-		NatalJD:      natalJD,
-		NatalPlanets: defaultPlanets,
-		TransitLat:   39.9042,
-		TransitLon:   116.4074,
-		StartJD:      startJD,
-		EndJD:        startJD + 90, // 3 months
-		TransitPlanets: []models.PlanetID{
-			models.PlanetSun, models.PlanetMars,
+		NatalChart: NatalChartConfig{
+			Lat:     39.9042,
+			Lon:     116.4074,
+			JD:      natalJD,
+			Planets: defaultPlanets,
 		},
-		ProgressionsConfig: &models.ProgressionsConfig{
-			Enabled: true,
-			Planets: []models.PlanetID{
-				models.PlanetSun, models.PlanetMoon,
+		TimeRange: TimeRangeConfig{
+			StartJD: startJD,
+			EndJD:   startJD + 90, // 3 months
+		},
+		Charts: ChartSetConfig{
+			Transit: &TransitChartConfig{
+				Lat:         39.9042,
+				Lon:         116.4074,
+				Planets:     []models.PlanetID{models.PlanetSun, models.PlanetMars},
+				Orbs:        models.OrbConfig{Conjunction: 2, Opposition: 2, Trine: 2, Square: 2, Sextile: 2, Quincunx: 1},
+				HouseSystem: models.HousePlacidus,
+			},
+			Progressions: &ProgressionsChartConfig{
+				Planets:     []models.PlanetID{models.PlanetSun, models.PlanetMoon},
+				Orbs:        models.OrbConfig{Conjunction: 2, Opposition: 2, Trine: 2, Square: 2, Sextile: 2, Quincunx: 1},
+				Lat:         39.9042,
+				Lon:         116.4074,
+				HouseSystem: models.HousePlacidus,
 			},
 		},
-		EventConfig: models.EventConfig{
-			IncludeTrSp: true,
-		},
-		OrbConfigTransit: models.OrbConfig{
-			Conjunction: 2, Opposition: 2, Trine: 2, Square: 2,
-			Sextile: 2, Quincunx: 1,
+		EventFilter: EventFilterConfig{
+			TrSp: true,
 		},
 		HouseSystem: models.HousePlacidus,
 	})
@@ -497,29 +551,34 @@ func TestCalcTransitEvents_TrSp(t *testing.T) {
 
 func TestCalcTransitEvents_TrSa(t *testing.T) {
 	events, err := CalcTransitEvents(TransitCalcInput{
-		NatalLat:     39.9042,
-		NatalLon:     116.4074,
-		NatalJD:      natalJD,
-		NatalPlanets: defaultPlanets,
-		TransitLat:   39.9042,
-		TransitLon:   116.4074,
-		StartJD:      startJD,
-		EndJD:        startJD + 90,
-		TransitPlanets: []models.PlanetID{
-			models.PlanetSun, models.PlanetMars,
+		NatalChart: NatalChartConfig{
+			Lat:     39.9042,
+			Lon:     116.4074,
+			JD:      natalJD,
+			Planets: defaultPlanets,
 		},
-		SolarArcConfig: &models.SolarArcConfig{
-			Enabled: true,
-			Planets: []models.PlanetID{
-				models.PlanetSun, models.PlanetMoon, models.PlanetMars,
+		TimeRange: TimeRangeConfig{
+			StartJD: startJD,
+			EndJD:   startJD + 90,
+		},
+		Charts: ChartSetConfig{
+			Transit: &TransitChartConfig{
+				Lat:         39.9042,
+				Lon:         116.4074,
+				Planets:     []models.PlanetID{models.PlanetSun, models.PlanetMars},
+				Orbs:        models.OrbConfig{Conjunction: 2, Opposition: 2, Trine: 2, Square: 2, Sextile: 2, Quincunx: 1},
+				HouseSystem: models.HousePlacidus,
+			},
+			SolarArc: &SolarArcChartConfig{
+				Planets:     []models.PlanetID{models.PlanetSun, models.PlanetMoon, models.PlanetMars},
+				Orbs:        models.OrbConfig{Conjunction: 2, Opposition: 2, Trine: 2, Square: 2, Sextile: 2, Quincunx: 1},
+				Lat:         39.9042,
+				Lon:         116.4074,
+				HouseSystem: models.HousePlacidus,
 			},
 		},
-		EventConfig: models.EventConfig{
-			IncludeTrSa: true,
-		},
-		OrbConfigTransit: models.OrbConfig{
-			Conjunction: 2, Opposition: 2, Trine: 2, Square: 2,
-			Sextile: 2, Quincunx: 1,
+		EventFilter: EventFilterConfig{
+			TrSa: true,
 		},
 		HouseSystem: models.HousePlacidus,
 	})
@@ -540,27 +599,27 @@ func TestCalcTransitEvents_TrSa(t *testing.T) {
 
 func TestCalcTransitEvents_SpSp(t *testing.T) {
 	events, err := CalcTransitEvents(TransitCalcInput{
-		NatalLat:     39.9042,
-		NatalLon:     116.4074,
-		NatalJD:      natalJD,
-		NatalPlanets: defaultPlanets,
-		TransitLat:   39.9042,
-		TransitLon:   116.4074,
-		StartJD:      startJD,
-		EndJD:        startJD + 365.25 * 3, // 3 years for slow-moving progressed planets
-		TransitPlanets: []models.PlanetID{},
-		ProgressionsConfig: &models.ProgressionsConfig{
-			Enabled: true,
-			Planets: []models.PlanetID{
-				models.PlanetSun, models.PlanetMoon, models.PlanetMercury,
+		NatalChart: NatalChartConfig{
+			Lat:     39.9042,
+			Lon:     116.4074,
+			JD:      natalJD,
+			Planets: defaultPlanets,
+		},
+		TimeRange: TimeRangeConfig{
+			StartJD: startJD,
+			EndJD:   startJD + 365.25 * 3, // 3 years for slow-moving progressed planets
+		},
+		Charts: ChartSetConfig{
+			Progressions: &ProgressionsChartConfig{
+				Planets:     []models.PlanetID{models.PlanetSun, models.PlanetMoon, models.PlanetMercury},
+				Orbs:        models.OrbConfig{Conjunction: 1, Opposition: 1, Trine: 1, Square: 1, Sextile: 1},
+				Lat:         39.9042,
+				Lon:         116.4074,
+				HouseSystem: models.HousePlacidus,
 			},
 		},
-		EventConfig: models.EventConfig{
-			IncludeSpSp: true,
-		},
-		OrbConfigProgressions: models.OrbConfig{
-			Conjunction: 1, Opposition: 1, Trine: 1, Square: 1,
-			Sextile: 1,
+		EventFilter: EventFilterConfig{
+			SpSp: true,
 		},
 		HouseSystem: models.HousePlacidus,
 	})
@@ -581,21 +640,30 @@ func TestCalcTransitEvents_SpSp(t *testing.T) {
 
 func TestCalcTransitEvents_WithChiron(t *testing.T) {
 	events, err := CalcTransitEvents(TransitCalcInput{
-		NatalLat:     39.9042,
-		NatalLon:     116.4074,
-		NatalJD:      natalJD,
-		NatalPlanets: []models.PlanetID{models.PlanetChiron},
-		TransitLat:   39.9042,
-		TransitLon:   116.4074,
-		StartJD:      startJD,
-		EndJD:        startJD + 30,
-		TransitPlanets: []models.PlanetID{models.PlanetChiron},
-		EventConfig: models.EventConfig{
-			IncludeTrNa:    true,
-			IncludeStation: true,
+		NatalChart: NatalChartConfig{
+			Lat:     39.9042,
+			Lon:     116.4074,
+			JD:      natalJD,
+			Planets: []models.PlanetID{models.PlanetChiron},
 		},
-		OrbConfigTransit: orbs,
-		HouseSystem:      models.HousePlacidus,
+		TimeRange: TimeRangeConfig{
+			StartJD: startJD,
+			EndJD:   startJD + 30,
+		},
+		Charts: ChartSetConfig{
+			Transit: &TransitChartConfig{
+				Lat:         39.9042,
+				Lon:         116.4074,
+				Planets:     []models.PlanetID{models.PlanetChiron},
+				Orbs:        orbs,
+				HouseSystem: models.HousePlacidus,
+			},
+		},
+		EventFilter: EventFilterConfig{
+			TrNa:    true,
+			Station: true,
+		},
+		HouseSystem: models.HousePlacidus,
 	})
 	if err != nil {
 		t.Fatalf("Chiron transit: %v", err)
@@ -605,20 +673,29 @@ func TestCalcTransitEvents_WithChiron(t *testing.T) {
 
 func TestCalcTransitEvents_WithNodes(t *testing.T) {
 	events, err := CalcTransitEvents(TransitCalcInput{
-		NatalLat:     39.9042,
-		NatalLon:     116.4074,
-		NatalJD:      natalJD,
-		NatalPlanets: []models.PlanetID{models.PlanetNorthNodeTrue, models.PlanetSouthNode},
-		TransitLat:   39.9042,
-		TransitLon:   116.4074,
-		StartJD:      startJD,
-		EndJD:        startJD + 90,
-		TransitPlanets: []models.PlanetID{models.PlanetSun},
-		EventConfig: models.EventConfig{
-			IncludeTrNa: true,
+		NatalChart: NatalChartConfig{
+			Lat:     39.9042,
+			Lon:     116.4074,
+			JD:      natalJD,
+			Planets: []models.PlanetID{models.PlanetNorthNodeTrue, models.PlanetSouthNode},
 		},
-		OrbConfigTransit: orbs,
-		HouseSystem:      models.HousePlacidus,
+		TimeRange: TimeRangeConfig{
+			StartJD: startJD,
+			EndJD:   startJD + 90,
+		},
+		Charts: ChartSetConfig{
+			Transit: &TransitChartConfig{
+				Lat:         39.9042,
+				Lon:         116.4074,
+				Planets:     []models.PlanetID{models.PlanetSun},
+				Orbs:        orbs,
+				HouseSystem: models.HousePlacidus,
+			},
+		},
+		EventFilter: EventFilterConfig{
+			TrNa: true,
+		},
+		HouseSystem: models.HousePlacidus,
 	})
 	if err != nil {
 		t.Fatalf("Node transit: %v", err)
@@ -632,20 +709,29 @@ func TestCalcTransitEvents_WithNodes(t *testing.T) {
 
 func TestCalcTransitEvents_HouseIngress(t *testing.T) {
 	events, err := CalcTransitEvents(TransitCalcInput{
-		NatalLat:     39.9042,
-		NatalLon:     116.4074,
-		NatalJD:      natalJD,
-		NatalPlanets: defaultPlanets,
-		TransitLat:   39.9042,
-		TransitLon:   116.4074,
-		StartJD:      startJD,
-		EndJD:        startJD + 365.25,
-		TransitPlanets: []models.PlanetID{models.PlanetSun},
-		EventConfig: models.EventConfig{
-			IncludeHouseIngress: true,
+		NatalChart: NatalChartConfig{
+			Lat:     39.9042,
+			Lon:     116.4074,
+			JD:      natalJD,
+			Planets: defaultPlanets,
 		},
-		OrbConfigTransit: orbs,
-		HouseSystem:      models.HousePlacidus,
+		TimeRange: TimeRangeConfig{
+			StartJD: startJD,
+			EndJD:   startJD + 365.25,
+		},
+		Charts: ChartSetConfig{
+			Transit: &TransitChartConfig{
+				Lat:         39.9042,
+				Lon:         116.4074,
+				Planets:     []models.PlanetID{models.PlanetSun},
+				Orbs:        orbs,
+				HouseSystem: models.HousePlacidus,
+			},
+		},
+		EventFilter: EventFilterConfig{
+			HouseIngress: true,
+		},
+		HouseSystem: models.HousePlacidus,
 	})
 	if err != nil {
 		t.Fatalf("House ingress: %v", err)
@@ -673,31 +759,41 @@ func TestCalcTransitEvents_HouseIngress(t *testing.T) {
 func TestCalcTransitEvents_FullPipeline(t *testing.T) {
 	// Test all event types simultaneously
 	events, err := CalcTransitEvents(TransitCalcInput{
-		NatalLat:     39.9042,
-		NatalLon:     116.4074,
-		NatalJD:      natalJD,
-		NatalPlanets: defaultPlanets,
-		TransitLat:   39.9042,
-		TransitLon:   116.4074,
-		StartJD:      startJD,
-		EndJD:        startJD + 30,
-		TransitPlanets: []models.PlanetID{
-			models.PlanetSun, models.PlanetMoon, models.PlanetMercury,
-			models.PlanetVenus, models.PlanetMars,
+		NatalChart: NatalChartConfig{
+			Lat:     39.9042,
+			Lon:     116.4074,
+			JD:      natalJD,
+			Planets: defaultPlanets,
 		},
-		ProgressionsConfig: &models.ProgressionsConfig{
-			Enabled: true,
-			Planets: []models.PlanetID{models.PlanetSun, models.PlanetMoon},
+		TimeRange: TimeRangeConfig{
+			StartJD: startJD,
+			EndJD:   startJD + 30,
 		},
-		SolarArcConfig: &models.SolarArcConfig{
-			Enabled: true,
-			Planets: []models.PlanetID{models.PlanetSun, models.PlanetMars},
+		Charts: ChartSetConfig{
+			Transit: &TransitChartConfig{
+				Lat:         39.9042,
+				Lon:         116.4074,
+				Planets:     []models.PlanetID{models.PlanetSun, models.PlanetMoon, models.PlanetMercury, models.PlanetVenus, models.PlanetMars},
+				Orbs:        orbs,
+				HouseSystem: models.HousePlacidus,
+			},
+			Progressions: &ProgressionsChartConfig{
+				Planets:     []models.PlanetID{models.PlanetSun, models.PlanetMoon},
+				Orbs:        models.OrbConfig{Conjunction: 1, Opposition: 1, Trine: 1, Square: 1, Sextile: 1},
+				Lat:         39.9042,
+				Lon:         116.4074,
+				HouseSystem: models.HousePlacidus,
+			},
+			SolarArc: &SolarArcChartConfig{
+				Planets:     []models.PlanetID{models.PlanetSun, models.PlanetMars},
+				Orbs:        models.OrbConfig{Conjunction: 1, Opposition: 1, Trine: 1, Square: 1, Sextile: 1},
+				Lat:         39.9042,
+				Lon:         116.4074,
+				HouseSystem: models.HousePlacidus,
+			},
 		},
-		EventConfig:           models.DefaultEventConfig(),
-		OrbConfigTransit:      orbs,
-		OrbConfigProgressions: models.OrbConfig{Conjunction: 1, Opposition: 1, Trine: 1, Square: 1, Sextile: 1},
-		OrbConfigSolarArc:     models.OrbConfig{Conjunction: 1, Opposition: 1, Trine: 1, Square: 1, Sextile: 1},
-		HouseSystem:           models.HousePlacidus,
+		EventFilter: DefaultEventFilterConfig(),
+		HouseSystem: models.HousePlacidus,
 	})
 	if err != nil {
 		t.Fatalf("Full pipeline: %v", err)

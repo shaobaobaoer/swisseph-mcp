@@ -61,55 +61,11 @@ type MonoInterval struct {
 
 // TransitCalcInput holds all inputs for transit calculation
 type TransitCalcInput struct {
-	// New structured fields (for refactored code)
+	// Structured fields for transit/progression/solar arc calculation
 	NatalChart  NatalChartConfig
 	TimeRange   TimeRangeConfig
 	Charts      ChartSetConfig
 	EventFilter EventFilterConfig
-
-	// Old flat fields (for backward compatibility with tests)
-	NatalLat     float64
-	NatalLon     float64
-	NatalJD      float64
-	NatalPlanets []models.PlanetID
-
-	// NatalASC and NatalMC allow overriding the calculated natal angles.
-	// If non-zero, these values are used instead of computing from NatalJD/Lat/Lon.
-	// This is useful when matching reference data (e.g., Solar Fire) that uses
-	// slightly different obliquity or house calculation parameters.
-	NatalASC float64
-	NatalMC  float64
-	// NatalMCForASC is a separate override for progressed ASC calculation.
-	// Solar Fire uses different MC base for ASC derivation than for MC progression.
-	// Set to -1 to force using sweph-computed MC for ASC (even if NatalMC is set).
-	NatalMCForASC float64
-	// NatalASCForProgressions: if > 0, use direct solar arc method for progressed ASC.
-	// progASC = NatalASCForProgressions + solarArc
-	// This matches Solar Fire's behavior exactly.
-	NatalASCForProgressions float64
-	// NatalPlanetOverrides allows specifying exact natal planet positions.
-	// Use this to match reference data that may use different ephemeris (DE200 vs DE432).
-	// Map key is planet ID (e.g., "MOON", "MERCURY"), value is longitude in degrees.
-	NatalPlanetOverrides map[string]float64
-
-	TransitLat float64
-	TransitLon float64
-
-	StartJD float64
-	EndJD   float64
-
-	TransitPlanets []models.PlanetID
-
-	ProgressionsConfig *models.ProgressionsConfig
-	SolarArcConfig     *models.SolarArcConfig
-
-	SpecialPoints *models.SpecialPointsConfig
-	EventConfig   models.EventConfig
-
-	OrbConfigTransit      models.OrbConfig
-	OrbConfigProgressions models.OrbConfig
-	OrbConfigSolarArc     models.OrbConfig
-
 	HouseSystem models.HouseSystem
 }
 
