@@ -482,24 +482,72 @@ func (s *Server) handleTransit(w http.ResponseWriter, r *http.Request) {
 		eventCfg = *req.EventConfig
 	}
 
+	// Build EventFilterConfig from request EventConfig
+	eventFilter := transit.EventFilterConfig{
+		TrNa:        eventCfg.IncludeTrNa,
+		TrTr:        eventCfg.IncludeTrTr,
+		TrSp:        eventCfg.IncludeTrSp,
+		TrSa:        eventCfg.IncludeTrSa,
+		SpNa:        eventCfg.IncludeSpNa,
+		SpSp:        eventCfg.IncludeSpSp,
+		SaNa:        eventCfg.IncludeSaNa,
+		Station:     eventCfg.IncludeStation,
+		SignIngress: eventCfg.IncludeSignIngress,
+		HouseIngress: eventCfg.IncludeHouseIngress,
+		VoidOfCourse: eventCfg.IncludeVoidOfCourse,
+	}
+
+	// Build structured calcInput
 	calcInput := transit.TransitCalcInput{
-		NatalLat:              req.NatalLatitude,
-		NatalLon:              req.NatalLongitude,
-		NatalJD:               req.NatalJDUT,
-		NatalPlanets:          req.NatalPlanets,
-		TransitLat:            req.TransitLatitude,
-		TransitLon:            req.TransitLongitude,
-		StartJD:               req.StartJDUT,
-		EndJD:                 req.EndJDUT,
-		TransitPlanets:        req.TransitPlanets,
-		ProgressionsConfig:    req.ProgressionsConfig,
-		SolarArcConfig:        req.SolarArcConfig,
-		SpecialPoints:         req.SpecialPoints,
-		EventConfig:           eventCfg,
-		OrbConfigTransit:      orbOrDefault(req.OrbConfigTransit, baseOrbs),
-		OrbConfigProgressions: orbOrDefault(req.OrbConfigProgressions, baseOrbs),
-		OrbConfigSolarArc:     orbOrDefault(req.OrbConfigSolarArc, baseOrbs),
-		HouseSystem:           req.HouseSystem,
+		NatalChart: transit.NatalChartConfig{
+			Lat:     req.NatalLatitude,
+			Lon:     req.NatalLongitude,
+			JD:      req.NatalJDUT,
+			Planets: req.NatalPlanets,
+		},
+		TimeRange: transit.TimeRangeConfig{
+			StartJD: req.StartJDUT,
+			EndJD:   req.EndJDUT,
+		},
+		Charts: transit.ChartSetConfig{
+			Transit: &transit.TransitChartConfig{
+				Lat:         req.TransitLatitude,
+				Lon:         req.TransitLongitude,
+				Planets:     req.TransitPlanets,
+				Orbs:        orbOrDefault(req.OrbConfigTransit, baseOrbs),
+				HouseSystem: req.HouseSystem,
+				Points:      nil, // populated from SpecialPoints if needed
+			},
+			Progressions: func() *transit.ProgressionsChartConfig {
+				if req.ProgressionsConfig != nil {
+					return &transit.ProgressionsChartConfig{
+						Planets: req.ProgressionsConfig.Planets,
+						Points:  nil, // populated from SpecialPoints if needed
+						Orbs:    orbOrDefault(req.OrbConfigProgressions, baseOrbs),
+					}
+				}
+				return nil
+			}(),
+			SolarArc: func() *transit.SolarArcChartConfig {
+				if req.SolarArcConfig != nil {
+					return &transit.SolarArcChartConfig{
+						Planets:     req.SolarArcConfig.Planets,
+						Points:      nil, // populated from SpecialPoints if needed
+						Orbs:        orbOrDefault(req.OrbConfigSolarArc, baseOrbs),
+						Lat:         req.TransitLatitude,
+						Lon:         req.TransitLongitude,
+						HouseSystem: req.HouseSystem,
+					}
+				}
+				return nil
+			}(),
+		},
+		EventFilter: eventFilter,
+		// Keep old flat fields for backward compatibility with transit package
+		NatalLat:      req.NatalLatitude,
+		NatalLon:      req.NatalLongitude,
+		NatalJD:       req.NatalJDUT,
+		NatalPlanets:  req.NatalPlanets,
 	}
 
 	events, err := transit.CalcTransitEvents(calcInput)
