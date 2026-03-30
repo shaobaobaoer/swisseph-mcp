@@ -1,0 +1,51 @@
+reference_person,chart_type,component,value,unit,tolerance,solar_fire_match,notes
+JN,NA,Sun,266.5000,degrees,0.0004,yes,Sagittarius 26.5° house 6
+JN,NA,Moon,138.1160,degrees,0.0004,yes,Leo 18.1° house 2
+JN,NA,Mercury,263.9330,degrees,0.01,partial,Sagittarius 23.9° house 6
+JN,NA,Venus,302.5530,degrees,0.01,partial,Aquarius 2.5° house 8
+JN,NA,Mars,300.0970,degrees,0.01,partial,Aquarius 0.1° house 8
+JN,NA,Jupiter,319.5480,degrees,0.01,partial,Aquarius 19.5° house 8
+JN,NA,Saturn,13.5380,degrees,0.01,partial,Aries 13.5° house 10
+JN,NA,Uranus,306.4250,degrees,0.01,partial,Aquarius 6.4° house 8
+JN,NA,Neptune,298.4680,degrees,0.01,partial,Capricorn 28.5° house 7
+JN,NA,Pluto,246.2740,degrees,0.01,partial,Sagittarius 6.3° house 6
+JN,NA,ASC,96.5300,degrees,0.0001,yes,Cancer 6.5°
+JN,NA,MC,351.5000,degrees,0.0003,yes,Pisces 21.5°
+JN,SP,SP Sun,295.0688,degrees,0.001,yes,Capricorn 25.1°
+JN,SP,SP Moon,146.4382,degrees,0.001,yes,Leo 26.4°
+JN,SP,SP Mercury,273.5328,degrees,0.001,yes,Capricorn 3.5°
+JN,SP,SA Offset,28.5683,degrees,0.001,yes,Solar arc at age 28.04 years
+JN,SR,Return JD,2461027.69,julian_day,1.0,yes,2025-12-18 natal Sun return
+JN,SR,Return Sun,266.4997,degrees,0.01,yes,Matches natal Sun exactly
+JN,SR,Return Age,27.9994,years,0.1,yes,Person age at return
+JN,TR,Event Count,50,count,0,baseline,Exact count 7-day window Jan 8-15
+JN,TR,Aspect Events,41,count,0,baseline,Enter/exact/leave aspects
+JN,Moon,Phase Name,Waxing Gibbous,text,exact,yes,2026-01-01 00:00 UTC
+JN,Moon,Phase Angle,146.15,degrees,0.1,yes,Moon-Sun elongation
+JN,Moon,Illumination,91.5,percent,0.1,yes,Visible disk fraction
+JN,Moon,Moon Longitude,66.7156,degrees,0.01,yes,Gemini 6.7°
+JN,DC,Cross Aspects,35,count,0,baseline,JN natal vs 2026-01-01 transit
+JN,DC,Aspect Types,9,count,0,baseline,Conjunction Opposition Trine Square Sextile Quincunx Semi-Sextile Semi-Square Sesquiquadrate
+XB,NA,Sun,130.6386,degrees,0.01,yes,Leo 10.6° house 3
+XB,NA,Moon,356.0819,degrees,0.01,yes,Pisces 26.1° house 9
+XB,NA,Mercury,151.6131,degrees,0.01,partial,Virgo 1.6° house 4
+XB,NA,Venus,86.2818,degrees,0.01,partial,Cancer 26.3° house 1
+XB,NA,Mars,95.3059,degrees,0.01,partial,Cancer 5.3° house 2
+XB,NA,Jupiter,321.9700,degrees,0.01,partial,Aquarius 21.9° house 9
+XB,NA,Saturn,165.3090,degrees,0.01,partial,Virgo 15.3° house 5
+XB,NA,Uranus,332.9050,degrees,0.01,partial,Pisces 2.9° house 10
+XB,NA,Neptune,177.8070,degrees,0.01,partial,Libra 27.8° house 6
+XB,NA,Pluto,225.8360,degrees,0.01,partial,Scorpio 15.8° house 7
+XB,SP,SP Sun,158.9323,degrees,0.001,yes,Virgo 8.9°
+XB,SP,SP Moon,134.7823,degrees,0.001,yes,Leo 14.8°
+XB,SP,SA Offset,28.2930,degrees,0.001,yes,Solar arc at age 29.41 years
+XB,SR,Return JD,2461255.43,julian_day,1.0,yes,2026-08-03 natal Sun return
+XB,SR,Return Sun,130.6386,degrees,0.01,yes,Matches natal Sun exactly
+XB,SR,Return Age,29.9994,years,0.1,yes,Person age at return
+XB,TR,Event Count,21,count,0,baseline,Exact count 7-day window Jan 8-15
+XB,TR,Aspect Events,19,count,0,baseline,Enter/exact/leave aspects
+XB,Moon,Phase Name,Waxing Gibbous,text,exact,yes,2026-01-01 00:00 UTC (same date as JN)
+XB,Moon,Phase Angle,146.15,degrees,0.1,yes,Moon-Sun elongation identical to JN
+XB,Moon,Illumination,91.5,percent,0.1,yes,Visible disk fraction identical to JN
+XB,DC,Cross Aspects,52,count,0,baseline,XB natal vs 2026-01-01 transit
+XB,DC,Aspect Types,9,count,0,baseline,Same aspect type variety as JN
