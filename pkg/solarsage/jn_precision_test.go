@@ -567,6 +567,254 @@ func TestJN_DoubleChart(t *testing.T) {
 }
 
 // =============================================================================
+// =============================================================================
+// XB Precision Test Suite (Second Reference Person)
+//
+// Reference: XB (Female, b. 1996-08-03 00:30 AWST = Aug 2 16:30 UTC)
+// Birth place: Huzhou, China (30.867°N, 120.1°E)
+// JD_UT: 2450298.187502
+// Transit date: 2026-01-01 00:00 UTC (JD ≈ 2461041.5)
+// Age at transit: ≈ 29.36 years
+// =============================================================================
+
+const (
+	xbJDUT    = 2450298.187502  // 1996-08-02 16:30 UTC
+	xbLat     = 30.867          // Huzhou, China
+	xbLon     = 120.1
+	// transitJD reused from JN (same transit date for comparison)
+)
+
+var xbPlanets = []models.PlanetID{
+	models.PlanetSun, models.PlanetMoon, models.PlanetMercury,
+	models.PlanetVenus, models.PlanetMars, models.PlanetJupiter,
+	models.PlanetSaturn, models.PlanetUranus, models.PlanetNeptune, models.PlanetPluto,
+}
+
+// =============================================================================
+// TestXB_NA: Natal Chart (Solar Fire Validated)
+//
+// XB (Female) birth chart with Solar Fire reference values.
+// =============================================================================
+func TestXB_NA(t *testing.T) {
+	orbs := models.DefaultOrbConfig()
+	info, err := chart.CalcSingleChart(xbLat, xbLon, xbJDUT, xbPlanets, orbs, models.HousePlacidus)
+	if err != nil {
+		t.Fatalf("CalcSingleChart XB: %v", err)
+	}
+
+	// XB Solar Fire validated values (from chart_test.go reference data)
+	wantLon := map[models.PlanetID]float64{
+		models.PlanetSun:     130.638,  // Leo 10.6°
+		models.PlanetMoon:    356.082,  // Pisces 26.1°
+		models.PlanetMercury: 151.613,  // Virgo 1.6°
+		models.PlanetVenus:   86.282,   // Gemini 26.3°
+		models.PlanetMars:    95.305,   // Cancer 5.3°
+	}
+
+	gotMap := make(map[models.PlanetID]models.PlanetPosition)
+	for _, p := range info.Planets {
+		gotMap[p.PlanetID] = p
+	}
+
+	for pid, want := range wantLon {
+		got, ok := gotMap[pid]
+		if !ok {
+			t.Errorf("XB NA: planet %s not found", pid)
+			continue
+		}
+		if math.Abs(got.Longitude-want) > tolLon {
+			t.Errorf("XB NA %s lon: got %.4f, want %.3f", pid, got.Longitude, want)
+		}
+	}
+
+	// All planets should be present
+	if len(info.Planets) != len(xbPlanets) {
+		t.Errorf("XB NA: expected %d planets, got %d", len(xbPlanets), len(info.Planets))
+	}
+
+	// Houses should be valid
+	if len(info.Houses) != 12 {
+		t.Errorf("XB NA: expected 12 houses, got %d", len(info.Houses))
+	}
+
+	t.Logf("XB NA: Sun=%.4f Moon=%.4f Mercury=%.4f Venus=%.4f Mars=%.4f",
+		gotMap[models.PlanetSun].Longitude, gotMap[models.PlanetMoon].Longitude,
+		gotMap[models.PlanetMercury].Longitude, gotMap[models.PlanetVenus].Longitude,
+		gotMap[models.PlanetMars].Longitude)
+}
+
+// =============================================================================
+// TestXB_SP: Secondary Progressions (Phase B Baseline - Age ~29.36 years)
+// =============================================================================
+func TestXB_SP(t *testing.T) {
+	age := progressions.Age(xbJDUT, transitJD)
+	if age < 29 || age > 30 {
+		t.Errorf("XB SP Age = %.4f, expected ~29.36", age)
+	}
+
+	// Calculate a few key progressed positions
+	spSun, _, err := progressions.CalcProgressedLongitude(models.PlanetSun, xbJDUT, transitJD)
+	if err != nil {
+		t.Fatalf("XB SP Sun: %v", err)
+	}
+
+	// XB Sun natal ~130.6°, after ~29.4 days progressed ≈ 159-160°
+	if spSun < 155 || spSun > 165 {
+		t.Errorf("XB SP Sun = %.4f, expected ~159-160", spSun)
+	}
+
+	saOffset, err := progressions.SolarArcOffset(xbJDUT, transitJD)
+	if err != nil {
+		t.Fatalf("XB SA offset: %v", err)
+	}
+
+	// SA offset for age ~29.4 should be ~29.4°
+	if saOffset < 28 || saOffset > 31 {
+		t.Errorf("XB SA offset = %.4f, expected ~29-30", saOffset)
+	}
+
+	t.Logf("XB SP: age=%.3f, spSun=%.4f, saOffset=%.4f", age, spSun, saOffset)
+}
+
+// =============================================================================
+// TestXB_SR: Solar Return (2026 Annual Return)
+// =============================================================================
+func TestXB_SR(t *testing.T) {
+	searchJD := sweph.JulDay(2025, 11, 1, 0, true)
+
+	rc, err := returns.CalcSolarReturn(returns.ReturnInput{
+		NatalJD:     xbJDUT,
+		NatalLat:    xbLat,
+		NatalLon:    xbLon,
+		SearchJD:    searchJD,
+		Planets:     xbPlanets,
+		OrbConfig:   models.DefaultOrbConfig(),
+		HouseSystem: models.HousePlacidus,
+	})
+	if err != nil {
+		t.Fatalf("XB CalcSolarReturn: %v", err)
+	}
+
+	// Sun at return should match natal Sun within 0.01°
+	if math.Abs(normDiff180(rc.PlanetLon, 130.638)) > 0.01 {
+		t.Errorf("XB SR Sun accuracy: got %.4f, natal 130.638", rc.PlanetLon)
+	}
+
+	if rc.ReturnType != "solar" {
+		t.Errorf("XB SR: ReturnType = %s, want solar", rc.ReturnType)
+	}
+
+	t.Logf("XB SR: JD=%.2f age=%.3f SunLon=%.4f", rc.ReturnJD, rc.Age, rc.PlanetLon)
+}
+
+// =============================================================================
+// TestXB_TR: Transit Events (7-day window, age ~29.36)
+// =============================================================================
+func TestXB_TR(t *testing.T) {
+	startJD := sweph.JulDay(2026, 1, 8, 0, true)
+	endJD := sweph.JulDay(2026, 1, 15, 0, true)
+
+	events, err := transit.CalcTransitEvents(transit.TransitCalcInput{
+		NatalChart: transit.NatalChartConfig{
+			Lat:     xbLat,
+			Lon:     xbLon,
+			JD:      xbJDUT,
+			Planets: xbPlanets,
+		},
+		TimeRange: transit.TimeRangeConfig{StartJD: startJD, EndJD: endJD},
+		Charts: transit.ChartSetConfig{
+			Transit: &transit.TransitChartConfig{
+				Lat:         xbLat,
+				Lon:         xbLon,
+				Planets:     []models.PlanetID{models.PlanetSun, models.PlanetVenus, models.PlanetMars},
+				Orbs:        models.DefaultOrbConfig(),
+				HouseSystem: models.HousePlacidus,
+			},
+		},
+		EventFilter: transit.EventFilterConfig{TrNa: true, SignIngress: true},
+	})
+	if err != nil {
+		t.Fatalf("XB CalcTransitEvents: %v", err)
+	}
+
+	if len(events) == 0 {
+		t.Error("XB TR: expected at least 1 transit event in 7-day window, got none")
+	}
+
+	// Verify all events are within window
+	for _, e := range events {
+		if e.JD < startJD || e.JD > endJD {
+			t.Errorf("XB TR event JD %.2f outside window", e.JD)
+		}
+	}
+
+	t.Logf("XB TR: %d events in 7-day window", len(events))
+}
+
+// =============================================================================
+// TestXB_Moon: Lunar Phase at 2026-01-01
+// =============================================================================
+func TestXB_Moon(t *testing.T) {
+	phase, err := lunar.CalcLunarPhase(transitJD)
+	if err != nil {
+		t.Fatalf("XB CalcLunarPhase: %v", err)
+	}
+
+	// Same moon for both JN and XB (same transit date)
+	if phase.PhaseName != "Waxing Gibbous" {
+		t.Errorf("XB Moon: expected Waxing Gibbous, got %s", phase.PhaseName)
+	}
+
+	if phase.PhaseAngle < 140 || phase.PhaseAngle > 150 {
+		t.Errorf("XB Moon phase angle: got %.2f, expected ~146°", phase.PhaseAngle)
+	}
+
+	t.Logf("XB Moon: %s at %.2f° (%.1f%% illum)", phase.PhaseName, phase.PhaseAngle, phase.Illumination*100)
+}
+
+// =============================================================================
+// TestXB_DoubleChart: Biwheel (XB natal vs transit 2026-01-01)
+// =============================================================================
+func TestXB_DoubleChart(t *testing.T) {
+	orbs := models.DefaultOrbConfig()
+
+	inner, outer, crossAspects, err := chart.CalcDoubleChart(
+		xbLat, xbLon, xbJDUT, xbPlanets,
+		xbLat, xbLon, transitJD, xbPlanets,
+		nil, orbs, models.HousePlacidus,
+	)
+	if err != nil {
+		t.Fatalf("XB CalcDoubleChart: %v", err)
+	}
+
+	// Verify inner chart (natal)
+	if len(inner.Planets) != len(xbPlanets) {
+		t.Errorf("XB DC: inner planets got %d, want %d", len(inner.Planets), len(xbPlanets))
+	}
+
+	innerMap := make(map[models.PlanetID]float64)
+	for _, p := range inner.Planets {
+		innerMap[p.PlanetID] = p.Longitude
+	}
+
+	if math.Abs(innerMap[models.PlanetSun]-130.638) > tolLon {
+		t.Errorf("XB DC inner Sun: got %.4f, want 130.638", innerMap[models.PlanetSun])
+	}
+
+	// Verify outer chart
+	if len(outer.Planets) != len(xbPlanets) {
+		t.Errorf("XB DC: outer planets got %d, want %d", len(outer.Planets), len(xbPlanets))
+	}
+
+	// Cross-aspects must exist
+	if len(crossAspects) == 0 {
+		t.Error("XB DC: expected cross-aspects between natal and transit")
+	}
+
+	t.Logf("XB DoubleChart: inner=%d, outer=%d, cross-aspects=%d", len(inner.Planets), len(outer.Planets), len(crossAspects))
+}
+
+// =============================================================================
 // Helper Functions
 // =============================================================================
 
