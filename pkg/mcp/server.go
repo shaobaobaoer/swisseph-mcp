@@ -1395,7 +1395,57 @@ func (s *Server) buildTransitInput(args json.RawMessage) (transit.TransitCalcInp
 		eventCfg = *input.EventConfig
 	}
 
+	// Convert EventConfig to EventFilterConfig
+	eventFilter := transit.EventFilterConfig{
+		TrNa:         eventCfg.IncludeTrNa,
+		TrTr:         eventCfg.IncludeTrTr,
+		TrSp:         eventCfg.IncludeTrSp,
+		TrSa:         eventCfg.IncludeTrSa,
+		SpNa:         eventCfg.IncludeSpNa,
+		SpSp:         eventCfg.IncludeSpSp,
+		SaNa:         eventCfg.IncludeSaNa,
+		SignIngress:  eventCfg.IncludeSignIngress,
+		HouseIngress: eventCfg.IncludeHouseIngress,
+		Station:      eventCfg.IncludeStation,
+		VoidOfCourse: eventCfg.IncludeVoidOfCourse,
+	}
+
 	return transit.TransitCalcInput{
+		// Structured fields
+		NatalChart: transit.NatalChartConfig{
+			Lat:     input.NatalLatitude,
+			Lon:     input.NatalLongitude,
+			JD:      input.NatalJDUT,
+			Planets: input.NatalPlanets,
+		},
+		TimeRange: transit.TimeRangeConfig{
+			StartJD: input.StartJDUT,
+			EndJD:   input.EndJDUT,
+		},
+		Charts: transit.ChartSetConfig{
+			Transit: &transit.TransitChartConfig{
+				Lat:         input.TransitLatitude,
+				Lon:         input.TransitLongitude,
+				Planets:     input.TransitPlanets,
+				Orbs:        orbOrDefault(input.OrbConfigTransit, baseOrbs),
+				HouseSystem: input.HouseSystem,
+			},
+			Progressions: &transit.ProgressionsChartConfig{
+				Lat:         input.TransitLatitude,
+				Lon:         input.TransitLongitude,
+				Orbs:        orbOrDefault(input.OrbConfigProgressions, baseOrbs),
+				HouseSystem: input.HouseSystem,
+			},
+			SolarArc: &transit.SolarArcChartConfig{
+				Lat:         input.TransitLatitude,
+				Lon:         input.TransitLongitude,
+				Orbs:        orbOrDefault(input.OrbConfigSolarArc, baseOrbs),
+				HouseSystem: input.HouseSystem,
+			},
+		},
+		EventFilter: eventFilter,
+
+		// Old flat fields (for backward compatibility with tests)
 		NatalLat:              input.NatalLatitude,
 		NatalLon:              input.NatalLongitude,
 		NatalJD:               input.NatalJDUT,
