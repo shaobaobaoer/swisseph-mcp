@@ -1143,380 +1143,10 @@ func averageOffset(offsets map[string][]planetOffset, name string) float64 {
 	return total / float64(len(samples))
 }
 
-// TestSolarFireCSV_EphemerisOffsets extracts and reports per-planet ephemeris offsets
-func TestSolarFireCSV_EphemerisOffsets(t *testing.T) {
-	events := parseSFCSV(t, "testcase-1-transit.csv")
-	offsets := extractEphemerisOffsets(t, events)
 
-	t.Logf("Per-planet ephemeris offsets (SF/DE200 - Ours/DE431):")
-	t.Logf("%-12s %5s %10s %10s %10s", "Planet", "N", "Mean(\")", "StdDev(\")", "Max(\")")
 
-	planetOrder := []string{"Sun", "Moon", "Mercury", "Venus", "Mars",
-		"Jupiter", "Saturn", "Uranus", "Neptune", "Pluto", "Chiron", "NorthNode"}
 
-	for _, name := range planetOrder {
-		samples := offsets[name]
-		if len(samples) == 0 {
-			continue
-		}
 
-		mean := averageOffset(offsets, name)
-		var sumSq float64
-		var maxAbs float64
-		for _, s := range samples {
-			d := (s.Offset - mean) * 3600 // arcseconds
-			sumSq += d * d
-			if math.Abs(s.Offset*3600) > maxAbs {
-				maxAbs = math.Abs(s.Offset * 3600)
-			}
-		}
-		stddev := math.Sqrt(sumSq / float64(len(samples)))
-
-		t.Logf("%-12s %5d %+10.3f %10.3f %10.3f", name, len(samples),
-			mean*3600, stddev, maxAbs)
-	}
-}
-
-// TestSolarFireCSV_ExactWithOffsetCorrection validates Exact events using ephemeris offset correction
-func TestSolarFireCSV_ExactWithOffsetCorrection(t *testing.T) {
-	events := parseSFCSV(t, "testcase-1-transit.csv")
-	natalPos := extractNatalPositions(events)
-	offsets := extractEphemerisOffsets(t, events)
-	natalJD := 2450800.900000
-
-	// Build corrected calc functions that add the ephemeris offset
-	makeCorCalcFn := func(name string, baseFn bodyCalcFunc) bodyCalcFunc {
-		off := averageOffset(offsets, name)
-		if off == 0 || baseFn == nil {
-			return baseFn
-		}
-		return func(jd float64) (float64, float64, error) {
-			lon, speed, err := baseFn(jd)
-			return sweph.NormalizeDegrees(lon + off), speed, err
-		}
-	}
-
-	var results []deviationResult
-	var skipped int
-
-	for _, e := range events {
-		if e.EventType != "Exact" {
-			continue
-		}
-
-		aspectAngle, ok := sfAspectMap[e.Aspect]
-		if !ok {
-			skipped++
-			continue
-		}
-
-		calcFn1 := makeCalcFnForEvent(e.P1, e.ChartType, natalJD, true, natalPos)
-		calcFn2 := makeCalcFnForEvent(e.P2, e.ChartType, natalJD, false, natalPos)
-		if calcFn1 == nil || calcFn2 == nil {
-			skipped++
-			continue
-		}
-
-		// Apply offset correction for transit planets
-		if strings.HasPrefix(e.ChartType, "Tr") {
-			calcFn1 = makeCorCalcFn(e.P1, calcFn1)
-		}
-		if e.ChartType == "Tr-Tr" {
-			calcFn2 = makeCorCalcFn(e.P2, calcFn2)
-		}
-
-		ourJD := findExactAspectNear(calcFn1, calcFn2, aspectAngle, e.SFJD, 2.0)
-		if ourJD == 0 {
-			skipped++
-			continue
-		}
-
-		devSec := (ourJD - e.SFJD) * 86400.0
-		results = append(results, deviationResult{
-			Line:       e.Line,
-			EventType:  e.EventType,
-			ChartType:  e.ChartType,
-			P1:         e.P1,
-			Aspect:     e.Aspect,
-			P2:         e.P2,
-			SFTime:     e.Date + " " + e.Time,
-			DevSeconds: devSec,
-			OurJD:      ourJD,
-			SFJD:       e.SFJD,
-		})
-	}
-
-	reportDeviations(t, "EXACT_CORRECTED", results, skipped)
-}
-
-// TestSolarFireCSV_StationWithOffsetCorrection validates Station events with ephemeris correction
-func TestSolarFireCSV_StationWithOffsetCorrection(t *testing.T) {
-	events := parseSFCSV(t, "testcase-1-transit.csv")
-	offsets := extractEphemerisOffsets(t, events)
-
-	var results []deviationResult
-	var skipped int
-
-	for _, e := range events {
-		if e.EventType != "Retrograde" && e.EventType != "Direct" {
-			continue
-		}
-
-		pid, ok := sfPlanetMap[e.P1]
-		if !ok {
-			skipped++
-			continue
-		}
-
-		off := averageOffset(offsets, e.P1)
-		calcFn := func(jd float64) (float64, float64, error) {
-			lon, speed, err := chart.CalcPlanetLongitude(pid, jd)
-			return sweph.NormalizeDegrees(lon + off), speed, err
-		}
-
-		ourJD := findStationNear(calcFn, e.SFJD, 1.0)
-		if ourJD == 0 {
-			skipped++
-			continue
-		}
-
-		devSec := (ourJD - e.SFJD) * 86400.0
-		results = append(results, deviationResult{
-			Line:       e.Line,
-			EventType:  e.EventType,
-			ChartType:  e.ChartType,
-			P1:         e.P1,
-			Aspect:     "Station",
-			P2:         e.EventType,
-			SFTime:     e.Date + " " + e.Time,
-			DevSeconds: devSec,
-			OurJD:      ourJD,
-			SFJD:       e.SFJD,
-		})
-	}
-
-	reportDeviations(t, "STATION_CORRECTED", results, skipped)
-}
-
-// TestSolarFireCSV_IngressWithOffsetCorrection validates SignIngress events with ephemeris correction
-func TestSolarFireCSV_IngressWithOffsetCorrection(t *testing.T) {
-	events := parseSFCSV(t, "testcase-1-transit.csv")
-	offsets := extractEphemerisOffsets(t, events)
-
-	var results []deviationResult
-	var skipped int
-
-	for _, e := range events {
-		if e.EventType != "SignIngress" {
-			continue
-		}
-
-		pid, ok := sfPlanetMap[e.P1]
-		if !ok {
-			skipped++
-			continue
-		}
-		if !strings.HasPrefix(e.ChartType, "Tr") {
-			skipped++
-			continue
-		}
-
-		off := averageOffset(offsets, e.P1)
-		calcFn := func(jd float64) (float64, float64, error) {
-			lon, speed, err := chart.CalcPlanetLongitude(pid, jd)
-			return sweph.NormalizeDegrees(lon + off), speed, err
-		}
-
-		signBoundary, ok := sfSignToDeg[e.P2]
-		if !ok {
-			skipped++
-			continue
-		}
-
-		ourJD := findSignIngressNear(calcFn, signBoundary, e.SFJD, 1.0)
-		if ourJD == 0 {
-			skipped++
-			continue
-		}
-
-		devSec := (ourJD - e.SFJD) * 86400.0
-		results = append(results, deviationResult{
-			Line:       e.Line,
-			EventType:  e.EventType,
-			ChartType:  e.ChartType,
-			P1:         e.P1,
-			Aspect:     "Ingress",
-			P2:         e.P2,
-			SFTime:     e.Date + " " + e.Time,
-			DevSeconds: devSec,
-			OurJD:      ourJD,
-			SFJD:       e.SFJD,
-		})
-	}
-
-	reportDeviations(t, "INGRESS_CORRECTED", results, skipped)
-}
-
-// TestSolarFireCSV_DeltaTCorrection tests various time corrections to find the optimal value.
-// NOTE: This is NOT the physical ΔT (TT-UT1), but a fitted correction that compensates
-// for systematic differences between Solar Fire (DE200/DE406) and our calculations (DE431).
-// The correction includes: ephemeris differences, time system offsets, and other systematics.
-func TestSolarFireCSV_DeltaTCorrection(t *testing.T) {
-	events := parseSFCSV(t, "testcase-1-transit.csv")
-
-	// Test ΔT corrections from 0 to 6 seconds in 0.25s steps
-	type corrResult struct {
-		timeCorrectionSec      float64
-		stationAvg     float64
-		ingressAvg     float64
-		trTrExactAvg   float64
-		combinedAvg    float64
-		stationResults []deviationResult
-		ingressResults []deviationResult
-		trTrResults    []deviationResult
-	}
-
-	var bestResult corrResult
-	bestCombined := math.MaxFloat64
-
-	for dt := 0.0; dt <= 6.0; dt += 0.25 {
-		tcDays := dt / 86400.0
-
-		// Evaluate station deviations
-		var stationResults []deviationResult
-		for _, e := range events {
-			if e.EventType != "Retrograde" && e.EventType != "Direct" {
-				continue
-			}
-			pid, ok := sfPlanetMap[e.P1]
-			if !ok {
-				continue
-			}
-			calcFn := func(jd float64) (float64, float64, error) {
-				return chart.CalcPlanetLongitude(pid, jd+tcDays)
-			}
-			ourJD := findStationNear(calcFn, e.SFJD, 1.0)
-			if ourJD == 0 {
-				continue
-			}
-			devSec := (ourJD - e.SFJD) * 86400.0
-			stationResults = append(stationResults, deviationResult{
-				P1: e.P1, DevSeconds: devSec,
-			})
-		}
-
-		// Evaluate Moon sign ingress deviations (Tr-Tr only)
-		var ingressResults []deviationResult
-		for _, e := range events {
-			if e.EventType != "SignIngress" || e.ChartType != "Tr-Tr" {
-				continue
-			}
-			pid, ok := sfPlanetMap[e.P1]
-			if !ok || pid != models.PlanetMoon {
-				continue
-			}
-			calcFn := func(jd float64) (float64, float64, error) {
-				return chart.CalcPlanetLongitude(pid, jd+tcDays)
-			}
-			signBoundary, ok := sfSignToDeg[e.P2]
-			if !ok {
-				continue
-			}
-			ourJD := findSignIngressNear(calcFn, signBoundary, e.SFJD, 1.0)
-			if ourJD == 0 {
-				continue
-			}
-			devSec := (ourJD - e.SFJD) * 86400.0
-			ingressResults = append(ingressResults, deviationResult{
-				P1: e.P1, P2: e.P2, DevSeconds: devSec,
-			})
-		}
-
-		// Evaluate Tr-Tr Exact deviations (excluding Chiron/NorthNode)
-		natalPos := extractNatalPositions(events)
-		var trTrResults []deviationResult
-		for _, e := range events {
-			if e.EventType != "Exact" || e.ChartType != "Tr-Tr" {
-				continue
-			}
-			// Skip Chiron and NorthNode (different ephemeris source)
-			if e.P1 == "Chiron" || e.P1 == "NorthNode" || e.P2 == "Chiron" || e.P2 == "NorthNode" {
-				continue
-			}
-			aspectAngle, ok := sfAspectMap[e.Aspect]
-			if !ok {
-				continue
-			}
-			natalJD := 2450800.900000
-			calcFn1 := makeCalcFnForEvent(e.P1, e.ChartType, natalJD, true, natalPos)
-			calcFn2 := makeCalcFnForEvent(e.P2, e.ChartType, natalJD, false, natalPos)
-			if calcFn1 == nil || calcFn2 == nil {
-				continue
-			}
-			// Wrap with ΔT correction
-			origFn1 := calcFn1
-			calcFn1 = func(jd float64) (float64, float64, error) {
-				return origFn1(jd + tcDays)
-			}
-			origFn2 := calcFn2
-			calcFn2 = func(jd float64) (float64, float64, error) {
-				return origFn2(jd + tcDays)
-			}
-			ourJD := findExactAspectNear(calcFn1, calcFn2, aspectAngle, e.SFJD, 2.0)
-			if ourJD == 0 {
-				continue
-			}
-			devSec := (ourJD - e.SFJD) * 86400.0
-			trTrResults = append(trTrResults, deviationResult{
-				P1: e.P1, Aspect: e.Aspect, P2: e.P2, DevSeconds: devSec,
-			})
-		}
-
-		// Compute averages
-		stationAvg := avgAbsDeviation(stationResults)
-		ingressAvg := avgAbsDeviation(ingressResults)
-		trTrAvg := avgAbsDeviation(trTrResults)
-		combined := (stationAvg*float64(len(stationResults)) +
-			ingressAvg*float64(len(ingressResults)) +
-			trTrAvg*float64(len(trTrResults))) /
-			float64(len(stationResults)+len(ingressResults)+len(trTrResults))
-
-		if combined < bestCombined {
-			bestCombined = combined
-			bestResult = corrResult{
-				timeCorrectionSec:      dt,
-				stationAvg:     stationAvg,
-				ingressAvg:     ingressAvg,
-				trTrExactAvg:   trTrAvg,
-				combinedAvg:    combined,
-				stationResults: stationResults,
-				ingressResults: ingressResults,
-				trTrResults:    trTrResults,
-			}
-		}
-
-		t.Logf("TC=%5.2fs  Station=%5.2fs(%2d)  Ingress=%5.2fs(%3d)  TrTr=%5.2fs(%2d)  Combined=%5.2fs",
-			dt, stationAvg, len(stationResults), ingressAvg, len(ingressResults),
-			trTrAvg, len(trTrResults), combined)
-	}
-
-	t.Logf("\n===== BEST ΔT CORRECTION =====")
-	t.Logf("Optimal ΔT correction: %.2f seconds", bestResult.timeCorrectionSec)
-	t.Logf("Station avg:    %.2f seconds (%d events)", bestResult.stationAvg, len(bestResult.stationResults))
-	t.Logf("Ingress avg:    %.2f seconds (%d events)", bestResult.ingressAvg, len(bestResult.ingressResults))
-	t.Logf("Tr-Tr avg:      %.2f seconds (%d events)", bestResult.trTrExactAvg, len(bestResult.trTrResults))
-	t.Logf("Combined avg:   %.2f seconds", bestResult.combinedAvg)
-
-	// Show per-event details at optimal ΔT
-	t.Logf("\nStation events at optimal ΔT:")
-	for _, r := range bestResult.stationResults {
-		t.Logf("  %-10s dev=%+.2fs", r.P1, r.DevSeconds)
-	}
-	t.Logf("\nTr-Tr events at optimal ΔT:")
-	for _, r := range bestResult.trTrResults {
-		t.Logf("  %-10s %s %-10s dev=%+.2fs", r.P1, r.Aspect, r.P2, r.DevSeconds)
-	}
-}
 
 func avgAbsDeviation(results []deviationResult) float64 {
 	if len(results) == 0 {
@@ -1529,684 +1159,383 @@ func avgAbsDeviation(results []deviationResult) float64 {
 	return total / float64(len(results))
 }
 
-// TestSolarFireCSV_ComprehensiveValidation is the definitive validation test.
-// It applies a fitted time correction (4.50s) and validates transit events
-// from the Solar Fire CSV against our transit engine computations.
-//
-// NOTE: The 4.50s correction is NOT physical ΔT (which is ~70s in 2026).
-// It is a fitted value that compensates for systematic differences between
-// Solar Fire (DE200/DE406) and our calculations (DE431), including:
-// - Ephemeris differences (DE200 vs DE431)
-// - Time system offsets
-// - Other systematic effects
-//
-// Validation scope:
-//   - Transit-only events (Station, SignIngress, Tr-Tr Exact) → assert avg <1s
-//   - Tr-Na events (transit vs natal) → reported separately
-//   - Other chart types (Sp, Sa) → informational only (different calc methods)
-//
-// Known exclusions:
-//   - Chiron and NorthNode have large DE200↔DE431 position differences (~60"+)
-//     and are excluded from the primary assertion.
-func TestSolarFireCSV_ComprehensiveValidation(t *testing.T) {
-	events := parseSFCSV(t, "testcase-1-transit.csv")
-	natalPos := extractNatalPositions(events)
-	natalJD := 2450800.900000 // 1997-12-18 09:36:00 UTC
+// matchSFEvents performs two-way matching between Solar Fire reference events and our computed events.
+// Returns recall (events found) and precision (no spurious events) for a category.
+type matchResult struct {
+	matched    int
+	missed     []sfEvent              // SF events not found in our output
+	spurious   []models.TransitEvent  // our events not found in SF
+	deviations []float64              // seconds diff for matched events
+}
 
-	// Fitted time correction: 4.50 seconds = 0.000052083 days
-	// This compensates for systematic differences between SF and our calculations.
-	// Determined by grid search in TestSolarFireCSV_DeltaTCorrection.
-	// NOTE: This is NOT physical ΔT (TT-UT1 ~70s in 2026).
-	const timeCorrectionSec = 4.50
-	tcDays := timeCorrectionSec / 86400.0
-
-	defaultOrbs := models.DefaultOrbConfig()
-
-	type categoryStats struct {
-		name    string
-		results []deviationResult
-		skipped int
+func matchSFEvents(sfEvents []sfEvent, ourEvents []models.TransitEvent, windowSec float64) matchResult {
+	result := matchResult{
+		missed:     make([]sfEvent, 0),
+		spurious:   make([]models.TransitEvent, 0),
+		deviations: make([]float64, 0),
 	}
-	var categories []categoryStats
 
-	// --- Station events (pure transit, no aspects) ---
-	{
-		var results []deviationResult
-		var skipped int
-		for _, e := range events {
-			if e.EventType != "Retrograde" && e.EventType != "Direct" {
-				continue
-			}
-			if isProblematicBody(e.P1) {
-				skipped++
-				continue
-			}
-			pid, ok := sfPlanetMap[e.P1]
-			if !ok {
-				skipped++
-				continue
-			}
-			calcFn := func(jd float64) (float64, float64, error) {
-				return chart.CalcPlanetLongitude(pid, jd+tcDays)
-			}
-			ourJD := findStationNear(calcFn, e.SFJD, 1.0)
-			if ourJD == 0 {
-				skipped++
-				continue
-			}
-			devSec := (ourJD - e.SFJD) * 86400.0
-			results = append(results, deviationResult{
-				Line: e.Line, EventType: e.EventType, ChartType: e.ChartType,
-				P1: e.P1, Aspect: "Station", P2: e.EventType,
-				SFTime: e.Date + " " + e.Time, DevSeconds: devSec,
-				OurJD: ourJD, SFJD: e.SFJD,
-			})
+	// Build a map of SF events for quick lookup by body+aspect+time
+	type eventKey struct {
+		p1    models.PlanetID
+		p2    models.PlanetID
+		angle float64
+	}
+	sfMap := make(map[eventKey][]sfEvent)
+	for _, e := range sfEvents {
+		p1, ok1 := sfPlanetMap[e.P1]
+		p2, ok2 := sfPlanetMap[e.P2]
+		angle, ok3 := sfAspectMap[e.Aspect]
+		if !ok1 || !ok2 || !ok3 {
+			continue
 		}
-		categories = append(categories, categoryStats{"Station", results, skipped})
+		key := eventKey{p1, p2, angle}
+		sfMap[key] = append(sfMap[key], e)
 	}
 
-	// --- SignIngress events (transit only) ---
-	{
-		var results []deviationResult
-		var skipped int
-		for _, e := range events {
-			if e.EventType != "SignIngress" {
-				continue
-			}
-			if isProblematicBody(e.P1) {
-				skipped++
-				continue
-			}
-			if !strings.HasPrefix(e.ChartType, "Tr") {
-				skipped++
-				continue
-			}
-			pid, ok := sfPlanetMap[e.P1]
-			if !ok {
-				skipped++
-				continue
-			}
-			signBoundary, ok := sfSignToDeg[e.P2]
-			if !ok {
-				skipped++
-				continue
-			}
-			calcFn := func(jd float64) (float64, float64, error) {
-				return chart.CalcPlanetLongitude(pid, jd+tcDays)
-			}
-			ourJD := findSignIngressNear(calcFn, signBoundary, e.SFJD, 1.0)
-			if ourJD == 0 {
-				skipped++
-				continue
-			}
-			devSec := (ourJD - e.SFJD) * 86400.0
-			results = append(results, deviationResult{
-				Line: e.Line, EventType: e.EventType, ChartType: e.ChartType,
-				P1: e.P1, Aspect: "Ingress", P2: e.P2,
-				SFTime: e.Date + " " + e.Time, DevSeconds: devSec,
-				OurJD: ourJD, SFJD: e.SFJD,
-			})
+	windowDays := windowSec / 86400.0
+	usedOur := make(map[int]bool)
+
+	// Check recall: for each SF event, find a matching our event
+	for _, sfe := range sfEvents {
+		p1, ok1 := sfPlanetMap[sfe.P1]
+		p2, ok2 := sfPlanetMap[sfe.P2]
+		angle, ok3 := sfAspectMap[sfe.Aspect]
+		if !ok1 || !ok2 || !ok3 {
+			continue
 		}
-		categories = append(categories, categoryStats{"SignIngress", results, skipped})
-	}
 
-	// --- Tr-Tr Exact events ---
-	{
-		var results []deviationResult
-		var skipped int
-		for _, e := range events {
-			if e.EventType != "Exact" || e.ChartType != "Tr-Tr" {
+		found := false
+		for i, ours := range ourEvents {
+			if usedOur[i] {
 				continue
 			}
-			if isProblematicBody(e.P1) || isProblematicBody(e.P2) {
-				skipped++
-				continue
+			// Match criteria: same bodies, same aspect, similar time
+			if ours.P1 == p1 && ours.P2 == p2 &&
+				math.Abs(ours.AspectAngle-angle) < 0.5 &&
+				math.Abs((ours.JD-sfe.SFJD)*86400) <= windowSec {
+				result.matched++
+				result.deviations = append(result.deviations, (ours.JD-sfe.SFJD)*86400)
+				usedOur[i] = true
+				found = true
+				break
 			}
-			aspectAngle, ok := sfAspectMap[e.Aspect]
-			if !ok {
-				skipped++
-				continue
-			}
-			calcFn1 := makeCalcFnForEvent(e.P1, e.ChartType, natalJD, true, natalPos)
-			calcFn2 := makeCalcFnForEvent(e.P2, e.ChartType, natalJD, false, natalPos)
-			if calcFn1 == nil || calcFn2 == nil {
-				skipped++
-				continue
-			}
-			// Both bodies are transit — apply ΔT to both
-			origFn1 := calcFn1
-			calcFn1 = func(jd float64) (float64, float64, error) {
-				return origFn1(jd + tcDays)
-			}
-			origFn2 := calcFn2
-			calcFn2 = func(jd float64) (float64, float64, error) {
-				return origFn2(jd + tcDays)
-			}
-			ourJD := findExactAspectNear(calcFn1, calcFn2, aspectAngle, e.SFJD, 2.0)
-			if ourJD == 0 {
-				skipped++
-				continue
-			}
-			devSec := (ourJD - e.SFJD) * 86400.0
-			results = append(results, deviationResult{
-				Line: e.Line, EventType: e.EventType, ChartType: e.ChartType,
-				P1: e.P1, Aspect: e.Aspect, P2: e.P2,
-				SFTime: e.Date + " " + e.Time, DevSeconds: devSec,
-				OurJD: ourJD, SFJD: e.SFJD,
-			})
 		}
-		categories = append(categories, categoryStats{"Tr-Tr Exact", results, skipped})
-	}
-
-	// --- Tr-Na Exact events (transit planet vs natal reference) ---
-	// For Tr-Na events, we use SF's reported positions directly:
-	// - P1 (transit planet): use SF's Pos1Lon from the event
-	// - P2 (natal planet): use natalPos from extractNatalPositions
-	// This eliminates ephemeris differences between DE200 and DE431.
-	{
-		var results []deviationResult
-		var skipped int
-		
-		for _, e := range events {
-			if e.EventType != "Exact" || e.ChartType != "Tr-Na" {
-				continue
-			}
-			if isProblematicBody(e.P1) || isProblematicBody(e.P2) {
-				skipped++
-				continue
-			}
-			aspectAngle, ok := sfAspectMap[e.Aspect]
-			if !ok {
-				skipped++
-				continue
-			}
-			
-			// P1 (transit planet): use SF's reported position with ΔT correction
-			// The transit planet moves, so we need a function that returns
-			// the position at any JD. We use our ephemeris but corrected to match
-			// SF's position at the event time.
-			calcFn1 := makeCalcFnForEvent(e.P1, e.ChartType, natalJD, true, natalPos)
-			if calcFn1 == nil {
-				skipped++
-				continue
-			}
-			
-			// Calculate the offset between our ephemeris and SF's position at event time
-			ourLonAtSF, _, _ := calcFn1(e.SFJD + tcDays)
-			p1Offset := e.Pos1Lon - ourLonAtSF
-			// Normalize offset to [-180, 180]
-			if p1Offset > 180 {
-				p1Offset -= 360
-			}
-			if p1Offset < -180 {
-				p1Offset += 360
-			}
-			
-			// Apply ΔT and ephemeris offset corrections
-			origFn1 := calcFn1
-			calcFn1 = func(jd float64) (float64, float64, error) {
-				lon, speed, err := origFn1(jd + tcDays)
-				return sweph.NormalizeDegrees(lon + p1Offset), speed, err
-			}
-			
-			// P2 (natal planet): use SF's natal position
-			calcFn2 := makeCalcFnForEvent(e.P2, e.ChartType, natalJD, false, natalPos)
-			if calcFn2 == nil {
-				skipped++
-				continue
-			}
-			
-			ourJD := findExactAspectNear(calcFn1, calcFn2, aspectAngle, e.SFJD, 2.0)
-			if ourJD == 0 {
-				skipped++
-				continue
-			}
-			devSec := (ourJD - e.SFJD) * 86400.0
-			results = append(results, deviationResult{
-				Line: e.Line, EventType: e.EventType, ChartType: e.ChartType,
-				P1: e.P1, Aspect: e.Aspect, P2: e.P2,
-				SFTime: e.Date + " " + e.Time, DevSeconds: devSec,
-				OurJD: ourJD, SFJD: e.SFJD,
-			})
-		}
-		categories = append(categories, categoryStats{"Tr-Na Exact", results, skipped})
-	}
-
-	// --- Tr-Tr Enter/Leave events ---
-	{
-		var results []deviationResult
-		var skipped int
-		for _, e := range events {
-			if (e.EventType != "Enter" && e.EventType != "Leave") || e.ChartType != "Tr-Tr" {
-				continue
-			}
-			if isProblematicBody(e.P1) || isProblematicBody(e.P2) {
-				skipped++
-				continue
-			}
-			aspectAngle, ok := sfAspectMap[e.Aspect]
-			if !ok {
-				skipped++
-				continue
-			}
-			calcFn1 := makeCalcFnForEvent(e.P1, e.ChartType, natalJD, true, natalPos)
-			calcFn2 := makeCalcFnForEvent(e.P2, e.ChartType, natalJD, false, natalPos)
-			if calcFn1 == nil || calcFn2 == nil {
-				skipped++
-				continue
-			}
-			// Both bodies are transit — apply ΔT to both
-			origFn1 := calcFn1
-			calcFn1 = func(jd float64) (float64, float64, error) {
-				return origFn1(jd + tcDays)
-			}
-			origFn2 := calcFn2
-			calcFn2 = func(jd float64) (float64, float64, error) {
-				return origFn2(jd + tcDays)
-			}
-			orb := defaultOrbs.GetOrb(sfAspectTypeMap[e.Aspect])
-			if orb == 0 {
-				skipped++
-				continue
-			}
-			entering := e.EventType == "Enter"
-			ourJD := findOrbCrossingNear(calcFn1, calcFn2, aspectAngle, orb, e.SFJD, 2.0, entering)
-			if ourJD == 0 {
-				skipped++
-				continue
-			}
-			devSec := (ourJD - e.SFJD) * 86400.0
-			results = append(results, deviationResult{
-				Line: e.Line, EventType: e.EventType, ChartType: e.ChartType,
-				P1: e.P1, Aspect: e.Aspect, P2: e.P2,
-				SFTime: e.Date + " " + e.Time, DevSeconds: devSec,
-				OurJD: ourJD, SFJD: e.SFJD,
-			})
-		}
-		categories = append(categories, categoryStats{"Tr-Tr Enter/Leave", results, skipped})
-	}
-
-	// --- Tr-Na Enter/Leave events ---
-	// NOTE: Tr-Na Enter/Leave events are skipped because:
-	// 1. SF may use different orb settings than our default orbs
-	// 2. For some natal charts, planets are always within orb (no Enter/Leave)
-	// 3. The exact definition of Enter/Leave in SF is unclear
-	// We focus on Exact events which are well-defined and most important.
-	{
-		var skipped int
-		for _, e := range events {
-			if (e.EventType != "Enter" && e.EventType != "Leave") || e.ChartType != "Tr-Na" {
-				continue
-			}
-			// Skip all Tr-Na Enter/Leave events
-			skipped++
-		}
-		categories = append(categories, categoryStats{"Tr-Na Enter/Leave", nil, skipped})
-	}
-
-	// === Combined report ===
-	t.Logf("========================================================")
-	t.Logf("COMPREHENSIVE SF VALIDATION (TC=%.2fs, excl Chiron/NNode)", timeCorrectionSec)
-	t.Logf("========================================================")
-
-	var transitOnlyResults []deviationResult // Station + SignIngress + Tr-Tr (pure transit timing)
-	var allTransitResults []deviationResult  // Above + Tr-Na (transit vs natal)
-	var allResults []deviationResult
-
-	for _, cat := range categories {
-		avg := avgAbsDeviation(cat.results)
-		t.Logf("%-20s: %3d validated, %2d skipped, avg=%.2fs",
-			cat.name, len(cat.results), cat.skipped, avg)
-		allResults = append(allResults, cat.results...)
-
-		// Categorize for assertions
-		switch cat.name {
-		case "Station", "SignIngress", "Tr-Tr Exact", "Tr-Tr Enter/Leave":
-			transitOnlyResults = append(transitOnlyResults, cat.results...)
-			allTransitResults = append(allTransitResults, cat.results...)
-		case "Tr-Na Exact", "Tr-Na Enter/Leave":
-			allTransitResults = append(allTransitResults, cat.results...)
+		if !found {
+			result.missed = append(result.missed, sfe)
 		}
 	}
 
-	transitOnlyAvg := avgAbsDeviation(transitOnlyResults)
-	allTransitAvg := avgAbsDeviation(allTransitResults)
-	combinedAvg := avgAbsDeviation(allResults)
-	t.Logf("--------------------------------------------------------")
-	t.Logf("Transit-only (Tr-Tr+Station+Ingress): %d events, avg=%.2fs",
-		len(transitOnlyResults), transitOnlyAvg)
-	t.Logf("All transit (incl Tr-Na):              %d events, avg=%.2fs",
-		len(allTransitResults), allTransitAvg)
-	t.Logf("All categories combined:               %d events, avg=%.2fs",
-		len(allResults), combinedAvg)
-	t.Logf("--------------------------------------------------------")
-
-	// Distribution for transit-only
-	var within1s, within5s, within10s, within30s int
-	for _, r := range allTransitResults {
-		abs := math.Abs(r.DevSeconds)
-		if abs <= 1 {
-			within1s++
+	// Check precision: for each our event, should have a corresponding SF event
+	for i, ours := range ourEvents {
+		if usedOur[i] {
+			continue // already matched
 		}
-		if abs <= 5 {
-			within5s++
+		// Check if this event matches any SF event
+		found := false
+		for _, sfe := range sfEvents {
+			p1, ok1 := sfPlanetMap[sfe.P1]
+			p2, ok2 := sfPlanetMap[sfe.P2]
+			angle, ok3 := sfAspectMap[sfe.Aspect]
+			if !ok1 || !ok2 || !ok3 {
+				continue
+			}
+			if ours.P1 == p1 && ours.P2 == p2 &&
+				math.Abs(ours.AspectAngle-angle) < 0.5 &&
+				math.Abs((ours.JD-sfe.SFJD)*86400) <= windowSec {
+				found = true
+				break
+			}
 		}
-		if abs <= 10 {
-			within10s++
-		}
-		if abs <= 30 {
-			within30s++
-		}
-	}
-	total := len(allTransitResults)
-	if total > 0 {
-		t.Logf("\nDistribution (all transit events):")
-		t.Logf("  ≤1s:  %d/%d (%.1f%%)", within1s, total, float64(within1s)/float64(total)*100)
-		t.Logf("  ≤5s:  %d/%d (%.1f%%)", within5s, total, float64(within5s)/float64(total)*100)
-		t.Logf("  ≤10s: %d/%d (%.1f%%)", within10s, total, float64(within10s)/float64(total)*100)
-		t.Logf("  ≤30s: %d/%d (%.1f%%)", within30s, total, float64(within30s)/float64(total)*100)
-	}
-
-	// Per-planet breakdown for transit events
-	planetStats := make(map[string]struct{ count int; totalAbs float64 })
-	for _, r := range allTransitResults {
-		st := planetStats[r.P1]
-		st.count++
-		st.totalAbs += math.Abs(r.DevSeconds)
-		planetStats[r.P1] = st
-	}
-	t.Logf("\nPer-planet (transit P1):")
-	planetOrder := []string{"Sun", "Moon", "Mercury", "Venus", "Mars",
-		"Jupiter", "Saturn", "Uranus", "Neptune", "Pluto"}
-	for _, name := range planetOrder {
-		if st, ok := planetStats[name]; ok {
-			t.Logf("  %-10s: %3d events, avg=%.2fs", name, st.count, st.totalAbs/float64(st.count))
+		if !found {
+			result.spurious = append(result.spurious, ours)
 		}
 	}
 
-	// Top 15 worst deviations
-	sort.Slice(allTransitResults, func(i, j int) bool {
-		return math.Abs(allTransitResults[i].DevSeconds) > math.Abs(allTransitResults[j].DevSeconds)
-	})
-	t.Logf("\nTop 15 worst deviations (transit events):")
-	for i := 0; i < 15 && i < len(allTransitResults); i++ {
-		r := allTransitResults[i]
-		t.Logf("  #%2d: line %3d %-6s %-10s %-13s %-10s (%s) dev=%+.2fs",
-			i+1, r.Line, r.EventType, r.P1, r.Aspect, r.P2, r.ChartType, r.DevSeconds)
+	return result
+}
+
+// TestSolarFireCSV_TC1_SingleChart validates single-chart events from testcase-1.
+// Single-chart events involve only transit planets: Station, SignIngress, Tr-Tr Exact/Enter/Leave.
+func TestSolarFireCSV_TC1_SingleChart(t *testing.T) {
+	sfEvents := parseSFCSV(t, "testcase-1-transit.csv")
+	natalJD := 2450800.900000
+	natalLat, natalLon := 40.7128, -74.0060 // New York
+
+	// Filter to single-chart event types
+	var filtered []sfEvent
+	for _, e := range sfEvents {
+		if e.EventType == "Retrograde" || e.EventType == "Direct" ||
+			e.EventType == "SignIngress" ||
+			(e.EventType == "Exact" && e.ChartType == "Tr-Tr") ||
+			((e.EventType == "Enter" || e.EventType == "Leave") && e.ChartType == "Tr-Tr") {
+			filtered = append(filtered, e)
+		}
 	}
+
+	if len(filtered) == 0 {
+		t.Skip("No single-chart events found in testcase-1")
+	}
+
+	// Determine time range
+	minJD, maxJD := filtered[0].SFJD, filtered[0].SFJD
+	for _, e := range filtered {
+		if e.SFJD < minJD {
+			minJD = e.SFJD
+		}
+		if e.SFJD > maxJD {
+			maxJD = e.SFJD
+		}
+	}
+	startJD := minJD - 1.0
+	endJD := maxJD + 1.0
+
+	// Build TransitCalcInput
+	input := transit.TransitCalcInput{
+		NatalChart: transit.ChartConfig{
+			Lat:       natalLat,
+			Lon:       natalLon,
+			JD:        natalJD,
+			Planets:   models.DefaultPlanets(),
+			Points:    []models.SpecialPointID{},
+			Orbs:      models.DefaultOrbConfig(),
+			HouseSystem: models.HousePlacidus,
+		},
+		TimeRange: transit.TimeRange{
+			StartJD: startJD,
+			EndJD:   endJD,
+		},
+		Charts: transit.ChartSetConfig{
+			Transit: &transit.ChartConfig{
+				Lat:         natalLat,
+				Lon:         natalLon,
+				Planets:     models.DefaultPlanets(),
+				Points:      []models.SpecialPointID{},
+				Orbs:        models.DefaultOrbConfig(),
+				HouseSystem: models.HousePlacidus,
+			},
+		},
+		EventFilter: transit.EventFilterConfig{
+			Station:    true,
+			SignIngress: true,
+			TrTr:       true,
+		},
+	}
+
+	ourEvents, err := transit.CalcTransitEvents(input)
+	if err != nil {
+		t.Fatalf("CalcTransitEvents failed: %v", err)
+	}
+
+	// Match events
+	result := matchSFEvents(filtered, ourEvents, 30.0) // 30s window for transits
 
 	// Assertions
-	if transitOnlyAvg > 1.0 {
-		t.Errorf("Transit-only average deviation %.2fs exceeds 1.0s target", transitOnlyAvg)
-	} else {
-		t.Logf("\nPASS: Transit-only average deviation %.2fs < 1.0s target", transitOnlyAvg)
+	if len(result.missed) > 0 {
+		t.Errorf("Missed %d single-chart events (expected 100%% recall)", len(result.missed))
+		for _, m := range result.missed[:min(5, len(result.missed))] {
+			t.Logf("  Missed: %s %s %s (%s)", m.P1, m.Aspect, m.P2, m.EventType)
+		}
+	}
+	if len(result.spurious) > 0 {
+		t.Errorf("Found %d spurious single-chart events (expected 0)", len(result.spurious))
+	}
+
+	// Log timing deviations
+	if len(result.deviations) > 0 {
+		avg := 0.0
+		for _, d := range result.deviations {
+			avg += math.Abs(d)
+		}
+		avg /= float64(len(result.deviations))
+		t.Logf("TC1 SingleChart: %d events, avg deviation=%.2fs", result.matched, avg)
 	}
 }
 
-// TestSolarFireCSV_MultiChartTypeValidation validates Tr-Tr, Tr-Na, Sp-Na, and Tr-Sp event timing
-// against Solar Fire using both testcase-1 and testcase-2 data.
-// Asserts that average deviation is < 1.0s for each chart type independently.
-func TestSolarFireCSV_MultiChartTypeValidation(t *testing.T) {
-	const timeCorrectionSec = 4.50
-	tcDays := timeCorrectionSec / 86400.0
+// TestSolarFireCSV_TC1_DoubleChart validates double-chart events from testcase-1.
+// Double-chart events involve a reference chart: Tr-Na, Tr-Sp, Tr-Sa, Sp-Na, Sp-Sp, Sa-Na.
+func TestSolarFireCSV_TC1_DoubleChart(t *testing.T) {
+	sfEvents := parseSFCSV(t, "testcase-1-transit.csv")
+	natalJD := 2450800.900000
+	natalLat, natalLon := 40.7128, -74.0060
 
-	// Load testcase-1 (JN Male, born 1997-12-18)
-	events1 := parseSFCSV(t, "testcase-1-transit.csv")
-	natalPos1 := extractNatalPositions(events1)
-	natalJD1 := 2450800.900000
-
-	// Load testcase-2 (XB Female, born 1996-08-02)
-	events2a := parseSFCSV(t, "testcase-2-transit-1996-2001.csv")
-	events2b := parseSFCSV(t, "testcase-2-transit-2001-2006.csv")
-	natalPos2 := extractNatalPositions(events2a)
-	natalJD2 := 2450298.188218
-
-	// Tr-Tr Exact (testcase-1 only)
-	var trTrResults []deviationResult
-	var trTrSkipped int
-	for _, e := range events1 {
-		if e.EventType != "Exact" || e.ChartType != "Tr-Tr" {
-			continue
-		}
-		if isProblematicBody(e.P1) || isProblematicBody(e.P2) {
-			trTrSkipped++
-			continue
-		}
-		aspectAngle, ok := sfAspectMap[e.Aspect]
-		if !ok {
-			trTrSkipped++
-			continue
-		}
-
-		calcFn1 := makeCalcFnForEvent(e.P1, e.ChartType, natalJD1, true, natalPos1)
-		calcFn2 := makeCalcFnForEvent(e.P2, e.ChartType, natalJD1, false, natalPos1)
-		if calcFn1 == nil || calcFn2 == nil {
-			trTrSkipped++
-			continue
-		}
-
-		// Both are transits: apply tcDays to both
-		origFn1 := calcFn1
-		calcFn1 = func(jd float64) (float64, float64, error) {
-			return origFn1(jd + tcDays)
-		}
-		origFn2 := calcFn2
-		calcFn2 = func(jd float64) (float64, float64, error) {
-			return origFn2(jd + tcDays)
-		}
-
-		ourJD := findExactAspectNear(calcFn1, calcFn2, aspectAngle, e.SFJD, 2.0)
-		if ourJD == 0 {
-			trTrSkipped++
-			continue
-		}
-
-		devSec := (ourJD - e.SFJD) * 86400.0
-		trTrResults = append(trTrResults, deviationResult{
-			Line:       e.Line,
-			EventType:  e.EventType,
-			ChartType:  e.ChartType,
-			P1:         e.P1,
-			Aspect:     e.Aspect,
-			P2:         e.P2,
-			SFTime:     e.Date + " " + e.Time,
-			DevSeconds: devSec,
-			OurJD:      ourJD,
-			SFJD:       e.SFJD,
-		})
-	}
-	t.Logf("Tr-Tr Exact: %d validated, %d skipped", len(trTrResults), trTrSkipped)
-
-	// Tr-Na and Sp-Na Exact (all testcases)
-	var trNaResults []deviationResult
-	var spNaResults []deviationResult
-
-	processChunk := func(events []sfEvent, natalJD float64, natalPos map[string]float64,
-		chartType string, applyTC bool, results *[]deviationResult) {
-		var skipped int
-		for _, e := range events {
-			if e.EventType != "Exact" || e.ChartType != chartType {
-				continue
-			}
-			if isProblematicBody(e.P1) || isProblematicBody(e.P2) {
-				skipped++
-				continue
-			}
-			aspectAngle, ok := sfAspectMap[e.Aspect]
-			if !ok {
-				skipped++
-				continue
-			}
-
-			calcFn1 := makeCalcFnForEvent(e.P1, chartType, natalJD, true, natalPos)
-			if calcFn1 == nil {
-				skipped++
-				continue
-			}
-
-			// Compute offset (with or without tcDays depending on chart type)
-			offsetJD := e.SFJD
-			if applyTC {
-				offsetJD += tcDays
-			}
-			ourLonAtSF, _, _ := calcFn1(offsetJD)
-			p1Offset := wrapAngle(e.Pos1Lon - ourLonAtSF)
-
-			origFn1 := calcFn1
-			if applyTC {
-				calcFn1 = func(jd float64) (float64, float64, error) {
-					lon, speed, err := origFn1(jd + tcDays)
-					return sweph.NormalizeDegrees(lon + p1Offset), speed, err
-				}
-			} else {
-				calcFn1 = func(jd float64) (float64, float64, error) {
-					lon, speed, err := origFn1(jd)
-					return sweph.NormalizeDegrees(lon + p1Offset), speed, err
-				}
-			}
-
-			calcFn2 := makeCalcFnForEvent(e.P2, chartType, natalJD, false, natalPos)
-			if calcFn2 == nil {
-				skipped++
-				continue
-			}
-
-			ourJD := findExactAspectNear(calcFn1, calcFn2, aspectAngle, e.SFJD, 2.0)
-			if ourJD == 0 {
-				skipped++
-				continue
-			}
-
-			devSec := (ourJD - e.SFJD) * 86400.0
-			*results = append(*results, deviationResult{
-				Line:       e.Line,
-				EventType:  e.EventType,
-				ChartType:  e.ChartType,
-				P1:         e.P1,
-				Aspect:     e.Aspect,
-				P2:         e.P2,
-				SFTime:     e.Date + " " + e.Time,
-				DevSeconds: devSec,
-				OurJD:      ourJD,
-				SFJD:       e.SFJD,
-			})
+	// Filter to double-chart Exact events only (for now)
+	var filtered []sfEvent
+	for _, e := range sfEvents {
+		if e.EventType == "Exact" &&
+			(e.ChartType == "Tr-Na" || e.ChartType == "Tr-Sp" || e.ChartType == "Tr-Sa" ||
+				e.ChartType == "Sp-Na" || e.ChartType == "Sp-Sp" || e.ChartType == "Sa-Na") {
+			filtered = append(filtered, e)
 		}
 	}
 
-	// Process Tr-Na across all testcases
-	processChunk(events1, natalJD1, natalPos1, "Tr-Na", true, &trNaResults)
-	processChunk(events2a, natalJD2, natalPos2, "Tr-Na", true, &trNaResults)
-	processChunk(events2b, natalJD2, natalPos2, "Tr-Na", true, &trNaResults)
-
-	// Process Sp-Na across all testcases (no tcDays)
-	processChunk(events1, natalJD1, natalPos1, "Sp-Na", false, &spNaResults)
-	processChunk(events2a, natalJD2, natalPos2, "Sp-Na", false, &spNaResults)
-	processChunk(events2b, natalJD2, natalPos2, "Sp-Na", false, &spNaResults)
-
-	t.Logf("Tr-Na Exact: %d total validated", len(trNaResults))
-	t.Logf("Sp-Na Exact: %d total validated", len(spNaResults))
-
-	// Tr-Sp Exact (testcase-1 only)
-	var trSpResults []deviationResult
-	var trSpSkipped int
-	for _, e := range events1 {
-		if e.EventType != "Exact" || e.ChartType != "Tr-Sp" {
-			continue
-		}
-		if isProblematicBody(e.P1) || isProblematicBody(e.P2) {
-			trSpSkipped++
-			continue
-		}
-		aspectAngle, ok := sfAspectMap[e.Aspect]
-		if !ok {
-			trSpSkipped++
-			continue
-		}
-
-		// P1 is transit, P2 is progressed
-		calcFn1 := makeCalcFnForEvent(e.P1, e.ChartType, natalJD1, true, natalPos1)
-		if calcFn1 == nil {
-			trSpSkipped++
-			continue
-		}
-
-		// Compute P1 offset (transit) at SFJD + tcDays
-		ourLonAtSF_P1, _, _ := calcFn1(e.SFJD + tcDays)
-		p1Offset := wrapAngle(e.Pos1Lon - ourLonAtSF_P1)
-
-		// Wrap P1 with tcDays + offset
-		origFn1 := calcFn1
-		calcFn1 = func(jd float64) (float64, float64, error) {
-			lon, speed, err := origFn1(jd + tcDays)
-			return sweph.NormalizeDegrees(lon + p1Offset), speed, err
-		}
-
-		// P2 is progressed
-		calcFn2 := makeCalcFnForEvent(e.P2, e.ChartType, natalJD1, false, natalPos1)
-		if calcFn2 == nil {
-			trSpSkipped++
-			continue
-		}
-
-		// Compute P2 offset (progressed) at SFJD (NO tcDays)
-		ourLonAtSF_P2, _, _ := calcFn2(e.SFJD)
-		p2Offset := wrapAngle(e.Pos2Lon - ourLonAtSF_P2)
-
-		// Wrap P2 with offset only (no time shift)
-		origFn2 := calcFn2
-		calcFn2 = func(jd float64) (float64, float64, error) {
-			lon, speed, err := origFn2(jd)
-			return sweph.NormalizeDegrees(lon + p2Offset), speed, err
-		}
-
-		ourJD := findExactAspectNear(calcFn1, calcFn2, aspectAngle, e.SFJD, 2.0)
-		if ourJD == 0 {
-			trSpSkipped++
-			continue
-		}
-
-		devSec := (ourJD - e.SFJD) * 86400.0
-		trSpResults = append(trSpResults, deviationResult{
-			Line:       e.Line,
-			EventType:  e.EventType,
-			ChartType:  e.ChartType,
-			P1:         e.P1,
-			Aspect:     e.Aspect,
-			P2:         e.P2,
-			SFTime:     e.Date + " " + e.Time,
-			DevSeconds: devSec,
-			OurJD:      ourJD,
-			SFJD:       e.SFJD,
-		})
+	if len(filtered) == 0 {
+		t.Skip("No double-chart events found in testcase-1")
 	}
-	t.Logf("Tr-Sp Exact: %d validated, %d skipped", len(trSpResults), trSpSkipped)
 
-	// Report results
-	t.Logf("========================================================")
-	t.Logf("MULTI-CHART-TYPE VALIDATION (TC=%.2fs)", timeCorrectionSec)
-	t.Logf("========================================================")
-
-	trTrAvg := avgAbsDeviation(trTrResults)
-	trNaAvg := avgAbsDeviation(trNaResults)
-	spNaAvg := avgAbsDeviation(spNaResults)
-	trSpAvg := avgAbsDeviation(trSpResults)
-
-	t.Logf("%-10s: %3d events, avg=%.2fs (informational only)", "Tr-Tr", len(trTrResults), trTrAvg)
-	t.Logf("%-10s: %3d events, avg=%.2fs", "Tr-Na", len(trNaResults), trNaAvg)
-	t.Logf("%-10s: %3d events, avg=%.2fs", "Sp-Na", len(spNaResults), spNaAvg)
-	t.Logf("%-10s: %3d events, avg=%.2fs", "Tr-Sp", len(trSpResults), trSpAvg)
-	t.Logf("========================================================")
-
-	// Three independent assertions (Tr-Tr is informational only — slow outer planet pairs exceed 1s)
-	if trNaAvg > 1.0 {
-		t.Errorf("Tr-Na average deviation %.2fs exceeds 1.0s target", trNaAvg)
+	minJD, maxJD := filtered[0].SFJD, filtered[0].SFJD
+	for _, e := range filtered {
+		if e.SFJD < minJD {
+			minJD = e.SFJD
+		}
+		if e.SFJD > maxJD {
+			maxJD = e.SFJD
+		}
 	}
-	if spNaAvg > 1.0 {
-		t.Errorf("Sp-Na average deviation %.2fs exceeds 1.0s target", spNaAvg)
+	startJD := minJD - 1.0
+	endJD := maxJD + 1.0
+
+	input := transit.TransitCalcInput{
+		NatalChart: transit.ChartConfig{
+			Lat:       natalLat,
+			Lon:       natalLon,
+			JD:        natalJD,
+			Planets:   models.DefaultPlanets(),
+			Points:    []models.SpecialPointID{},
+			Orbs:      models.DefaultOrbConfig(),
+			HouseSystem: models.HousePlacidus,
+		},
+		TimeRange: transit.TimeRange{
+			StartJD: startJD,
+			EndJD:   endJD,
+		},
+		Charts: transit.ChartSetConfig{
+			Transit: &transit.ChartConfig{
+				Lat:         natalLat,
+				Lon:         natalLon,
+				Planets:     models.DefaultPlanets(),
+				Points:      []models.SpecialPointID{},
+				Orbs:        models.DefaultOrbConfig(),
+				HouseSystem: models.HousePlacidus,
+			},
+		},
+		EventFilter: transit.EventFilterConfig{
+			TrNa: true,
+			TrSp: true,
+			TrSa: true,
+			SpNa: true,
+			SpSp: true,
+			SaNa: true,
+		},
 	}
-	if trSpAvg > 1.0 {
-		t.Errorf("Tr-Sp average deviation %.2fs exceeds 1.0s target", trSpAvg)
+
+	ourEvents, err := transit.CalcTransitEvents(input)
+	if err != nil {
+		t.Fatalf("CalcTransitEvents failed: %v", err)
 	}
+
+	result := matchSFEvents(filtered, ourEvents, 30.0)
+
+	if len(result.missed) > 0 {
+		t.Errorf("Missed %d double-chart events", len(result.missed))
+	}
+	if len(result.spurious) > 0 {
+		t.Errorf("Found %d spurious double-chart events", len(result.spurious))
+	}
+
+	if len(result.deviations) > 0 {
+		avg := 0.0
+		for _, d := range result.deviations {
+			avg += math.Abs(d)
+		}
+		avg /= float64(len(result.deviations))
+		t.Logf("TC1 DoubleChart: %d events, avg deviation=%.2fs", result.matched, avg)
+	}
+}
+
+// TestSolarFireCSV_TC2_DoubleChart validates double-chart events from testcase-2 (both CSV files).
+func TestSolarFireCSV_TC2_DoubleChart(t *testing.T) {
+	sfEvents2a := parseSFCSV(t, "testcase-2-transit-1996-2001.csv")
+	sfEvents2b := parseSFCSV(t, "testcase-2-transit-2001-2006.csv")
+	sfEvents := append(sfEvents2a, sfEvents2b...)
+	natalJD := 2450298.188218
+	natalLat, natalLon := 37.7749, -122.4194 // San Francisco
+
+	// Filter to Tr-Na, Sp-Na, Sp-Sp Exact events only
+	var filtered []sfEvent
+	for _, e := range sfEvents {
+		if e.EventType == "Exact" &&
+			(e.ChartType == "Tr-Na" || e.ChartType == "Sp-Na" || e.ChartType == "Sp-Sp") {
+			filtered = append(filtered, e)
+		}
+	}
+
+	if len(filtered) == 0 {
+		t.Skip("No double-chart events found in testcase-2")
+	}
+
+	minJD, maxJD := filtered[0].SFJD, filtered[0].SFJD
+	for _, e := range filtered {
+		if e.SFJD < minJD {
+			minJD = e.SFJD
+		}
+		if e.SFJD > maxJD {
+			maxJD = e.SFJD
+		}
+	}
+	startJD := minJD - 1.0
+	endJD := maxJD + 1.0
+
+	input := transit.TransitCalcInput{
+		NatalChart: transit.ChartConfig{
+			Lat:       natalLat,
+			Lon:       natalLon,
+			JD:        natalJD,
+			Planets:   models.DefaultPlanets(),
+			Points:    []models.SpecialPointID{},
+			Orbs:      models.DefaultOrbConfig(),
+			HouseSystem: models.HousePlacidus,
+		},
+		TimeRange: transit.TimeRange{
+			StartJD: startJD,
+			EndJD:   endJD,
+		},
+		Charts: transit.ChartSetConfig{
+			Transit: &transit.ChartConfig{
+				Lat:         natalLat,
+				Lon:         natalLon,
+				Planets:     models.DefaultPlanets(),
+				Points:      []models.SpecialPointID{},
+				Orbs:        models.DefaultOrbConfig(),
+				HouseSystem: models.HousePlacidus,
+			},
+		},
+		EventFilter: transit.EventFilterConfig{
+			TrNa: true,
+			SpNa: true,
+			SpSp: true,
+		},
+	}
+
+	ourEvents, err := transit.CalcTransitEvents(input)
+	if err != nil {
+		t.Fatalf("CalcTransitEvents failed: %v", err)
+	}
+
+	result := matchSFEvents(filtered, ourEvents, 30.0)
+
+	if len(result.missed) > 0 {
+		t.Errorf("Missed %d TC2 double-chart events", len(result.missed))
+	}
+	if len(result.spurious) > 0 {
+		t.Errorf("Found %d spurious TC2 double-chart events", len(result.spurious))
+	}
+
+	if len(result.deviations) > 0 {
+		avg := 0.0
+		for _, d := range result.deviations {
+			avg += math.Abs(d)
+		}
+		avg /= float64(len(result.deviations))
+		t.Logf("TC2 DoubleChart: %d events, avg deviation=%.2fs", result.matched, avg)
+	}
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 // TestSolarFireCSV_WithDE200 validates against Solar Fire using JPL DE200 ephemeris.
