@@ -167,6 +167,14 @@ func buildTasks(ctx *CalcContext) []Task {
 				})
 			}
 		}
+
+		// TR-SR: Transit → SolarReturn aspects (RQ1)
+		if input.EventFilter.TrSr && len(ctx.SRRefs) > 0 {
+			tasks = append(tasks, &AspectRQ1Task{
+				Body:      trBody,
+				NatalRefs: ctx.SRRefs,
+			})
+		}
 	}
 
 	// Process Progressions bodies
@@ -205,6 +213,14 @@ func buildTasks(ctx *CalcContext) []Task {
 				}
 			}
 		}
+
+		// SP-SR: Progressions → SolarReturn aspects (RQ1)
+		if input.EventFilter.SpSr && len(ctx.SRRefs) > 0 {
+			tasks = append(tasks, &AspectRQ1Task{
+				Body:      spBody,
+				NatalRefs: ctx.SRRefs,
+			})
+		}
 	}
 
 	// Process SolarArc bodies
@@ -226,6 +242,14 @@ func buildTasks(ctx *CalcContext) []Task {
 			tasks = append(tasks, &AspectRQ1Task{
 				Body:      saBody,
 				NatalRefs: ctx.NatalRefs,
+			})
+		}
+
+		// SA-SR: SolarArc → SolarReturn aspects (RQ1)
+		if input.EventFilter.SaSr && len(ctx.SRRefs) > 0 {
+			tasks = append(tasks, &AspectRQ1Task{
+				Body:      saBody,
+				NatalRefs: ctx.SRRefs,
 			})
 		}
 	}

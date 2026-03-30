@@ -31,11 +31,24 @@ type SolarArcChartConfig struct {
 	HouseSystem models.HouseSystem    // House system (shared across all charts)
 }
 
+// SolarReturnChartConfig holds configuration for solar return chart calculations.
+type SolarReturnChartConfig struct {
+	Lat, Lon      float64            // Solar return location
+	SRChartJD     float64            // Exact SR moment JD (if known)
+	NatalJD       float64            // Natal JD (needed to find SR if SRChartJD == 0)
+	SearchAfterJD float64            // Start searching for SR after this JD
+	Planets       []models.PlanetID
+	Points        []models.SpecialPointID
+	Orbs          models.OrbConfig
+	HouseSystem   models.HouseSystem
+}
+
 // ChartSetConfig holds all chart configurations for transit calculation.
 type ChartSetConfig struct {
 	Transit      *TransitChartConfig      // nil means disabled
 	Progressions *ProgressionsChartConfig // nil means disabled
 	SolarArc     *SolarArcChartConfig     // nil means disabled
+	SolarReturn  *SolarReturnChartConfig  // nil means disabled
 }
 
 // NatalChartConfig holds configuration for the natal chart (fixed reference).
@@ -84,9 +97,12 @@ type EventFilterConfig struct {
 	TrTr bool // Transit → Transit
 	TrSp bool // Transit → Progressions
 	TrSa bool // Transit → SolarArc
+	TrSr bool // Transit → SolarReturn
 	SpNa bool // Progressions → Natal
 	SpSp bool // Progressions → Progressions
+	SpSr bool // Progressions → SolarReturn
 	SaNa bool // SolarArc → Natal
+	SaSr bool // SolarArc → SolarReturn
 }
 
 // DefaultEventFilterConfig returns a config with all events enabled.
@@ -100,8 +116,11 @@ func DefaultEventFilterConfig() EventFilterConfig {
 		TrTr:         true,
 		TrSp:         true,
 		TrSa:         true,
+		TrSr:         true,
 		SpNa:         true,
 		SpSp:         true,
+		SpSr:         true,
 		SaNa:         true,
+		SaSr:         true,
 	}
 }

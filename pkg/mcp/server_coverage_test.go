@@ -58,11 +58,11 @@ func TestBuildTransitInput_Defaults(t *testing.T) {
 	if tz != "UTC" {
 		t.Errorf("Default timezone = %q, want UTC", tz)
 	}
-	if len(input.NatalPlanets) != 10 {
-		t.Errorf("Default natal planets = %d, want 10", len(input.NatalPlanets))
+	if len(input.NatalChart.Planets) != 10 {
+		t.Errorf("Default natal planets = %d, want 10", len(input.NatalChart.Planets))
 	}
-	if len(input.TransitPlanets) != 10 {
-		t.Errorf("Default transit planets = %d, want 10", len(input.TransitPlanets))
+	if len(input.Charts.Transit.Planets) != 10 {
+		t.Errorf("Default transit planets = %d, want 10", len(input.Charts.Transit.Planets))
 	}
 }
 
@@ -91,8 +91,8 @@ func TestBuildTransitInput_CustomOrbs(t *testing.T) {
 	if tz != "Asia/Shanghai" {
 		t.Errorf("Timezone = %q, want Asia/Shanghai", tz)
 	}
-	if input.OrbConfigTransit.Conjunction != 5 {
-		t.Errorf("Transit orb conjunction = %f, want 5", input.OrbConfigTransit.Conjunction)
+	if input.Charts.Transit.Orbs.Conjunction != 5 {
+		t.Errorf("Transit orb conjunction = %f, want 5", input.Charts.Transit.Orbs.Conjunction)
 	}
 }
 

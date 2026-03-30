@@ -521,9 +521,12 @@ func (s *Server) handleTransit(w http.ResponseWriter, r *http.Request) {
 			Progressions: func() *transit.ProgressionsChartConfig {
 				if req.ProgressionsConfig != nil {
 					return &transit.ProgressionsChartConfig{
-						Planets: req.ProgressionsConfig.Planets,
-						Points:  nil, // populated from SpecialPoints if needed
-						Orbs:    orbOrDefault(req.OrbConfigProgressions, baseOrbs),
+						Planets:     req.ProgressionsConfig.Planets,
+						Points:      nil, // populated from SpecialPoints if needed
+						Orbs:        orbOrDefault(req.OrbConfigProgressions, baseOrbs),
+						Lat:         req.TransitLatitude,
+						Lon:         req.TransitLongitude,
+						HouseSystem: req.HouseSystem,
 					}
 				}
 				return nil
@@ -543,11 +546,7 @@ func (s *Server) handleTransit(w http.ResponseWriter, r *http.Request) {
 			}(),
 		},
 		EventFilter: eventFilter,
-		// Keep old flat fields for backward compatibility with transit package
-		NatalLat:      req.NatalLatitude,
-		NatalLon:      req.NatalLongitude,
-		NatalJD:       req.NatalJDUT,
-		NatalPlanets:  req.NatalPlanets,
+		HouseSystem: req.HouseSystem,
 	}
 
 	events, err := transit.CalcTransitEvents(calcInput)

@@ -1444,25 +1444,7 @@ func (s *Server) buildTransitInput(args json.RawMessage) (transit.TransitCalcInp
 			},
 		},
 		EventFilter: eventFilter,
-
-		// Old flat fields (for backward compatibility with tests)
-		NatalLat:              input.NatalLatitude,
-		NatalLon:              input.NatalLongitude,
-		NatalJD:               input.NatalJDUT,
-		NatalPlanets:          input.NatalPlanets,
-		TransitLat:            input.TransitLatitude,
-		TransitLon:            input.TransitLongitude,
-		StartJD:               input.StartJDUT,
-		EndJD:                 input.EndJDUT,
-		TransitPlanets:        input.TransitPlanets,
-		ProgressionsConfig:    input.ProgressionsConfig,
-		SolarArcConfig:        input.SolarArcConfig,
-		SpecialPoints:         input.SpecialPoints,
-		EventConfig:           eventCfg,
-		OrbConfigTransit:      orbOrDefault(input.OrbConfigTransit, baseOrbs),
-		OrbConfigProgressions: orbOrDefault(input.OrbConfigProgressions, baseOrbs),
-		OrbConfigSolarArc:     orbOrDefault(input.OrbConfigSolarArc, baseOrbs),
-		HouseSystem:           input.HouseSystem,
+		HouseSystem: input.HouseSystem,
 	}, input.Timezone, nil
 }
 

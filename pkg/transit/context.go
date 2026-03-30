@@ -3,6 +3,7 @@ package transit
 import (
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/chart"
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/models"
+	"github.com/shaobaobaoer/solarsage-mcp/pkg/returns"
 )
 
 // NatalRef represents a fixed natal reference point (planet or special point).
@@ -19,6 +20,10 @@ type CalcContext struct {
 	NatalHouses []float64
 	NatalRefs   []NatalRef
 	NatalJD     float64
+
+	// Solar Return chart data (fixed, if enabled)
+	SRRefs []NatalRef
+	SRJD   float64
 
 	// Time range
 	StartJD float64
@@ -43,7 +48,7 @@ func buildCalcContext(input TransitCalcInput) (*CalcContext, error) {
 	// Build natal reference points
 	natalRefs := buildNatalRefs(input, natalHouses)
 
-	return &CalcContext{
+	ctx := &CalcContext{
 		NatalHouses:  natalHouses,
 		NatalRefs:    natalRefs,
 		NatalJD:      input.NatalChart.JD,
@@ -51,7 +56,19 @@ func buildCalcContext(input TransitCalcInput) (*CalcContext, error) {
 		EndJD:        input.TimeRange.EndJD,
 		StationCache: make(map[string][]StationInfo),
 		Input:        input,
-	}, nil
+	}
+
+	// Build Solar Return reference points if configured
+	if input.Charts.SolarReturn != nil {
+		srRefs, srJD, err := buildSRRefs(input)
+		if err != nil {
+			return nil, err
+		}
+		ctx.SRRefs = srRefs
+		ctx.SRJD = srJD
+	}
+
+	return ctx, nil
 }
 
 // buildNatalRefs collects all natal reference points (planets + special points).
@@ -129,4 +146,64 @@ func (ctx *CalcContext) GetStations(key string, calcFn bodyCalcFunc, planet mode
 	stations := findStations(calcFn, ctx.StartJD, ctx.EndJD, planet)
 	ctx.StationCache[key] = stations
 	return stations
+}
+
+// buildSRRefs calculates Solar Return reference points (planets + special points).
+func buildSRRefs(input TransitCalcInput) ([]NatalRef, float64, error) {
+	srCfg := input.Charts.SolarReturn
+
+	// Resolve SR JD
+	var srJD float64
+	if srCfg.SRChartJD != 0 {
+		srJD = srCfg.SRChartJD
+	} else {
+		// Calculate SR by finding when Sun returns to natal longitude
+		searchJD := srCfg.SearchAfterJD
+		if searchJD == 0 {
+			searchJD = input.TimeRange.StartJD
+		}
+		ret, err := returns.CalcSolarReturn(returns.ReturnInput{
+			NatalJD:     srCfg.NatalJD,
+			NatalLat:    srCfg.Lat,
+			NatalLon:    srCfg.Lon,
+			SearchJD:    searchJD,
+			Planets:     srCfg.Planets,
+			OrbConfig:   srCfg.Orbs,
+			HouseSystem: srCfg.HouseSystem,
+		})
+		if err != nil {
+			return nil, 0, err
+		}
+		srJD = ret.ReturnJD
+	}
+
+	var refs []NatalRef
+
+	// SR planets
+	for _, pid := range srCfg.Planets {
+		lon, _, err := chart.CalcPlanetLongitude(pid, srJD)
+		if err != nil {
+			continue
+		}
+		refs = append(refs, NatalRef{
+			ID:        string(pid),
+			Longitude: lon,
+			ChartType: models.ChartSolarReturn,
+		})
+	}
+
+	// SR special points
+	for _, sp := range srCfg.Points {
+		lon, err := chart.CalcSpecialPointLongitude(sp, srCfg.Lat, srCfg.Lon, srJD, srCfg.HouseSystem)
+		if err != nil {
+			continue
+		}
+		refs = append(refs, NatalRef{
+			ID:        string(sp),
+			Longitude: lon,
+			ChartType: models.ChartSolarReturn,
+		})
+	}
+
+	return refs, srJD, nil
 }
