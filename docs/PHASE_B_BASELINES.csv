@@ -49,3 +49,9 @@ XB,Moon,Phase Angle,146.15,degrees,0.1,yes,Moon-Sun elongation identical to JN
 XB,Moon,Illumination,91.5,percent,0.1,yes,Visible disk fraction identical to JN
 XB,DC,Cross Aspects,84,count,0,baseline,XB 12 bodies vs 12 bodies transit (expanded from 52: +Chiron +NorthNode +ASC +MC)
 XB,DC,Aspect Types,9,count,0,baseline,All 9 aspect types (Conj Opp Tri Sq Sex Qui Ses SS SQ)
+JN,DC,SR-NatalVsSR,73,count,0,baseline,JN natal chart vs JN solar return 2025
+JN,DC,SP-NatalVsSP,73,count,0,baseline,JN natal vs progressed (age 28.04 years)
+JN,DC,SA-NatalVsSA,80,count,0,baseline,JN natal vs solar arc directed
+XB,DC,SR-NatalVsSR,95,count,0,baseline,XB natal chart vs XB solar return 2026
+XB,DC,SP-NatalVsSP,79,count,0,baseline,XB natal vs progressed (age 29.41 years)
+XB,DC,SA-NatalVsSA,94,count,0,baseline,XB natal vs solar arc directed
