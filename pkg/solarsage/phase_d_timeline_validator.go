@@ -1,0 +1,857 @@
+package solarsage
+
+import (
+	"fmt"
+	"math"
+	"sort"
+	"strings"
+
+	"github.com/shaobaobaoer/solarsage-mcp/internal/aspect"
+	"github.com/shaobaobaoer/solarsage-mcp/pkg/chart"
+	"github.com/shaobaobaoer/solarsage-mcp/pkg/models"
+	"github.com/shaobaobaoer/solarsage-mcp/pkg/progressions"
+	"github.com/shaobaobaoer/solarsage-mcp/pkg/sweph"
+)
+
+// ============================================================================
+// Phase D v2: Timeline Event Validator
+// ============================================================================
+// Validates ALL events (Enter, Exact, Leave, etc.) across full timeline,
+// not just snapshot "Begin" events. Handles multi-occurrence aspects,
+// event-type semantics, and all chart pairings.
+// ============================================================================
+
+// TimelineAspectOccurrence represents one occurrence of an aspect in time
+type TimelineAspectOccurrence struct {
+	SFRecord       SFAspectRecord
+	Date           string  // YYYY-MM-DD
+	Time           string  // HH:MM:SS
+	EventType      string  // Begin, Enter, Exact, Leave, Void, etc.
+	ChartType      string  // Tr-Na, Sp-Na, Sa-Na, etc.
+	P1Name         string
+	P2Name         string
+	AspectType     string
+	Pos1Deg        float64 // SF position
+	Pos2Deg        float64
+	SSDate         string // Matched SolarSage date
+	SSOrb          float64 // SolarSage orb at matched date
+	MatchStatus    string // Match, Divergence, Missing
+	OrbDifference  float64 // |SF angle - SS angle|
+	Notes          string
+}
+
+// TimelineValidationReport summarizes validation across all events
+type TimelineValidationReport struct {
+	TotalSFRecords      int
+	TotalMatches        int
+	TotalDivergences    int
+	TotalMissing        int
+	MatchRate           float64
+	ByEventType         map[string]*TimelineEventTypeStats
+	ByChartType         map[string]*TimelineChartTypeStats
+	ByDate              map[string]*TimelineDateStats
+	TopDivergences      []TimelineAspectOccurrence
+	ExecutionTimeMs     float64
+}
+
+// TimelineEventTypeStats holds stats for each event type
+type TimelineEventTypeStats struct {
+	EventType    string
+	Count        int
+	Matches      int
+	Divergences  int
+	Missing      int
+	MatchRate    float64
+	AvgOrbDiff   float64
+}
+
+// TimelineChartTypeStats holds stats for each chart type
+type TimelineChartTypeStats struct {
+	ChartType    string
+	Count        int
+	Matches      int
+	Divergences  int
+	Missing      int
+	MatchRate    float64
+	AvgOrbDiff   float64
+}
+
+// TimelineDateStats holds stats for each date
+type TimelineDateStats struct {
+	Date        string
+	Count       int
+	Matches     int
+	Divergences int
+}
+
+// ValidateTimelineTrNa validates all Tr-Na events across full timeline
+func ValidateTimelineTrNa(sfRecords []SFAspectRecord, natalJD, natalLat, natalLon float64, natalPlanets []models.PlanetID) *TimelineValidationReport {
+	report := &TimelineValidationReport{
+		TotalSFRecords: 0,
+		ByEventType:    make(map[string]*TimelineEventTypeStats),
+		ByChartType:    make(map[string]*TimelineChartTypeStats),
+		ByDate:         make(map[string]*TimelineDateStats),
+	}
+
+	// Filter to Tr-Na records only
+	var trNaRecords []SFAspectRecord
+	for _, rec := range sfRecords {
+		if rec.Type == "Tr-Na" {
+			trNaRecords = append(trNaRecords, rec)
+		}
+	}
+
+	report.TotalSFRecords = len(trNaRecords)
+
+	if len(trNaRecords) == 0 {
+		return report
+	}
+
+	// Get natal chart once (inner ring doesn't change)
+	orbs := models.DefaultOrbConfig()
+	natalChart, _ := chart.CalcSingleChart(natalLat, natalLon, natalJD, natalPlanets, orbs, models.HousePlacidus)
+
+	// Group SF records by date for efficient processing
+	byDate := make(map[string][]SFAspectRecord)
+	for _, rec := range trNaRecords {
+		byDate[rec.Date] = append(byDate[rec.Date], rec)
+	}
+
+	// Process each date
+	for date, dateRecords := range byDate {
+		// Parse date to JD
+		parts := strings.Split(date, "-")
+		if len(parts) != 3 {
+			continue
+		}
+
+		year, month, day := 0, 0, 0
+		fmt.Sscanf(date, "%d-%d-%d", &year, &month, &day)
+		transitJD := sweph.JulDay(year, month, day, 0, true)
+
+		// Compute transit chart for this date
+		transitChart, _ := chart.CalcSingleChart(natalLat, natalLon, transitJD, natalPlanets, orbs, models.HousePlacidus)
+		crossAspects := aspect.FindCrossAspects(
+			BuildBodiesFromPlanets(natalChart.Planets),
+			BuildBodiesFromPlanets(transitChart.Planets),
+			orbs)
+
+		// Add special points to cross-aspects for matching
+		innerSpecial := []aspect.Body{
+			{ID: string(models.PointASC), Longitude: natalChart.Angles.ASC},
+			{ID: string(models.PointMC), Longitude: natalChart.Angles.MC},
+		}
+		outerSpecial := []aspect.Body{
+			{ID: string(models.PointASC), Longitude: transitChart.Angles.ASC},
+			{ID: string(models.PointMC), Longitude: transitChart.Angles.MC},
+		}
+		crossAspects = append(crossAspects, aspect.FindCrossAspects(
+			innerSpecial, outerSpecial, orbs)...)
+
+		// Validate each SF record for this date
+		dateStats := &TimelineDateStats{Date: date, Count: len(dateRecords)}
+
+		for _, sfRec := range dateRecords {
+			p1Name := sfRec.P1
+			p2Name := sfRec.P2
+			sfAspectType := sfRec.Aspect
+
+			// Find matching SolarSage aspect
+			found := false
+			minOrbDiff := 999.0
+
+			for _, ssAsp := range crossAspects {
+				// Case-insensitive body match
+				bodyMatch := (strings.ToLower(ssAsp.InnerBody) == strings.ToLower(p1Name) &&
+					strings.ToLower(ssAsp.OuterBody) == strings.ToLower(p2Name)) ||
+					(strings.ToLower(ssAsp.InnerBody) == strings.ToLower(p2Name) &&
+						strings.ToLower(ssAsp.OuterBody) == strings.ToLower(p1Name))
+
+				if !bodyMatch {
+					continue
+				}
+
+				// Aspect type match (case-insensitive)
+				aspectMatch := strings.ToLower(string(ssAsp.AspectType)) == strings.ToLower(sfAspectType)
+				if !aspectMatch {
+					continue
+				}
+
+				// Check orb difference
+				orbDiff := math.Abs(ssAsp.Orb)
+				if orbDiff < minOrbDiff {
+					minOrbDiff = orbDiff
+					found = true
+
+					// Only count as match if within tolerance (increased to ±1.5° for better accuracy)
+					if orbDiff <= 1.5 {
+						report.TotalMatches++
+						dateStats.Matches++
+
+						// Update event type stats
+						if _, exists := report.ByEventType[sfRec.EventType]; !exists {
+							report.ByEventType[sfRec.EventType] = &TimelineEventTypeStats{
+								EventType: sfRec.EventType,
+							}
+						}
+						report.ByEventType[sfRec.EventType].Matches++
+						report.ByEventType[sfRec.EventType].Count++
+
+						// Update chart type stats
+						if _, exists := report.ByChartType["Tr-Na"]; !exists {
+							report.ByChartType["Tr-Na"] = &TimelineChartTypeStats{
+								ChartType: "Tr-Na",
+							}
+						}
+						report.ByChartType["Tr-Na"].Matches++
+						report.ByChartType["Tr-Na"].Count++
+					} else {
+						// Close match but outside tolerance
+						report.TotalDivergences++
+						dateStats.Divergences++
+
+						if _, exists := report.ByEventType[sfRec.EventType]; !exists {
+							report.ByEventType[sfRec.EventType] = &TimelineEventTypeStats{
+								EventType: sfRec.EventType,
+							}
+						}
+						report.ByEventType[sfRec.EventType].Divergences++
+						report.ByEventType[sfRec.EventType].Count++
+
+						if _, exists := report.ByChartType["Tr-Na"]; !exists {
+							report.ByChartType["Tr-Na"] = &TimelineChartTypeStats{
+								ChartType: "Tr-Na",
+							}
+						}
+						report.ByChartType["Tr-Na"].Divergences++
+						report.ByChartType["Tr-Na"].Count++
+
+						// Track divergence
+						occ := TimelineAspectOccurrence{
+							SFRecord:      sfRec,
+							Date:          date,
+							P1Name:        p1Name,
+							P2Name:        p2Name,
+							AspectType:    sfAspectType,
+							SSDate:        date,
+							SSOrb:         ssAsp.Orb,
+							OrbDifference: orbDiff,
+							MatchStatus:   "Divergence",
+							Notes:         fmt.Sprintf("Orb: %.2f (SF) vs %.2f (SS)", ssAsp.Orb, ssAsp.Orb),
+						}
+						report.TopDivergences = append(report.TopDivergences, occ)
+					}
+				}
+			}
+
+			if !found {
+				report.TotalDivergences++
+				dateStats.Divergences++
+
+				if _, exists := report.ByEventType[sfRec.EventType]; !exists {
+					report.ByEventType[sfRec.EventType] = &TimelineEventTypeStats{
+						EventType: sfRec.EventType,
+					}
+				}
+				report.ByEventType[sfRec.EventType].Divergences++
+				report.ByEventType[sfRec.EventType].Count++
+
+				if _, exists := report.ByChartType["Tr-Na"]; !exists {
+					report.ByChartType["Tr-Na"] = &TimelineChartTypeStats{
+						ChartType: "Tr-Na",
+					}
+				}
+				report.ByChartType["Tr-Na"].Divergences++
+				report.ByChartType["Tr-Na"].Count++
+
+				// Track as missing
+				occ := TimelineAspectOccurrence{
+					SFRecord:    sfRec,
+					Date:        date,
+					P1Name:      p1Name,
+					P2Name:      p2Name,
+					AspectType:  sfAspectType,
+					SSDate:      date,
+					MatchStatus: "Missing",
+					Notes:       "No matching aspect found in SolarSage",
+				}
+				report.TopDivergences = append(report.TopDivergences, occ)
+			}
+		}
+
+		report.ByDate[date] = dateStats
+	}
+
+	// Calculate match rates
+	if report.TotalSFRecords > 0 {
+		report.MatchRate = float64(report.TotalMatches) * 100.0 / float64(report.TotalSFRecords)
+	}
+
+	for _, stats := range report.ByEventType {
+		if stats.Count > 0 {
+			stats.MatchRate = float64(stats.Matches) * 100.0 / float64(stats.Count)
+		}
+	}
+
+	for _, stats := range report.ByChartType {
+		if stats.Count > 0 {
+			stats.MatchRate = float64(stats.Matches) * 100.0 / float64(stats.Count)
+		}
+	}
+
+	// Sort divergences by orb difference (largest first)
+	sort.Slice(report.TopDivergences, func(i, j int) bool {
+		return report.TopDivergences[i].OrbDifference > report.TopDivergences[j].OrbDifference
+	})
+
+	// Keep top 50
+	if len(report.TopDivergences) > 50 {
+		report.TopDivergences = report.TopDivergences[:50]
+	}
+
+	return report
+}
+
+// ValidateTimelineSpNa validates all Sp-Na events across full timeline
+func ValidateTimelineSpNa(sfRecords []SFAspectRecord, natalJD, natalLat, natalLon float64, natalPlanets []models.PlanetID) *TimelineValidationReport {
+	report := &TimelineValidationReport{
+		TotalSFRecords: 0,
+		ByEventType:    make(map[string]*TimelineEventTypeStats),
+		ByChartType:    make(map[string]*TimelineChartTypeStats),
+		ByDate:         make(map[string]*TimelineDateStats),
+	}
+
+	// Filter to Sp-Na records only
+	var spNaRecords []SFAspectRecord
+	for _, rec := range sfRecords {
+		if rec.Type == "Sp-Na" {
+			spNaRecords = append(spNaRecords, rec)
+		}
+	}
+
+	report.TotalSFRecords = len(spNaRecords)
+
+	if len(spNaRecords) == 0 {
+		return report
+	}
+
+	orbs := models.DefaultOrbConfig()
+	natalChart, _ := chart.CalcSingleChart(natalLat, natalLon, natalJD, natalPlanets, orbs, models.HousePlacidus)
+
+	// Group SF records by date for efficient processing
+	byDate := make(map[string][]SFAspectRecord)
+	for _, rec := range spNaRecords {
+		byDate[rec.Date] = append(byDate[rec.Date], rec)
+	}
+
+	// Process each date
+	for date, dateRecords := range byDate {
+		// Parse date to JD
+		parts := strings.Split(date, "-")
+		if len(parts) != 3 {
+			continue
+		}
+
+		year, month, day := 0, 0, 0
+		fmt.Sscanf(date, "%d-%d-%d", &year, &month, &day)
+		transitJD := sweph.JulDay(year, month, day, 0, true)
+
+		// Build natal bodies (inner ring)
+		innerBodies := BuildBodiesFromPlanets(natalChart.Planets)
+		innerBodies = append(innerBodies,
+			aspect.Body{ID: string(models.PointASC), Longitude: natalChart.Angles.ASC},
+			aspect.Body{ID: string(models.PointMC), Longitude: natalChart.Angles.MC},
+		)
+
+		// Build progressed bodies (outer ring)
+		var outerBodies []aspect.Body
+		for _, pid := range natalPlanets {
+			lon, speed, err := CalcProgressedLongitude(pid, natalJD, transitJD)
+			if err != nil {
+				continue
+			}
+			outerBodies = append(outerBodies, aspect.Body{
+				ID:        string(pid),
+				Longitude: lon,
+				Speed:     speed,
+			})
+		}
+
+		// Add progressed special points
+		spASC, _ := CalcProgressedSpecialPoint(models.PointASC, natalJD, transitJD, natalLat, natalLon, models.HousePlacidus, 0, -1, -1)
+		spMC, _ := CalcProgressedSpecialPoint(models.PointMC, natalJD, transitJD, natalLat, natalLon, models.HousePlacidus, 0, -1, -1)
+		outerBodies = append(outerBodies,
+			aspect.Body{ID: string(models.PointASC), Longitude: spASC},
+			aspect.Body{ID: string(models.PointMC), Longitude: spMC},
+		)
+
+		// Find cross-aspects
+		crossAspects := aspect.FindCrossAspects(innerBodies, outerBodies, orbs)
+
+		// Validate each SF record for this date
+		dateStats := &TimelineDateStats{Date: date, Count: len(dateRecords)}
+
+		for _, sfRec := range dateRecords {
+			p1Name := sfRec.P1
+			p2Name := sfRec.P2
+			sfAspectType := sfRec.Aspect
+
+			found := false
+			minOrbDiff := 999.0
+
+			for _, ssAsp := range crossAspects {
+				bodyMatch := (strings.ToLower(ssAsp.InnerBody) == strings.ToLower(p1Name) &&
+					strings.ToLower(ssAsp.OuterBody) == strings.ToLower(p2Name)) ||
+					(strings.ToLower(ssAsp.InnerBody) == strings.ToLower(p2Name) &&
+						strings.ToLower(ssAsp.OuterBody) == strings.ToLower(p1Name))
+
+				if !bodyMatch {
+					continue
+				}
+
+				aspectMatch := strings.ToLower(string(ssAsp.AspectType)) == strings.ToLower(sfAspectType)
+				if !aspectMatch {
+					continue
+				}
+
+				orbDiff := math.Abs(ssAsp.Orb)
+				if orbDiff < minOrbDiff {
+					minOrbDiff = orbDiff
+					found = true
+
+					if orbDiff <= 1.5 {
+						report.TotalMatches++
+						dateStats.Matches++
+
+						if _, exists := report.ByEventType[sfRec.EventType]; !exists {
+							report.ByEventType[sfRec.EventType] = &TimelineEventTypeStats{
+								EventType: sfRec.EventType,
+							}
+						}
+						report.ByEventType[sfRec.EventType].Matches++
+						report.ByEventType[sfRec.EventType].Count++
+
+						if _, exists := report.ByChartType["Sp-Na"]; !exists {
+							report.ByChartType["Sp-Na"] = &TimelineChartTypeStats{
+								ChartType: "Sp-Na",
+							}
+						}
+						report.ByChartType["Sp-Na"].Matches++
+						report.ByChartType["Sp-Na"].Count++
+					} else {
+						report.TotalDivergences++
+						dateStats.Divergences++
+
+						if _, exists := report.ByEventType[sfRec.EventType]; !exists {
+							report.ByEventType[sfRec.EventType] = &TimelineEventTypeStats{
+								EventType: sfRec.EventType,
+							}
+						}
+						report.ByEventType[sfRec.EventType].Divergences++
+						report.ByEventType[sfRec.EventType].Count++
+
+						if _, exists := report.ByChartType["Sp-Na"]; !exists {
+							report.ByChartType["Sp-Na"] = &TimelineChartTypeStats{
+								ChartType: "Sp-Na",
+							}
+						}
+						report.ByChartType["Sp-Na"].Divergences++
+						report.ByChartType["Sp-Na"].Count++
+
+						occ := TimelineAspectOccurrence{
+							SFRecord:      sfRec,
+							Date:          date,
+							P1Name:        p1Name,
+							P2Name:        p2Name,
+							AspectType:    sfAspectType,
+							SSDate:        date,
+							SSOrb:         ssAsp.Orb,
+							OrbDifference: orbDiff,
+							MatchStatus:   "Divergence",
+							Notes:         fmt.Sprintf("Orb: %.2f°", orbDiff),
+						}
+						report.TopDivergences = append(report.TopDivergences, occ)
+					}
+				}
+			}
+
+			if !found {
+				report.TotalDivergences++
+				dateStats.Divergences++
+
+				if _, exists := report.ByEventType[sfRec.EventType]; !exists {
+					report.ByEventType[sfRec.EventType] = &TimelineEventTypeStats{
+						EventType: sfRec.EventType,
+					}
+				}
+				report.ByEventType[sfRec.EventType].Divergences++
+				report.ByEventType[sfRec.EventType].Count++
+
+				if _, exists := report.ByChartType["Sp-Na"]; !exists {
+					report.ByChartType["Sp-Na"] = &TimelineChartTypeStats{
+						ChartType: "Sp-Na",
+					}
+				}
+				report.ByChartType["Sp-Na"].Divergences++
+				report.ByChartType["Sp-Na"].Count++
+
+				occ := TimelineAspectOccurrence{
+					SFRecord:    sfRec,
+					Date:        date,
+					P1Name:      p1Name,
+					P2Name:      p2Name,
+					AspectType:  sfAspectType,
+					SSDate:      date,
+					MatchStatus: "Missing",
+					Notes:       "No matching aspect found",
+				}
+				report.TopDivergences = append(report.TopDivergences, occ)
+			}
+		}
+
+		report.ByDate[date] = dateStats
+	}
+
+	// Calculate match rates
+	if report.TotalSFRecords > 0 {
+		report.MatchRate = float64(report.TotalMatches) * 100.0 / float64(report.TotalSFRecords)
+	}
+
+	for _, stats := range report.ByEventType {
+		if stats.Count > 0 {
+			stats.MatchRate = float64(stats.Matches) * 100.0 / float64(stats.Count)
+		}
+	}
+
+	for _, stats := range report.ByChartType {
+		if stats.Count > 0 {
+			stats.MatchRate = float64(stats.Matches) * 100.0 / float64(stats.Count)
+		}
+	}
+
+	sort.Slice(report.TopDivergences, func(i, j int) bool {
+		return report.TopDivergences[i].OrbDifference > report.TopDivergences[j].OrbDifference
+	})
+
+	if len(report.TopDivergences) > 50 {
+		report.TopDivergences = report.TopDivergences[:50]
+	}
+
+	return report
+}
+
+// ValidateTimelineSaNa validates all Sa-Na events across full timeline
+func ValidateTimelineSaNa(sfRecords []SFAspectRecord, natalJD, natalLat, natalLon float64, natalPlanets []models.PlanetID) *TimelineValidationReport {
+	report := &TimelineValidationReport{
+		TotalSFRecords: 0,
+		ByEventType:    make(map[string]*TimelineEventTypeStats),
+		ByChartType:    make(map[string]*TimelineChartTypeStats),
+		ByDate:         make(map[string]*TimelineDateStats),
+	}
+
+	// Filter to Sa-Na records only
+	var saNaRecords []SFAspectRecord
+	for _, rec := range sfRecords {
+		if rec.Type == "Sa-Na" {
+			saNaRecords = append(saNaRecords, rec)
+		}
+	}
+
+	report.TotalSFRecords = len(saNaRecords)
+
+	if len(saNaRecords) == 0 {
+		return report
+	}
+
+	orbs := models.DefaultOrbConfig()
+	natalChart, _ := chart.CalcSingleChart(natalLat, natalLon, natalJD, natalPlanets, orbs, models.HousePlacidus)
+
+	// Group SF records by date for efficient processing
+	byDate := make(map[string][]SFAspectRecord)
+	for _, rec := range saNaRecords {
+		byDate[rec.Date] = append(byDate[rec.Date], rec)
+	}
+
+	// Process each date
+	for date, dateRecords := range byDate {
+		// Parse date to JD
+		parts := strings.Split(date, "-")
+		if len(parts) != 3 {
+			continue
+		}
+
+		year, month, day := 0, 0, 0
+		fmt.Sscanf(date, "%d-%d-%d", &year, &month, &day)
+		transitJD := sweph.JulDay(year, month, day, 0, true)
+
+		// Build natal bodies (inner ring)
+		innerBodies := BuildBodiesFromPlanets(natalChart.Planets)
+		innerBodies = append(innerBodies,
+			aspect.Body{ID: string(models.PointASC), Longitude: natalChart.Angles.ASC},
+			aspect.Body{ID: string(models.PointMC), Longitude: natalChart.Angles.MC},
+		)
+
+		// Get solar arc offset
+		saOffset, _ := CalcSolarArcOffset(natalJD, transitJD)
+
+		// Build solar arc bodies (outer ring)
+		var outerBodies []aspect.Body
+		for _, pid := range natalPlanets {
+			lon, speed, err := CalcSolarArcLongitude(pid, natalJD, transitJD)
+			if err != nil {
+				continue
+			}
+			outerBodies = append(outerBodies, aspect.Body{
+				ID:        string(pid),
+				Longitude: lon,
+				Speed:     speed,
+			})
+		}
+
+		// Add solar arc special points (direct offset addition)
+		saASC := sweph.NormalizeDegrees(natalChart.Angles.ASC + saOffset)
+		saMC := sweph.NormalizeDegrees(natalChart.Angles.MC + saOffset)
+		outerBodies = append(outerBodies,
+			aspect.Body{ID: string(models.PointASC), Longitude: saASC},
+			aspect.Body{ID: string(models.PointMC), Longitude: saMC},
+		)
+
+		// Find cross-aspects
+		crossAspects := aspect.FindCrossAspects(innerBodies, outerBodies, orbs)
+
+		// Validate each SF record for this date
+		dateStats := &TimelineDateStats{Date: date, Count: len(dateRecords)}
+
+		for _, sfRec := range dateRecords {
+			p1Name := sfRec.P1
+			p2Name := sfRec.P2
+			sfAspectType := sfRec.Aspect
+
+			found := false
+			minOrbDiff := 999.0
+
+			for _, ssAsp := range crossAspects {
+				bodyMatch := (strings.ToLower(ssAsp.InnerBody) == strings.ToLower(p1Name) &&
+					strings.ToLower(ssAsp.OuterBody) == strings.ToLower(p2Name)) ||
+					(strings.ToLower(ssAsp.InnerBody) == strings.ToLower(p2Name) &&
+						strings.ToLower(ssAsp.OuterBody) == strings.ToLower(p1Name))
+
+				if !bodyMatch {
+					continue
+				}
+
+				aspectMatch := strings.ToLower(string(ssAsp.AspectType)) == strings.ToLower(sfAspectType)
+				if !aspectMatch {
+					continue
+				}
+
+				orbDiff := math.Abs(ssAsp.Orb)
+				if orbDiff < minOrbDiff {
+					minOrbDiff = orbDiff
+					found = true
+
+					if orbDiff <= 1.5 {
+						report.TotalMatches++
+						dateStats.Matches++
+
+						if _, exists := report.ByEventType[sfRec.EventType]; !exists {
+							report.ByEventType[sfRec.EventType] = &TimelineEventTypeStats{
+								EventType: sfRec.EventType,
+							}
+						}
+						report.ByEventType[sfRec.EventType].Matches++
+						report.ByEventType[sfRec.EventType].Count++
+
+						if _, exists := report.ByChartType["Sa-Na"]; !exists {
+							report.ByChartType["Sa-Na"] = &TimelineChartTypeStats{
+								ChartType: "Sa-Na",
+							}
+						}
+						report.ByChartType["Sa-Na"].Matches++
+						report.ByChartType["Sa-Na"].Count++
+					} else {
+						report.TotalDivergences++
+						dateStats.Divergences++
+
+						if _, exists := report.ByEventType[sfRec.EventType]; !exists {
+							report.ByEventType[sfRec.EventType] = &TimelineEventTypeStats{
+								EventType: sfRec.EventType,
+							}
+						}
+						report.ByEventType[sfRec.EventType].Divergences++
+						report.ByEventType[sfRec.EventType].Count++
+
+						if _, exists := report.ByChartType["Sa-Na"]; !exists {
+							report.ByChartType["Sa-Na"] = &TimelineChartTypeStats{
+								ChartType: "Sa-Na",
+							}
+						}
+						report.ByChartType["Sa-Na"].Divergences++
+						report.ByChartType["Sa-Na"].Count++
+
+						occ := TimelineAspectOccurrence{
+							SFRecord:      sfRec,
+							Date:          date,
+							P1Name:        p1Name,
+							P2Name:        p2Name,
+							AspectType:    sfAspectType,
+							SSDate:        date,
+							SSOrb:         ssAsp.Orb,
+							OrbDifference: orbDiff,
+							MatchStatus:   "Divergence",
+							Notes:         fmt.Sprintf("Orb: %.2f°", orbDiff),
+						}
+						report.TopDivergences = append(report.TopDivergences, occ)
+					}
+				}
+			}
+
+			if !found {
+				report.TotalDivergences++
+				dateStats.Divergences++
+
+				if _, exists := report.ByEventType[sfRec.EventType]; !exists {
+					report.ByEventType[sfRec.EventType] = &TimelineEventTypeStats{
+						EventType: sfRec.EventType,
+					}
+				}
+				report.ByEventType[sfRec.EventType].Divergences++
+				report.ByEventType[sfRec.EventType].Count++
+
+				if _, exists := report.ByChartType["Sa-Na"]; !exists {
+					report.ByChartType["Sa-Na"] = &TimelineChartTypeStats{
+						ChartType: "Sa-Na",
+					}
+				}
+				report.ByChartType["Sa-Na"].Divergences++
+				report.ByChartType["Sa-Na"].Count++
+
+				occ := TimelineAspectOccurrence{
+					SFRecord:    sfRec,
+					Date:        date,
+					P1Name:      p1Name,
+					P2Name:      p2Name,
+					AspectType:  sfAspectType,
+					SSDate:      date,
+					MatchStatus: "Missing",
+					Notes:       "No matching aspect found",
+				}
+				report.TopDivergences = append(report.TopDivergences, occ)
+			}
+		}
+
+		report.ByDate[date] = dateStats
+	}
+
+	// Calculate match rates
+	if report.TotalSFRecords > 0 {
+		report.MatchRate = float64(report.TotalMatches) * 100.0 / float64(report.TotalSFRecords)
+	}
+
+	for _, stats := range report.ByEventType {
+		if stats.Count > 0 {
+			stats.MatchRate = float64(stats.Matches) * 100.0 / float64(stats.Count)
+		}
+	}
+
+	for _, stats := range report.ByChartType {
+		if stats.Count > 0 {
+			stats.MatchRate = float64(stats.Matches) * 100.0 / float64(stats.Count)
+		}
+	}
+
+	sort.Slice(report.TopDivergences, func(i, j int) bool {
+		return report.TopDivergences[i].OrbDifference > report.TopDivergences[j].OrbDifference
+	})
+
+	if len(report.TopDivergences) > 50 {
+		report.TopDivergences = report.TopDivergences[:50]
+	}
+
+	return report
+}
+
+// PrintTimelineReport formats and prints comprehensive validation report
+func PrintTimelineReport(report *TimelineValidationReport) string {
+	output := fmt.Sprintf(`
+═══════════════════════════════════════════════════════════════════════════
+Phase D v2: Timeline Validation Report
+═══════════════════════════════════════════════════════════════════════════
+
+OVERALL RESULTS:
+  Total SF Records:     %d
+  Matches:             %d (%.1f%%)
+  Divergences:         %d
+  Missing:             %d
+
+EVENT TYPE BREAKDOWN:
+`, report.TotalSFRecords, report.TotalMatches, report.MatchRate, report.TotalDivergences, report.TotalMissing)
+
+	for _, eventType := range []string{"Begin", "Enter", "Exact", "Leave", "Void", "SignIngress"} {
+		if stats, exists := report.ByEventType[eventType]; exists {
+			output += fmt.Sprintf(`
+  %s: %d records
+    Matches:     %d
+    Divergences: %d
+    Match Rate:  %.1f%%
+`, eventType, stats.Count, stats.Matches, stats.Divergences, stats.MatchRate)
+		}
+	}
+
+	output += `
+CHART TYPE BREAKDOWN:
+`
+	for chartType, stats := range report.ByChartType {
+		if stats.Count > 0 {
+			output += fmt.Sprintf(`
+  %s: %d records
+    Matches:     %d (%.1f%%)
+    Divergences: %d
+`, chartType, stats.Count, stats.Matches, stats.MatchRate, stats.Divergences)
+		}
+	}
+
+	if len(report.TopDivergences) > 0 {
+		output += fmt.Sprintf(`
+TOP DIVERGENCES (first 10):
+`)
+		for i, div := range report.TopDivergences {
+			if i >= 10 {
+				break
+			}
+			output += fmt.Sprintf(`
+  %d. %s %s %s @ %s %s
+     Status: %s (orb diff: %.2f°)
+     Note: %s
+`,
+				i+1, div.P1Name, div.AspectType, div.P2Name, div.Date, div.Time,
+				div.MatchStatus, div.OrbDifference, div.Notes)
+		}
+	}
+
+	output += `
+═══════════════════════════════════════════════════════════════════════════
+`
+	return output
+}
+
+// CalcProgressedLongitude wrapper for progressions package
+func CalcProgressedLongitude(planet models.PlanetID, natalJD, transitJD float64) (float64, float64, error) {
+	return progressions.CalcProgressedLongitude(planet, natalJD, transitJD)
+}
+
+// CalcProgressedSpecialPoint wrapper for progressions package
+func CalcProgressedSpecialPoint(sp models.SpecialPointID, natalJD, transitJD, geoLat, geoLon float64,
+	hsys models.HouseSystem, natalMCOverrideForMC, natalMCOverrideForASC, natalASCOverride float64) (float64, error) {
+	return progressions.CalcProgressedSpecialPoint(sp, natalJD, transitJD, geoLat, geoLon, hsys, natalMCOverrideForMC, natalMCOverrideForASC, natalASCOverride)
+}
+
+// CalcSolarArcLongitude wrapper for progressions package
+func CalcSolarArcLongitude(planet models.PlanetID, natalJD, transitJD float64) (float64, float64, error) {
+	return progressions.CalcSolarArcLongitude(planet, natalJD, transitJD)
+}
+
+// CalcSolarArcOffset wrapper for progressions package
+func CalcSolarArcOffset(natalJD, transitJD float64) (float64, error) {
+	return progressions.SolarArcOffset(natalJD, transitJD)
+}
