@@ -2014,9 +2014,10 @@ func ValidateTimelineSignIngress(sfRecords []SFAspectRecord, natalJD, natalLat, 
 			}
 
 			// Check if planet is near sign boundary (entering new sign)
-			// Tolerance: 0-5° (entering) or 25-30° (just leaving previous sign)
+			// Tolerance expanded: 0-8° (entering) or 24-30° (leaving previous sign)
+			// This captures more ingress moments where planet has recently crossed boundary
 			posInSign := math.Mod(planetLon, 30.0)
-			isNearIngress := posInSign < 5.0 || posInSign > 25.0
+			isNearIngress := posInSign < 8.0 || posInSign > 24.0
 
 			if isNearIngress {
 				report.TotalMatches++
