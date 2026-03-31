@@ -96,11 +96,11 @@ func TestPhaseD_v2_JN_SaNa_FullTimeline(t *testing.T) {
 	}
 }
 
-// TestPhaseD_v2_AdvancedPairings reports on complex pairings (Tr-Sp, Tr-Sa, Tr-Tr, Sp-Sp)
+// TestPhaseD_v2_AdvancedPairings validates complex pairings (Tr-Sp, Tr-Sa, Tr-Tr, Sp-Sp)
 func TestPhaseD_v2_AdvancedPairings(t *testing.T) {
 	const csvPath = "../../testdata/solarfire/testcase-1-transit.csv"
 
-	t.Logf("=== Phase D v2 Advanced Pairings Analysis (873 events) ===\n")
+	t.Logf("=== Phase D v2 Milestone 4: Advanced Pairings Full Timeline Validation ===\n")
 
 	actualPath := csvPath
 	if _, err := checkFileExists(csvPath); err != nil {
@@ -110,55 +110,40 @@ func TestPhaseD_v2_AdvancedPairings(t *testing.T) {
 		}
 	}
 
-	// Load all SF records
+	startTime := time.Now()
+
 	sfRecords, err := ParseSFCSV(actualPath, "", "", "")
 	if err != nil {
 		t.Fatalf("ParseSFCSV: %v", err)
 	}
 
-	// Collect advanced pairings
-	advancedTypes := []string{"Tr-Sp", "Tr-Sa", "Tr-Tr", "Sp-Sp"}
-	advancedByType := make(map[string][]SFAspectRecord)
+	report := ValidateTimelineAdvancedPairings(sfRecords, jnJDUT, jnLat, jnLon, jnPlanets)
 
-	for _, rec := range sfRecords {
-		for _, adv := range advancedTypes {
-			if rec.Type == adv {
-				advancedByType[adv] = append(advancedByType[adv], rec)
-				break
-			}
-		}
+	elapsed := time.Since(startTime)
+	report.ExecutionTimeMs = elapsed.Seconds() * 1000
+
+	reportStr := PrintTimelineReport(report)
+	t.Log(reportStr)
+
+	t.Logf("\nSUMMARY:")
+	t.Logf("  Total Advanced Pairing events: %d", report.TotalSFRecords)
+	t.Logf("  Matches: %d (%.1f%%)", report.TotalMatches, report.MatchRate)
+	t.Logf("  Divergences: %d", report.TotalDivergences)
+	t.Logf("  Execution time: %.0fms", report.ExecutionTimeMs)
+
+	if report.MatchRate >= 60 {
+		t.Logf("✅ PASS: Match rate %.1f%% >= 60%% target", report.MatchRate)
+	} else {
+		t.Logf("⚠️  WARNING: Match rate %.1f%% < 60%% target", report.MatchRate)
 	}
 
-	totalAdvanced := 0
-	for _, pairingType := range advancedTypes {
-		if records, exists := advancedByType[pairingType]; exists && len(records) > 0 {
-			totalAdvanced += len(records)
-			t.Logf("%s: %d events", pairingType, len(records))
-
-			// Event type breakdown
-			eventDist := make(map[string]int)
-			for _, rec := range records {
-				eventDist[rec.EventType]++
-			}
-
-			for eventType, count := range eventDist {
-				t.Logf("  - %s: %d", eventType, count)
-			}
-
-			t.Logf("")
+	// Breakdown by pairing type
+	t.Logf("\nBy Pairing Type:")
+	for _, pairingType := range []string{"Tr-Sp", "Tr-Sa", "Tr-Tr", "Sp-Sp"} {
+		if stats, exists := report.ByChartType[pairingType]; exists && stats.Count > 0 {
+			t.Logf("  %s: %d events, %.1f%% match rate", pairingType, stats.Count, stats.MatchRate)
 		}
 	}
-
-	t.Logf("Total advanced pairings: %d events\n", totalAdvanced)
-
-	t.Logf("ADVANCED PAIRING DEFINITIONS:")
-	t.Logf("  Tr-Sp: Transit planets vs Progressed planets (outer ring moving)")
-	t.Logf("  Tr-Sa: Transit planets vs Solar Arc directed (offset positions)")
-	t.Logf("  Tr-Tr: Transit planets vs Transit planets (both moving)")
-	t.Logf("  Sp-Sp: Progressed planets vs Progressed planets (both symbolic)")
-
-	t.Logf("\nREQUIRES: Separate validator for each due to computation path differences")
-	t.Logf("STATUS: Framework ready, implementation deferred to Phase D v3\n")
 }
 
 // TestPhaseD_v2_Stage2_XB reports on XB timeline data

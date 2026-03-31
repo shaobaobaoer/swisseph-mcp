@@ -771,6 +771,319 @@ func ValidateTimelineSaNa(sfRecords []SFAspectRecord, natalJD, natalLat, natalLo
 	return report
 }
 
+// ValidateTimelineAdvancedPairings validates all advanced pairing events (Tr-Sp, Tr-Sa, Tr-Tr, Sp-Sp)
+func ValidateTimelineAdvancedPairings(sfRecords []SFAspectRecord, natalJD, natalLat, natalLon float64, natalPlanets []models.PlanetID) *TimelineValidationReport {
+	report := &TimelineValidationReport{
+		TotalSFRecords: 0,
+		ByEventType:    make(map[string]*TimelineEventTypeStats),
+		ByChartType:    make(map[string]*TimelineChartTypeStats),
+		ByDate:         make(map[string]*TimelineDateStats),
+	}
+
+	// Filter to advanced pairing records
+	advancedTypes := []string{"Tr-Sp", "Tr-Sa", "Tr-Tr", "Sp-Sp"}
+	var advancedRecords []SFAspectRecord
+	for _, rec := range sfRecords {
+		for _, adv := range advancedTypes {
+			if rec.Type == adv {
+				advancedRecords = append(advancedRecords, rec)
+				break
+			}
+		}
+	}
+
+	report.TotalSFRecords = len(advancedRecords)
+
+	if len(advancedRecords) == 0 {
+		return report
+	}
+
+	orbs := models.DefaultOrbConfig()
+	natalChart, _ := chart.CalcSingleChart(natalLat, natalLon, natalJD, natalPlanets, orbs, models.HousePlacidus)
+
+	// Group SF records by date
+	byDate := make(map[string][]SFAspectRecord)
+	for _, rec := range advancedRecords {
+		byDate[rec.Date] = append(byDate[rec.Date], rec)
+	}
+
+	// Process each date
+	for date, dateRecords := range byDate {
+		parts := strings.Split(date, "-")
+		if len(parts) != 3 {
+			continue
+		}
+
+		year, month, day := 0, 0, 0
+		fmt.Sscanf(date, "%d-%d-%d", &year, &month, &day)
+		transitJD := sweph.JulDay(year, month, day, 0, true)
+
+		dateStats := &TimelineDateStats{Date: date, Count: len(dateRecords)}
+
+		for _, sfRec := range dateRecords {
+			pairingType := sfRec.Type
+
+			// Build appropriate bodies based on pairing type
+			var innerBodies, outerBodies []aspect.Body
+
+			switch pairingType {
+			case "Tr-Sp":
+				// Inner: transit, Outer: secondary progressions
+				transitChart, _ := chart.CalcSingleChart(natalLat, natalLon, transitJD, natalPlanets, orbs, models.HousePlacidus)
+				innerBodies = BuildBodiesFromPlanets(transitChart.Planets)
+				innerBodies = append(innerBodies,
+					aspect.Body{ID: string(models.PointASC), Longitude: transitChart.Angles.ASC},
+					aspect.Body{ID: string(models.PointMC), Longitude: transitChart.Angles.MC},
+				)
+
+				for _, pid := range natalPlanets {
+					lon, speed, err := CalcProgressedLongitude(pid, natalJD, transitJD)
+					if err != nil {
+						continue
+					}
+					outerBodies = append(outerBodies, aspect.Body{
+						ID:        string(pid),
+						Longitude: lon,
+						Speed:     speed,
+					})
+				}
+
+				spASC, _ := CalcProgressedSpecialPoint(models.PointASC, natalJD, transitJD, natalLat, natalLon, models.HousePlacidus, 0, -1, -1)
+				spMC, _ := CalcProgressedSpecialPoint(models.PointMC, natalJD, transitJD, natalLat, natalLon, models.HousePlacidus, 0, -1, -1)
+				outerBodies = append(outerBodies,
+					aspect.Body{ID: string(models.PointASC), Longitude: spASC},
+					aspect.Body{ID: string(models.PointMC), Longitude: spMC},
+				)
+
+			case "Tr-Sa":
+				// Inner: transit, Outer: solar arc directed
+				transitChart, _ := chart.CalcSingleChart(natalLat, natalLon, transitJD, natalPlanets, orbs, models.HousePlacidus)
+				innerBodies = BuildBodiesFromPlanets(transitChart.Planets)
+				innerBodies = append(innerBodies,
+					aspect.Body{ID: string(models.PointASC), Longitude: transitChart.Angles.ASC},
+					aspect.Body{ID: string(models.PointMC), Longitude: transitChart.Angles.MC},
+				)
+
+				saOffset, _ := CalcSolarArcOffset(natalJD, transitJD)
+				for _, pid := range natalPlanets {
+					lon, speed, err := CalcSolarArcLongitude(pid, natalJD, transitJD)
+					if err != nil {
+						continue
+					}
+					outerBodies = append(outerBodies, aspect.Body{
+						ID:        string(pid),
+						Longitude: lon,
+						Speed:     speed,
+					})
+				}
+
+				saASC := sweph.NormalizeDegrees(natalChart.Angles.ASC + saOffset)
+				saMC := sweph.NormalizeDegrees(natalChart.Angles.MC + saOffset)
+				outerBodies = append(outerBodies,
+					aspect.Body{ID: string(models.PointASC), Longitude: saASC},
+					aspect.Body{ID: string(models.PointMC), Longitude: saMC},
+				)
+
+			case "Tr-Tr":
+				// Inner: natal, Outer: transit (both moving)
+				innerBodies = BuildBodiesFromPlanets(natalChart.Planets)
+				innerBodies = append(innerBodies,
+					aspect.Body{ID: string(models.PointASC), Longitude: natalChart.Angles.ASC},
+					aspect.Body{ID: string(models.PointMC), Longitude: natalChart.Angles.MC},
+				)
+
+				transitChart, _ := chart.CalcSingleChart(natalLat, natalLon, transitJD, natalPlanets, orbs, models.HousePlacidus)
+				outerBodies = BuildBodiesFromPlanets(transitChart.Planets)
+				outerBodies = append(outerBodies,
+					aspect.Body{ID: string(models.PointASC), Longitude: transitChart.Angles.ASC},
+					aspect.Body{ID: string(models.PointMC), Longitude: transitChart.Angles.MC},
+				)
+
+			case "Sp-Sp":
+				// Both natal and outer are progressed
+				innerBodies = BuildBodiesFromPlanets(natalChart.Planets)
+				innerBodies = append(innerBodies,
+					aspect.Body{ID: string(models.PointASC), Longitude: natalChart.Angles.ASC},
+					aspect.Body{ID: string(models.PointMC), Longitude: natalChart.Angles.MC},
+				)
+
+				for _, pid := range natalPlanets {
+					lon, speed, err := CalcProgressedLongitude(pid, natalJD, transitJD)
+					if err != nil {
+						continue
+					}
+					outerBodies = append(outerBodies, aspect.Body{
+						ID:        string(pid),
+						Longitude: lon,
+						Speed:     speed,
+					})
+				}
+
+				spASC, _ := CalcProgressedSpecialPoint(models.PointASC, natalJD, transitJD, natalLat, natalLon, models.HousePlacidus, 0, -1, -1)
+				spMC, _ := CalcProgressedSpecialPoint(models.PointMC, natalJD, transitJD, natalLat, natalLon, models.HousePlacidus, 0, -1, -1)
+				outerBodies = append(outerBodies,
+					aspect.Body{ID: string(models.PointASC), Longitude: spASC},
+					aspect.Body{ID: string(models.PointMC), Longitude: spMC},
+				)
+			}
+
+			if len(innerBodies) == 0 || len(outerBodies) == 0 {
+				continue
+			}
+
+			crossAspects := aspect.FindCrossAspects(innerBodies, outerBodies, orbs)
+
+			// Validate each SF record for this date
+			p1Name := sfRec.P1
+			p2Name := sfRec.P2
+			sfAspectType := sfRec.Aspect
+
+			found := false
+			minOrbDiff := 999.0
+
+			for _, ssAsp := range crossAspects {
+				bodyMatch := (strings.ToLower(ssAsp.InnerBody) == strings.ToLower(p1Name) &&
+					strings.ToLower(ssAsp.OuterBody) == strings.ToLower(p2Name)) ||
+					(strings.ToLower(ssAsp.InnerBody) == strings.ToLower(p2Name) &&
+						strings.ToLower(ssAsp.OuterBody) == strings.ToLower(p1Name))
+
+				if !bodyMatch {
+					continue
+				}
+
+				aspectMatch := strings.ToLower(string(ssAsp.AspectType)) == strings.ToLower(sfAspectType)
+				if !aspectMatch {
+					continue
+				}
+
+				orbDiff := math.Abs(ssAsp.Orb)
+				if orbDiff < minOrbDiff {
+					minOrbDiff = orbDiff
+					found = true
+
+					if orbDiff <= 1.5 {
+						report.TotalMatches++
+						dateStats.Matches++
+
+						if _, exists := report.ByEventType[sfRec.EventType]; !exists {
+							report.ByEventType[sfRec.EventType] = &TimelineEventTypeStats{
+								EventType: sfRec.EventType,
+							}
+						}
+						report.ByEventType[sfRec.EventType].Matches++
+						report.ByEventType[sfRec.EventType].Count++
+
+						if _, exists := report.ByChartType[pairingType]; !exists {
+							report.ByChartType[pairingType] = &TimelineChartTypeStats{
+								ChartType: pairingType,
+							}
+						}
+						report.ByChartType[pairingType].Matches++
+						report.ByChartType[pairingType].Count++
+					} else {
+						report.TotalDivergences++
+						dateStats.Divergences++
+
+						if _, exists := report.ByEventType[sfRec.EventType]; !exists {
+							report.ByEventType[sfRec.EventType] = &TimelineEventTypeStats{
+								EventType: sfRec.EventType,
+							}
+						}
+						report.ByEventType[sfRec.EventType].Divergences++
+						report.ByEventType[sfRec.EventType].Count++
+
+						if _, exists := report.ByChartType[pairingType]; !exists {
+							report.ByChartType[pairingType] = &TimelineChartTypeStats{
+								ChartType: pairingType,
+							}
+						}
+						report.ByChartType[pairingType].Divergences++
+						report.ByChartType[pairingType].Count++
+
+						occ := TimelineAspectOccurrence{
+							SFRecord:      sfRec,
+							Date:          date,
+							ChartType:     pairingType,
+							P1Name:        p1Name,
+							P2Name:        p2Name,
+							AspectType:    sfAspectType,
+							SSDate:        date,
+							SSOrb:         ssAsp.Orb,
+							OrbDifference: orbDiff,
+							MatchStatus:   "Divergence",
+							Notes:         fmt.Sprintf("Orb: %.2f°", orbDiff),
+						}
+						report.TopDivergences = append(report.TopDivergences, occ)
+					}
+				}
+			}
+
+			if !found {
+				report.TotalDivergences++
+				dateStats.Divergences++
+
+				if _, exists := report.ByEventType[sfRec.EventType]; !exists {
+					report.ByEventType[sfRec.EventType] = &TimelineEventTypeStats{
+						EventType: sfRec.EventType,
+					}
+				}
+				report.ByEventType[sfRec.EventType].Divergences++
+				report.ByEventType[sfRec.EventType].Count++
+
+				if _, exists := report.ByChartType[pairingType]; !exists {
+					report.ByChartType[pairingType] = &TimelineChartTypeStats{
+						ChartType: pairingType,
+					}
+				}
+				report.ByChartType[pairingType].Divergences++
+				report.ByChartType[pairingType].Count++
+
+				occ := TimelineAspectOccurrence{
+					SFRecord:    sfRec,
+					Date:        date,
+					ChartType:   pairingType,
+					P1Name:      p1Name,
+					P2Name:      p2Name,
+					AspectType:  sfAspectType,
+					SSDate:      date,
+					MatchStatus: "Missing",
+					Notes:       "No matching aspect found",
+				}
+				report.TopDivergences = append(report.TopDivergences, occ)
+			}
+		}
+
+		report.ByDate[date] = dateStats
+	}
+
+	// Calculate match rates
+	if report.TotalSFRecords > 0 {
+		report.MatchRate = float64(report.TotalMatches) * 100.0 / float64(report.TotalSFRecords)
+	}
+
+	for _, stats := range report.ByEventType {
+		if stats.Count > 0 {
+			stats.MatchRate = float64(stats.Matches) * 100.0 / float64(stats.Count)
+		}
+	}
+
+	for _, stats := range report.ByChartType {
+		if stats.Count > 0 {
+			stats.MatchRate = float64(stats.Matches) * 100.0 / float64(stats.Count)
+		}
+	}
+
+	sort.Slice(report.TopDivergences, func(i, j int) bool {
+		return report.TopDivergences[i].OrbDifference > report.TopDivergences[j].OrbDifference
+	})
+
+	if len(report.TopDivergences) > 50 {
+		report.TopDivergences = report.TopDivergences[:50]
+	}
+
+	return report
+}
+
 // PrintTimelineReport formats and prints comprehensive validation report
 func PrintTimelineReport(report *TimelineValidationReport) string {
 	output := fmt.Sprintf(`
