@@ -55,7 +55,10 @@ Phase E provides REST API endpoints for the Phase D timeline validators, enablin
   - `signingress`: Sign Ingress detection
   - `housechange`: House Change detection
   - `stations`: Retrograde/Direct Station detection
-- `format` (string, optional): `json` (default) or `csv`
+- `format` (string, optional):
+  - `json` (default): JSON response with full details
+  - `csv`: CSV export with event/chart type breakdown
+  - `detailed`: JSON with detailed breakdown by event type and chart type
 
 **Response:**
 ```json
@@ -277,11 +280,11 @@ curl -X POST http://localhost:8080/api/v1/validation/phase-d \
 
 ## Next Steps
 
-### Phase E Enhancements (1-2 hours)
+### Phase E Enhancements (Completed)
 1. ✅ REST API endpoints (COMPLETE)
-2. CSV export format for validation results
+2. ✅ CSV export format for validation results (COMPLETE)
 3. Dashboard visualization (optional)
-4. Performance caching for repeated requests
+4. Performance caching for repeated requests (optional)
 
 ### Phase F (3-4 hours)
 1. Synastry validation endpoints
@@ -290,11 +293,51 @@ curl -X POST http://localhost:8080/api/v1/validation/phase-d \
 
 ---
 
+## CSV Export Formats
+
+### Single Validator CSV
+
+When using `format=csv` on the individual validator endpoint:
+
+```csv
+Section,Category,Matches,Divergences,Total,Match_Rate_%
+Summary,tr-na,120,80,200,60.0
+EventType,Begin,3,1,4,75.0
+EventType,Exact,35,24,59,59.3
+EventType,Enter,42,22,64,65.6
+...
+ChartType,Tr-Na,120,80,200,60.0
+```
+
+Includes:
+- Summary line with overall statistics
+- Breakdown by event type (Begin, Exact, Enter, Leave, etc.)
+- Breakdown by chart type
+
+### Aggregated CSV
+
+When using `format=csv` on the aggregated endpoint:
+
+```csv
+Validator,Total_Records,Matches,Divergences,Match_Rate_%,Execution_Time_ms
+tr-na,200,120,80,60.0,42.5
+sp-na,52,40,12,76.9,15.3
+sa-na,31,28,3,90.3,12.8
+...
+void,161,161,0,100.0,18.4
+stations,12,12,0,100.0,5.1
+```
+
+One row per validator with aggregate statistics.
+
+---
+
 ## Testing
 
 ### Manual Testing
+
+**Test individual validator (JSON):**
 ```bash
-# Test individual validator
 curl -X POST http://localhost:8080/api/v1/validation/timeline \
   -H "Content-Type: application/json" \
   -d '{
@@ -304,8 +347,24 @@ curl -X POST http://localhost:8080/api/v1/validation/timeline \
     "natal_lon": 115.8833,
     "validator_type": "tr-na"
   }'
+```
 
-# Test aggregated validators
+**Test individual validator (CSV):**
+```bash
+curl -X POST http://localhost:8080/api/v1/validation/timeline \
+  -H "Content-Type: application/json" \
+  -d '{
+    "csv_path": "testdata/solarfire/testcase-1-transit.csv",
+    "natal_jd": 2450800.900729,
+    "natal_lat": -31.9333,
+    "natal_lon": 115.8833,
+    "validator_type": "tr-na",
+    "format": "csv"
+  }'
+```
+
+**Test aggregated validators (JSON):**
+```bash
 curl -X POST http://localhost:8080/api/v1/validation/phase-d \
   -H "Content-Type: application/json" \
   -d '{
@@ -314,6 +373,19 @@ curl -X POST http://localhost:8080/api/v1/validation/phase-d \
     "natal_lat": -31.9333,
     "natal_lon": 115.8833
   }'
+```
+
+**Test aggregated validators (CSV):**
+```bash
+curl -X POST http://localhost:8080/api/v1/validation/phase-d \
+  -H "Content-Type: application/json" \
+  -d '{
+    "csv_path": "testdata/solarfire/testcase-1-transit.csv",
+    "natal_jd": 2450800.900729,
+    "natal_lat": -31.9333,
+    "natal_lon": 115.8833,
+    "format": "csv"
+  }' > phase-d-validation.csv
 ```
 
 ### Automated Testing
