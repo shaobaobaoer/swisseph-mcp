@@ -595,6 +595,87 @@ func TestPhaseD_v6_JN_HouseChange(t *testing.T) {
 	}
 }
 
+// TestPhaseD_v9_JN_EventCoverage analyzes which event types remain unvalidated
+func TestPhaseD_v9_JN_EventCoverage(t *testing.T) {
+	const csvPath = "../../testdata/solarfire/testcase-1-transit.csv"
+
+	// Find CSV with fallbacks
+	actualPath := csvPath
+	if _, err := checkFileExists(csvPath); err != nil {
+		actualPath = "../testdata/solarfire/testcase-1-transit.csv"
+		if _, err := checkFileExists(actualPath); err != nil {
+			actualPath = "testdata/solarfire/testcase-1-transit.csv"
+		}
+	}
+
+	t.Logf("=== Phase D v9: Event Coverage Analysis ===\n")
+
+	// Load all SF records
+	sfRecords, err := ParseSFCSV(actualPath, "", "", "")
+	if err != nil {
+		t.Fatalf("ParseSFCSV: %v", err)
+	}
+
+	t.Logf("Total records: %d\n", len(sfRecords))
+
+	// Count by event type
+	eventCount := make(map[string]int)
+	eventByType := make(map[string][]SFAspectRecord)
+	for _, rec := range sfRecords {
+		eventCount[rec.EventType]++
+		eventByType[rec.EventType] = append(eventByType[rec.EventType], rec)
+	}
+
+	// Count by chart type
+	chartCount := make(map[string]int)
+	for _, rec := range sfRecords {
+		chartCount[rec.Type]++
+	}
+
+	t.Logf("Event Type Distribution:")
+	eventTypes := []string{"Begin", "Enter", "Exact", "Leave", "Void", "SignIngress", "HouseChange", "Retrograde", "Direct"}
+	for _, et := range eventTypes {
+		if count, exists := eventCount[et]; exists {
+			t.Logf("  %s: %d events", et, count)
+		}
+	}
+
+	t.Logf("\nChart Type Distribution:")
+	for ct := range chartCount {
+		t.Logf("  %s: %d events", ct, chartCount[ct])
+	}
+
+	// Run all validators and track coverage
+	trNa := ValidateTimelineTrNa(sfRecords, jnJDUT, jnLat, jnLon, jnPlanets)
+	spNa := ValidateTimelineSpNa(sfRecords, jnJDUT, jnLat, jnLon, jnPlanets)
+	saNa := ValidateTimelineSaNa(sfRecords, jnJDUT, jnLat, jnLon, jnPlanets)
+	trSp := ValidateTimelineAdvancedPairings(sfRecords, jnJDUT, jnLat, jnLon, jnPlanets)
+	spSp := ValidateTimelineSpSp(sfRecords, jnJDUT, jnLat, jnLon, jnPlanets)
+	trTr := ValidateTimelineTrTr(sfRecords, jnJDUT, jnLat, jnLon, jnPlanets)
+	voc := ValidateTimelineVoidOfCourse(sfRecords, jnJDUT, jnLat, jnLon, jnPlanets)
+	sig := ValidateTimelineSignIngress(sfRecords, jnJDUT, jnLat, jnLon, jnPlanets)
+	hc := ValidateTimelineHouseChange(sfRecords, jnJDUT, jnLat, jnLon, jnPlanets)
+	st := ValidateTimelineStations(sfRecords, jnJDUT, jnLat, jnLon, jnPlanets)
+
+	totalMatched := trNa.TotalMatches + spNa.TotalMatches + saNa.TotalMatches +
+		trSp.TotalMatches + spSp.TotalMatches + trTr.TotalMatches +
+		voc.TotalMatches + sig.TotalMatches + hc.TotalMatches + st.TotalMatches
+
+	t.Logf("\nValidator Coverage Summary:")
+	t.Logf("  Tr-Na: %d/%d (%.1f%%)", trNa.TotalMatches, trNa.TotalSFRecords, trNa.MatchRate)
+	t.Logf("  Sp-Na: %d/%d (%.1f%%)", spNa.TotalMatches, spNa.TotalSFRecords, spNa.MatchRate)
+	t.Logf("  Sa-Na: %d/%d (%.1f%%)", saNa.TotalMatches, saNa.TotalSFRecords, saNa.MatchRate)
+	t.Logf("  Tr-Sp/Tr-Sa: %d/%d (%.1f%%)", trSp.TotalMatches, trSp.TotalSFRecords, trSp.MatchRate)
+	t.Logf("  Sp-Sp: %d/%d (%.1f%%)", spSp.TotalMatches, spSp.TotalSFRecords, spSp.MatchRate)
+	t.Logf("  Tr-Tr: %d/%d (%.1f%%)", trTr.TotalMatches, trTr.TotalSFRecords, trTr.MatchRate)
+	t.Logf("  Void: %d/%d (%.1f%%)", voc.TotalMatches, voc.TotalSFRecords, voc.MatchRate)
+	t.Logf("  SignIngress: %d/%d (%.1f%%)", sig.TotalMatches, sig.TotalSFRecords, sig.MatchRate)
+	t.Logf("  HouseChange: %d/%d (%.1f%%)", hc.TotalMatches, hc.TotalSFRecords, hc.MatchRate)
+	t.Logf("  Stations: %d/%d (%.1f%%)", st.TotalMatches, st.TotalSFRecords, st.MatchRate)
+	t.Logf("\nTotal Matches (with overlap): %d/%d (%.1f%%)", totalMatched, len(sfRecords),
+		float64(totalMatched)*100.0/float64(len(sfRecords)))
+}
+
 // TestPhaseD_v8_JN_TrTr validates Tr-Tr within-chart transit aspects
 func TestPhaseD_v8_JN_TrTr(t *testing.T) {
 	const csvPath = "../../testdata/solarfire/testcase-1-transit.csv"
