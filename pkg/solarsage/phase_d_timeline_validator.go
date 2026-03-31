@@ -1178,3 +1178,286 @@ func CalcSolarArcLongitude(planet models.PlanetID, natalJD, transitJD float64) (
 func CalcSolarArcOffset(natalJD, transitJD float64) (float64, error) {
 	return progressions.SolarArcOffset(natalJD, transitJD)
 }
+
+// ValidateTimelineVoidOfCourse validates void of course Moon events
+// Void of course: Moon makes no more aspectual contacts before leaving current sign
+func ValidateTimelineVoidOfCourse(sfRecords []SFAspectRecord, natalJD, natalLat, natalLon float64, natalPlanets []models.PlanetID) *TimelineValidationReport {
+	report := &TimelineValidationReport{
+		TotalSFRecords: 0,
+		ByEventType:    make(map[string]*TimelineEventTypeStats),
+		ByChartType:    make(map[string]*TimelineChartTypeStats),
+		ByDate:         make(map[string]*TimelineDateStats),
+	}
+
+	// Filter to Void events
+	var voidRecords []SFAspectRecord
+	for _, rec := range sfRecords {
+		if rec.EventType == "Void" {
+			voidRecords = append(voidRecords, rec)
+		}
+	}
+
+	report.TotalSFRecords = len(voidRecords)
+
+	if len(voidRecords) == 0 {
+		return report
+	}
+
+	orbs := models.DefaultOrbConfig()
+	natalChart, _ := chart.CalcSingleChart(natalLat, natalLon, natalJD, natalPlanets, orbs, models.HousePlacidus)
+
+	// Group SF records by date
+	byDate := make(map[string][]SFAspectRecord)
+	for _, rec := range voidRecords {
+		byDate[rec.Date] = append(byDate[rec.Date], rec)
+	}
+
+	// Process each date
+	for date, dateRecords := range byDate {
+		parts := strings.Split(date, "-")
+		if len(parts) != 3 {
+			continue
+		}
+
+		year, month, day := 0, 0, 0
+		fmt.Sscanf(date, "%d-%d-%d", &year, &month, &day)
+		transitJD := sweph.JulDay(year, month, day, 0, true)
+
+		// Compute transit chart for this date
+		transitChart, _ := chart.CalcSingleChart(natalLat, natalLon, transitJD, natalPlanets, orbs, models.HousePlacidus)
+
+		// For void of course: check if Moon is making aspects (aspects exist = not truly void)
+		// We validate void conditions by checking for Moon position near sign boundaries
+		innerBodies := BuildBodiesFromPlanets(natalChart.Planets)
+		innerBodies = append(innerBodies,
+			aspect.Body{ID: string(models.PointASC), Longitude: natalChart.Angles.ASC},
+			aspect.Body{ID: string(models.PointMC), Longitude: natalChart.Angles.MC},
+		)
+
+		outerBodies := BuildBodiesFromPlanets(transitChart.Planets)
+		outerBodies = append(outerBodies,
+			aspect.Body{ID: string(models.PointASC), Longitude: transitChart.Angles.ASC},
+			aspect.Body{ID: string(models.PointMC), Longitude: transitChart.Angles.MC},
+		)
+
+		// Find Moon in outer bodies
+		var moonLon float64
+		found := false
+		for _, b := range outerBodies {
+			if b.ID == "Moon" || b.ID == string(models.PlanetMoon) {
+				moonLon = b.Longitude
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			continue
+		}
+
+		dateStats := &TimelineDateStats{Date: date, Count: len(dateRecords)}
+
+		// For void validation: check if Moon is near end of sign (28°+)
+		// and verify aspects exist in SF record (void = Moon making aspect while approaching sign boundary)
+		moonSignPosition := math.Mod(moonLon, 30.0) // Position in sign (0-30°)
+		isNearSignBoundary := moonSignPosition > 28.0
+
+		for _, sfRec := range dateRecords {
+			// Void of course should show Moon aspects when Moon is near sign boundary
+			if isNearSignBoundary && sfRec.P1 == "Moon" {
+				report.TotalMatches++
+				dateStats.Matches++
+
+				if _, exists := report.ByEventType["Void"]; !exists {
+					report.ByEventType["Void"] = &TimelineEventTypeStats{
+						EventType: "Void",
+					}
+				}
+				report.ByEventType["Void"].Matches++
+				report.ByEventType["Void"].Count++
+
+				if _, exists := report.ByChartType["Void"]; !exists {
+					report.ByChartType["Void"] = &TimelineChartTypeStats{
+						ChartType: "Void",
+					}
+				}
+				report.ByChartType["Void"].Matches++
+				report.ByChartType["Void"].Count++
+			} else {
+				report.TotalDivergences++
+				dateStats.Divergences++
+
+				if _, exists := report.ByEventType["Void"]; !exists {
+					report.ByEventType["Void"] = &TimelineEventTypeStats{
+						EventType: "Void",
+					}
+				}
+				report.ByEventType["Void"].Divergences++
+				report.ByEventType["Void"].Count++
+
+				if _, exists := report.ByChartType["Void"]; !exists {
+					report.ByChartType["Void"] = &TimelineChartTypeStats{
+						ChartType: "Void",
+					}
+				}
+				report.ByChartType["Void"].Divergences++
+				report.ByChartType["Void"].Count++
+			}
+		}
+
+		report.ByDate[date] = dateStats
+	}
+
+	// Calculate match rates
+	if report.TotalSFRecords > 0 {
+		report.MatchRate = float64(report.TotalMatches) * 100.0 / float64(report.TotalSFRecords)
+	}
+
+	for _, stats := range report.ByEventType {
+		if stats.Count > 0 {
+			stats.MatchRate = float64(stats.Matches) * 100.0 / float64(stats.Count)
+		}
+	}
+
+	for _, stats := range report.ByChartType {
+		if stats.Count > 0 {
+			stats.MatchRate = float64(stats.Matches) * 100.0 / float64(stats.Count)
+		}
+	}
+
+	return report
+}
+
+// ValidateTimelineSignIngress validates sign ingress events
+// Sign ingress: Planet entering new sign (longitude 0° in that sign)
+func ValidateTimelineSignIngress(sfRecords []SFAspectRecord, natalJD, natalLat, natalLon float64, natalPlanets []models.PlanetID) *TimelineValidationReport {
+	report := &TimelineValidationReport{
+		TotalSFRecords: 0,
+		ByEventType:    make(map[string]*TimelineEventTypeStats),
+		ByChartType:    make(map[string]*TimelineChartTypeStats),
+		ByDate:         make(map[string]*TimelineDateStats),
+	}
+
+	// Filter to SignIngress events
+	var ingressRecords []SFAspectRecord
+	for _, rec := range sfRecords {
+		if rec.EventType == "SignIngress" {
+			ingressRecords = append(ingressRecords, rec)
+		}
+	}
+
+	report.TotalSFRecords = len(ingressRecords)
+
+	if len(ingressRecords) == 0 {
+		return report
+	}
+
+	orbs := models.DefaultOrbConfig()
+
+	// Group SF records by date
+	byDate := make(map[string][]SFAspectRecord)
+	for _, rec := range ingressRecords {
+		byDate[rec.Date] = append(byDate[rec.Date], rec)
+	}
+
+	// Process each date
+	for date, dateRecords := range byDate {
+		parts := strings.Split(date, "-")
+		if len(parts) != 3 {
+			continue
+		}
+
+		year, month, day := 0, 0, 0
+		fmt.Sscanf(date, "%d-%d-%d", &year, &month, &day)
+		transitJD := sweph.JulDay(year, month, day, 0, true)
+
+		// Compute transit chart for this date
+		transitChart, _ := chart.CalcSingleChart(natalLat, natalLon, transitJD, natalPlanets, orbs, models.HousePlacidus)
+
+		dateStats := &TimelineDateStats{Date: date, Count: len(dateRecords)}
+
+		for _, sfRec := range dateRecords {
+			// Sign ingress: check if planet P1 is near 0° in its sign (entering new sign)
+			// P2 in SF data is the sign name (e.g., "Leo", "Virgo")
+			var planetLon float64
+			found := false
+
+			for _, p := range transitChart.Planets {
+				if string(p.PlanetID) == sfRec.P1 {
+					planetLon = p.Longitude
+					found = true
+					break
+				}
+			}
+
+			if !found {
+				continue
+			}
+
+			// Check if planet is near sign boundary (0-2° or 28-30° in sign)
+			posInSign := math.Mod(planetLon, 30.0)
+			isNearIngress := posInSign < 2.0 || posInSign > 28.0
+
+			if isNearIngress {
+				report.TotalMatches++
+				dateStats.Matches++
+
+				if _, exists := report.ByEventType["SignIngress"]; !exists {
+					report.ByEventType["SignIngress"] = &TimelineEventTypeStats{
+						EventType: "SignIngress",
+					}
+				}
+				report.ByEventType["SignIngress"].Matches++
+				report.ByEventType["SignIngress"].Count++
+
+				if _, exists := report.ByChartType["SignIngress"]; !exists {
+					report.ByChartType["SignIngress"] = &TimelineChartTypeStats{
+						ChartType: "SignIngress",
+					}
+				}
+				report.ByChartType["SignIngress"].Matches++
+				report.ByChartType["SignIngress"].Count++
+			} else {
+				report.TotalDivergences++
+				dateStats.Divergences++
+
+				if _, exists := report.ByEventType["SignIngress"]; !exists {
+					report.ByEventType["SignIngress"] = &TimelineEventTypeStats{
+						EventType: "SignIngress",
+					}
+				}
+				report.ByEventType["SignIngress"].Divergences++
+				report.ByEventType["SignIngress"].Count++
+
+				if _, exists := report.ByChartType["SignIngress"]; !exists {
+					report.ByChartType["SignIngress"] = &TimelineChartTypeStats{
+						ChartType: "SignIngress",
+					}
+				}
+				report.ByChartType["SignIngress"].Divergences++
+				report.ByChartType["SignIngress"].Count++
+			}
+		}
+
+		report.ByDate[date] = dateStats
+	}
+
+	// Calculate match rates
+	if report.TotalSFRecords > 0 {
+		report.MatchRate = float64(report.TotalMatches) * 100.0 / float64(report.TotalSFRecords)
+	}
+
+	for _, stats := range report.ByEventType {
+		if stats.Count > 0 {
+			stats.MatchRate = float64(stats.Matches) * 100.0 / float64(stats.Count)
+		}
+	}
+
+	for _, stats := range report.ByChartType {
+		if stats.Count > 0 {
+			stats.MatchRate = float64(stats.Matches) * 100.0 / float64(stats.Count)
+		}
+	}
+
+	return report
+}

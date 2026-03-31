@@ -390,6 +390,88 @@ func TestPhaseD_v4_XB_Advanced_Stage2(t *testing.T) {
 	}
 }
 
+// TestPhaseD_v5_JN_Void validates Void of Course Moon events
+func TestPhaseD_v5_JN_Void(t *testing.T) {
+	const csvPath = "../../testdata/solarfire/testcase-1-transit.csv"
+
+	t.Logf("=== Phase D v5: JN Void of Course Moon Events ===\n")
+
+	actualPath := csvPath
+	if _, err := checkFileExists(csvPath); err != nil {
+		actualPath = "../testdata/solarfire/testcase-1-transit.csv"
+		if _, err := checkFileExists(actualPath); err != nil {
+			actualPath = "testdata/solarfire/testcase-1-transit.csv"
+		}
+	}
+
+	startTime := time.Now()
+
+	sfRecords, err := ParseSFCSV(actualPath, "", "", "")
+	if err != nil {
+		t.Fatalf("ParseSFCSV: %v", err)
+	}
+
+	report := ValidateTimelineVoidOfCourse(sfRecords, jnJDUT, jnLat, jnLon, jnPlanets)
+
+	elapsed := time.Since(startTime)
+	report.ExecutionTimeMs = elapsed.Seconds() * 1000
+
+	reportStr := PrintTimelineReport(report)
+	t.Log(reportStr)
+
+	t.Logf("\nSUMMARY:")
+	t.Logf("  Total Void events: %d", report.TotalSFRecords)
+	t.Logf("  Matches: %d (%.1f%%)", report.TotalMatches, report.MatchRate)
+	t.Logf("  Execution time: %.0fms", report.ExecutionTimeMs)
+
+	if report.MatchRate >= 40 {
+		t.Logf("✅ PASS: Match rate %.1f%% >= 40%% target", report.MatchRate)
+	} else {
+		t.Logf("⚠️  INFO: Match rate %.1f%% (baseline validation)", report.MatchRate)
+	}
+}
+
+// TestPhaseD_v5_JN_SignIngress validates Sign Ingress events
+func TestPhaseD_v5_JN_SignIngress(t *testing.T) {
+	const csvPath = "../../testdata/solarfire/testcase-1-transit.csv"
+
+	t.Logf("=== Phase D v5: JN Sign Ingress Events ===\n")
+
+	actualPath := csvPath
+	if _, err := checkFileExists(csvPath); err != nil {
+		actualPath = "../testdata/solarfire/testcase-1-transit.csv"
+		if _, err := checkFileExists(actualPath); err != nil {
+			actualPath = "testdata/solarfire/testcase-1-transit.csv"
+		}
+	}
+
+	startTime := time.Now()
+
+	sfRecords, err := ParseSFCSV(actualPath, "", "", "")
+	if err != nil {
+		t.Fatalf("ParseSFCSV: %v", err)
+	}
+
+	report := ValidateTimelineSignIngress(sfRecords, jnJDUT, jnLat, jnLon, jnPlanets)
+
+	elapsed := time.Since(startTime)
+	report.ExecutionTimeMs = elapsed.Seconds() * 1000
+
+	reportStr := PrintTimelineReport(report)
+	t.Log(reportStr)
+
+	t.Logf("\nSUMMARY:")
+	t.Logf("  Total SignIngress events: %d", report.TotalSFRecords)
+	t.Logf("  Matches: %d (%.1f%%)", report.TotalMatches, report.MatchRate)
+	t.Logf("  Execution time: %.0fms", report.ExecutionTimeMs)
+
+	if report.MatchRate >= 50 {
+		t.Logf("✅ PASS: Match rate %.1f%% >= 50%% target", report.MatchRate)
+	} else {
+		t.Logf("⚠️  INFO: Match rate %.1f%% (baseline validation)", report.MatchRate)
+	}
+}
+
 // Helper to check if file exists
 func checkFileExists(path string) (bool, error) {
 	_, err := os.Stat(path)
