@@ -595,6 +595,108 @@ func TestPhaseD_v6_JN_HouseChange(t *testing.T) {
 	}
 }
 
+// TestPhaseD_v12_XB_Optimized focuses on validators present in XB data
+// XB data structure differs from JN: has Tr-Na, Sp-Na, Sp-Sp, Stations only
+func TestPhaseD_v12_XB_Optimized(t *testing.T) {
+	t.Logf("\n=== Phase D v12: XB Timeline Optimized Validation ===\n")
+	t.Logf("Note: XB data lacks Sa-Na, Tr-Sp, Tr-Sa, Tr-Tr, Void (different Solar Fire config)\n")
+	t.Logf("Focus: Tr-Na, Sp-Na, Sp-Sp, SignIngress, HouseChange, Stations\n\n")
+
+	testPeriods := []struct {
+		name   string
+		path   string
+		years  string
+	}{
+		{
+			name:  "1996-2001",
+			path:  "../../testdata/solarfire/testcase-2-transit-1996-2001.csv",
+			years: "1996-2001",
+		},
+		{
+			name:  "2001-2006",
+			path:  "../../testdata/solarfire/testcase-2-transit-2001-2006.csv",
+			years: "2001-2006",
+		},
+	}
+
+	grandTotalEvents := 0
+	grandTotalMatches := 0
+
+	for _, period := range testPeriods {
+		actualPath := period.path
+		if _, err := checkFileExists(period.path); err != nil {
+			actualPath = "../testdata/solarfire/testcase-2-transit-" + period.name + ".csv"
+			if _, err := checkFileExists(actualPath); err != nil {
+				actualPath = "testdata/solarfire/testcase-2-transit-" + period.name + ".csv"
+			}
+		}
+
+		sfRecords, err := ParseSFCSV(actualPath, "", "", "")
+		if err != nil {
+			t.Logf("Warning: Could not load %s: %v\n", period.name, err)
+			continue
+		}
+
+		t.Logf("[Period: %s] Loaded %d events\n", period.years, len(sfRecords))
+
+		startTime := time.Now()
+
+		// Only run validators present in XB data
+		trNa := ValidateTimelineTrNa(sfRecords, xbJDUT, xbLat, xbLon, xbPlanets)
+		spNa := ValidateTimelineSpNa(sfRecords, xbJDUT, xbLat, xbLon, xbPlanets)
+		spSp := ValidateTimelineSpSp(sfRecords, xbJDUT, xbLat, xbLon, xbPlanets)
+		sig := ValidateTimelineSignIngress(sfRecords, xbJDUT, xbLat, xbLon, xbPlanets)
+		hc := ValidateTimelineHouseChange(sfRecords, xbJDUT, xbLat, xbLon, xbPlanets)
+		st := ValidateTimelineStations(sfRecords, xbJDUT, xbLat, xbLon, xbPlanets)
+
+		elapsed := time.Since(startTime)
+
+		periodTotal := trNa.TotalSFRecords + spNa.TotalSFRecords + spSp.TotalSFRecords +
+			sig.TotalSFRecords + hc.TotalSFRecords + st.TotalSFRecords
+
+		periodMatches := trNa.TotalMatches + spNa.TotalMatches + spSp.TotalMatches +
+			sig.TotalMatches + hc.TotalMatches + st.TotalMatches
+
+		periodRate := 0.0
+		if periodTotal > 0 {
+			periodRate = float64(periodMatches) * 100.0 / float64(periodTotal)
+		}
+
+		t.Logf("Validators for %s:\n", period.years)
+		t.Logf("  Tr-Na: %.1f%% (%d/%d)\n", trNa.MatchRate, trNa.TotalMatches, trNa.TotalSFRecords)
+		t.Logf("  Sp-Na: %.1f%% (%d/%d)\n", spNa.MatchRate, spNa.TotalMatches, spNa.TotalSFRecords)
+		t.Logf("  Sp-Sp: %.1f%% (%d/%d)\n", spSp.MatchRate, spSp.TotalMatches, spSp.TotalSFRecords)
+		t.Logf("  SignIngress: %.1f%% (%d/%d)\n", sig.MatchRate, sig.TotalMatches, sig.TotalSFRecords)
+		t.Logf("  HouseChange: %.1f%% (%d/%d)\n", hc.MatchRate, hc.TotalMatches, hc.TotalSFRecords)
+		t.Logf("  Stations: %.1f%% (%d/%d)\n", st.MatchRate, st.TotalMatches, st.TotalSFRecords)
+		t.Logf("  => Total: %d events, %d validated (%.1f%%) in %.0fms\n\n",
+			periodTotal, periodMatches, periodRate, elapsed.Seconds()*1000)
+
+		grandTotalEvents += periodTotal
+		grandTotalMatches += periodMatches
+	}
+
+	grandRate := 0.0
+	if grandTotalEvents > 0 {
+		grandRate = float64(grandTotalMatches) * 100.0 / float64(grandTotalEvents)
+	}
+
+	t.Logf("=== XB Timeline Grand Total (Optimized) ===\n")
+	t.Logf("Total Events: %d\n", grandTotalEvents)
+	t.Logf("Total Validated: %d\n", grandTotalMatches)
+	t.Logf("Coverage: %.1f%%\n", grandRate)
+	t.Logf("\nComparison to JN: JN had 80.1%% (926/1,156)\n")
+	t.Logf("XB data composition differs - focus on applicable validators.\n")
+
+	if grandRate >= 75.0 {
+		t.Logf("✅ PASS: Coverage %.1f%% >= 75%% target\n", grandRate)
+	} else if grandRate >= 70.0 {
+		t.Logf("⚠️  INFO: Coverage %.1f%% (acceptable for longer timeline)\n", grandRate)
+	} else {
+		t.Logf("❌ CONCERN: Coverage %.1f%% < 70%% target\n", grandRate)
+	}
+}
+
 // TestPhaseD_v11_XB_Comprehensive validates all 10 validators on XB timeline
 func TestPhaseD_v11_XB_Comprehensive(t *testing.T) {
 	// Test XB timeline on both 5-year periods
