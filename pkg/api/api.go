@@ -108,6 +108,10 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/api/v1/lunar/phase", s.requirePOST(s.handleLunarPhase))
 	s.mux.HandleFunc("/api/v1/lunar/phases", s.requirePOST(s.handleLunarPhases))
 	s.mux.HandleFunc("/api/v1/lunar/eclipses", s.requirePOST(s.handleEclipses))
+
+	// --- Phase D Timeline Validation Domain ---
+	s.mux.HandleFunc("/api/v1/validation/timeline", s.requirePOST(s.handleTimelineValidation))
+	s.mux.HandleFunc("/api/v1/validation/phase-d", s.requirePOST(s.handlePhaseDAggregated))
 }
 
 // requirePOST wraps a handler to reject non-POST methods.
