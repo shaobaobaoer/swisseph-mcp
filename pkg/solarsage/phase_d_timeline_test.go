@@ -308,6 +308,88 @@ func TestPhaseD_v3_XB_TrNa_Stage2(t *testing.T) {
 	}
 }
 
+// TestPhaseD_v4_XB_Advanced_Stage1 validates XB advanced pairings (1996-2001)
+func TestPhaseD_v4_XB_Advanced_Stage1(t *testing.T) {
+	const csvPath = "../../testdata/solarfire/testcase-2-transit-1996-2001.csv"
+
+	t.Logf("=== Phase D v4: XB Advanced Pairings (1996-2001, 5 years) ===\n")
+
+	actualPath := csvPath
+	if _, err := checkFileExists(csvPath); err != nil {
+		actualPath = "../testdata/solarfire/testcase-2-transit-1996-2001.csv"
+		if _, err := checkFileExists(actualPath); err != nil {
+			actualPath = "testdata/solarfire/testcase-2-transit-1996-2001.csv"
+		}
+	}
+
+	startTime := time.Now()
+
+	sfRecords, err := ParseSFCSV(actualPath, "", "", "")
+	if err != nil {
+		t.Fatalf("ParseSFCSV: %v", err)
+	}
+
+	report := ValidateTimelineAdvancedPairings(sfRecords, xbJDUT, xbLat, xbLon, xbPlanets)
+
+	elapsed := time.Since(startTime)
+	report.ExecutionTimeMs = elapsed.Seconds() * 1000
+
+	reportStr := PrintTimelineReport(report)
+	t.Log(reportStr)
+
+	t.Logf("\nSUMMARY:")
+	t.Logf("  Total Advanced Pairing events: %d", report.TotalSFRecords)
+	t.Logf("  Matches: %d (%.1f%%)", report.TotalMatches, report.MatchRate)
+	t.Logf("  Execution time: %.0fms", report.ExecutionTimeMs)
+
+	if report.MatchRate >= 50 {
+		t.Logf("✅ PASS: Match rate %.1f%% >= 50%% target", report.MatchRate)
+	} else {
+		t.Logf("⚠️  WARNING: Match rate %.1f%% < 50%% target", report.MatchRate)
+	}
+}
+
+// TestPhaseD_v4_XB_Advanced_Stage2 validates XB advanced pairings (2001-2006)
+func TestPhaseD_v4_XB_Advanced_Stage2(t *testing.T) {
+	const csvPath = "../../testdata/solarfire/testcase-2-transit-2001-2006.csv"
+
+	t.Logf("=== Phase D v4: XB Advanced Pairings (2001-2006, 5 years) ===\n")
+
+	actualPath := csvPath
+	if _, err := checkFileExists(csvPath); err != nil {
+		actualPath = "../testdata/solarfire/testcase-2-transit-2001-2006.csv"
+		if _, err := checkFileExists(actualPath); err != nil {
+			actualPath = "testdata/solarfire/testcase-2-transit-2001-2006.csv"
+		}
+	}
+
+	startTime := time.Now()
+
+	sfRecords, err := ParseSFCSV(actualPath, "", "", "")
+	if err != nil {
+		t.Fatalf("ParseSFCSV: %v", err)
+	}
+
+	report := ValidateTimelineAdvancedPairings(sfRecords, xbJDUT, xbLat, xbLon, xbPlanets)
+
+	elapsed := time.Since(startTime)
+	report.ExecutionTimeMs = elapsed.Seconds() * 1000
+
+	reportStr := PrintTimelineReport(report)
+	t.Log(reportStr)
+
+	t.Logf("\nSUMMARY:")
+	t.Logf("  Total Advanced Pairing events: %d", report.TotalSFRecords)
+	t.Logf("  Matches: %d (%.1f%%)", report.TotalMatches, report.MatchRate)
+	t.Logf("  Execution time: %.0fms", report.ExecutionTimeMs)
+
+	if report.MatchRate >= 50 {
+		t.Logf("✅ PASS: Match rate %.1f%% >= 50%% target", report.MatchRate)
+	} else {
+		t.Logf("⚠️  WARNING: Match rate %.1f%% < 50%% target", report.MatchRate)
+	}
+}
+
 // Helper to check if file exists
 func checkFileExists(path string) (bool, error) {
 	_, err := os.Stat(path)

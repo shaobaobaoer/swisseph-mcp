@@ -823,6 +823,16 @@ func ValidateTimelineAdvancedPairings(sfRecords []SFAspectRecord, natalJD, natal
 		for _, sfRec := range dateRecords {
 			pairingType := sfRec.Type
 
+			// Skip special event types (Void, SignIngress, HouseChange, etc.)
+			// These require separate validators and don't fit the cross-aspect model
+			if sfRec.EventType == "Void" || sfRec.EventType == "SignIngress" ||
+				sfRec.EventType == "HouseChange" || sfRec.EventType == "Retrograde" ||
+				sfRec.EventType == "Direct" {
+				// Track as divergence (special event type)
+				report.TotalDivergences++
+				continue
+			}
+
 			// Build appropriate bodies based on pairing type
 			var innerBodies, outerBodies []aspect.Body
 
