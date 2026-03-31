@@ -18,14 +18,14 @@ JN,SP,SA Offset,28.5683,degrees,0.001,yes,Solar arc at age 28.04 years
 JN,SR,Return JD,2461027.69,julian_day,1.0,yes,2025-12-18 natal Sun return
 JN,SR,Return Sun,266.4997,degrees,0.01,yes,Matches natal Sun exactly
 JN,SR,Return Age,27.9994,years,0.1,yes,Person age at return
-JN,TR,Event Count,50,count,0,baseline,Exact count 7-day window Jan 8-15
-JN,TR,Aspect Events,41,count,0,baseline,Enter/exact/leave aspects
+JN,TR,Event Count,62,count,0,baseline,Exact count 7-day window (expanded from 50 after adding Chiron/NorthNode)
+JN,TR,Aspect Events,47,count,0,baseline,Enter/exact/leave aspects (expanded from 41)
 JN,Moon,Phase Name,Waxing Gibbous,text,exact,yes,2026-01-01 00:00 UTC
 JN,Moon,Phase Angle,146.15,degrees,0.1,yes,Moon-Sun elongation
 JN,Moon,Illumination,91.5,percent,0.1,yes,Visible disk fraction
 JN,Moon,Moon Longitude,66.7156,degrees,0.01,yes,Gemini 6.7°
-JN,DC,Cross Aspects,35,count,0,baseline,JN natal vs 2026-01-01 transit
-JN,DC,Aspect Types,9,count,0,baseline,Conjunction Opposition Trine Square Sextile Quincunx Semi-Sextile Semi-Square Sesquiquadrate
+JN,DC,Cross Aspects,72,count,0,baseline,JN 12 bodies vs 12 bodies transit (expanded from 35: +Chiron +NorthNode +ASC +MC)
+JN,DC,Aspect Types,9,count,0,baseline,All 9 aspect types (Conj Opp Tri Sq Sex Qui Ses SS SQ)
 XB,NA,Sun,130.6386,degrees,0.01,yes,Leo 10.6° house 3
 XB,NA,Moon,356.0819,degrees,0.01,yes,Pisces 26.1° house 9
 XB,NA,Mercury,151.6131,degrees,0.01,partial,Virgo 1.6° house 4
@@ -47,5 +47,5 @@ XB,TR,Aspect Events,19,count,0,baseline,Enter/exact/leave aspects
 XB,Moon,Phase Name,Waxing Gibbous,text,exact,yes,2026-01-01 00:00 UTC (same date as JN)
 XB,Moon,Phase Angle,146.15,degrees,0.1,yes,Moon-Sun elongation identical to JN
 XB,Moon,Illumination,91.5,percent,0.1,yes,Visible disk fraction identical to JN
-XB,DC,Cross Aspects,52,count,0,baseline,XB natal vs 2026-01-01 transit
-XB,DC,Aspect Types,9,count,0,baseline,Same aspect type variety as JN
+XB,DC,Cross Aspects,84,count,0,baseline,XB 12 bodies vs 12 bodies transit (expanded from 52: +Chiron +NorthNode +ASC +MC)
+XB,DC,Aspect Types,9,count,0,baseline,All 9 aspect types (Conj Opp Tri Sq Sex Qui Ses SS SQ)

@@ -41,6 +41,7 @@ var jnPlanets = []models.PlanetID{
 	models.PlanetSun, models.PlanetMoon, models.PlanetMercury,
 	models.PlanetVenus, models.PlanetMars, models.PlanetJupiter,
 	models.PlanetSaturn, models.PlanetUranus, models.PlanetNeptune, models.PlanetPluto,
+	models.PlanetChiron, models.PlanetNorthNodeMean,
 }
 
 // =============================================================================
@@ -62,9 +63,9 @@ func TestJN_NA(t *testing.T) {
 		t.Fatalf("CalcSingleChart: %v", err)
 	}
 
-	// Must have exactly 10 planets (standard set)
-	if len(info.Planets) != 10 {
-		t.Errorf("NA: expected 10 planets, got %d", len(info.Planets))
+	// Must have exactly 12 planets (10 standard + Chiron + NorthNode)
+	if len(info.Planets) != 12 {
+		t.Errorf("NA: expected 12 planets, got %d", len(info.Planets))
 	}
 
 	// Spot-check 4 Solar Fire validated planet positions
@@ -324,14 +325,15 @@ func TestJN_TR(t *testing.T) {
 		t.Fatalf("CalcTransitEvents: %v", err)
 	}
 
-	// Phase B baseline: 50 events (41 aspects, 0 ingress in 7-day window)
+	// Phase B baseline: 62 events (47 aspects, 0 ingress) in 7-day window
+	// Increased from 50 events (41 aspects) after adding Chiron and NorthNode to natal planets
 	const (
-		eventCountBase = 50
-		aspectCountBase = 41
+		eventCountBase = 62
+		aspectCountBase = 47
 		ingressCountBase = 0
 	)
 
-	// Must find at least some events in 7 days with 3 fast planets vs 10 natal
+	// Must find at least some events in 7 days with 3 fast planets vs 12 natal planets
 	if len(events) == 0 {
 		t.Error("TR: expected at least 1 transit event in 7-day window, got none")
 	}
@@ -476,19 +478,25 @@ func TestJN_Moon(t *testing.T) {
 func TestJN_DoubleChart(t *testing.T) {
 	orbs := models.DefaultOrbConfig()
 
+	// Special points: ASC and MC for both inner and outer charts
+	sp := &models.SpecialPointsConfig{
+		InnerPoints: []models.SpecialPointID{models.PointASC, models.PointMC},
+		OuterPoints: []models.SpecialPointID{models.PointASC, models.PointMC},
+	}
+
 	// Inner: JN natal.  Outer: transit snapshot on 2026-01-01
 	inner, outer, crossAspects, err := chart.CalcDoubleChart(
 		jnLat, jnLon, jnJDUT, jnPlanets,        // natal (inner ring)
 		jnLat, jnLon, transitJD, jnPlanets,     // transit snapshot (outer ring)
-		nil, orbs, models.HousePlacidus,
+		sp, orbs, models.HousePlacidus,
 	)
 	if err != nil {
 		t.Fatalf("CalcDoubleChart: %v", err)
 	}
 
-	// Inner must have exactly 10 planets
-	if len(inner.Planets) != 10 {
-		t.Errorf("Inner planets: got %d, want 10", len(inner.Planets))
+	// Inner must have exactly 12 planets (10 standard + Chiron + NorthNode)
+	if len(inner.Planets) != 12 {
+		t.Errorf("Inner planets: got %d, want 12", len(inner.Planets))
 	}
 
 	// Inner must have natal planets with known positions
@@ -515,9 +523,9 @@ func TestJN_DoubleChart(t *testing.T) {
 		t.Errorf("Inner MC out of range: %.4f", inner.Angles.MC)
 	}
 
-	// Outer must be a valid chart (same size since we passed same planets)
-	if len(outer.Planets) != 10 {
-		t.Errorf("Outer planets: got %d, want 10", len(outer.Planets))
+	// Outer must be a valid chart (same size since we passed same planets: 12)
+	if len(outer.Planets) != 12 {
+		t.Errorf("Outer planets: got %d, want 12", len(outer.Planets))
 	}
 	if len(outer.Houses) != 12 {
 		t.Errorf("Outer houses: got %d, want 12", len(outer.Houses))
@@ -529,9 +537,10 @@ func TestJN_DoubleChart(t *testing.T) {
 		}
 	}
 
-	// Phase B baseline: 35 cross-aspects, 9 aspect types
+	// Phase B baseline: 72 cross-aspects (12 planets + 2 special points = 14 bodies per ring)
+	// Extended from 35 after adding Chiron, NorthNodeMean, ASC, MC
 	const (
-		crossAspectCount = 35
+		crossAspectCount = 72
 		aspectTypeCount  = 9
 	)
 
@@ -588,6 +597,7 @@ var xbPlanets = []models.PlanetID{
 	models.PlanetSun, models.PlanetMoon, models.PlanetMercury,
 	models.PlanetVenus, models.PlanetMars, models.PlanetJupiter,
 	models.PlanetSaturn, models.PlanetUranus, models.PlanetNeptune, models.PlanetPluto,
+	models.PlanetChiron, models.PlanetNorthNodeMean,
 }
 
 // =============================================================================
@@ -778,10 +788,16 @@ func TestXB_Moon(t *testing.T) {
 func TestXB_DoubleChart(t *testing.T) {
 	orbs := models.DefaultOrbConfig()
 
+	// Special points: ASC and MC for both inner and outer charts
+	sp := &models.SpecialPointsConfig{
+		InnerPoints: []models.SpecialPointID{models.PointASC, models.PointMC},
+		OuterPoints: []models.SpecialPointID{models.PointASC, models.PointMC},
+	}
+
 	inner, outer, crossAspects, err := chart.CalcDoubleChart(
 		xbLat, xbLon, xbJDUT, xbPlanets,
 		xbLat, xbLon, transitJD, xbPlanets,
-		nil, orbs, models.HousePlacidus,
+		sp, orbs, models.HousePlacidus,
 	)
 	if err != nil {
 		t.Fatalf("XB CalcDoubleChart: %v", err)
@@ -809,6 +825,12 @@ func TestXB_DoubleChart(t *testing.T) {
 	// Cross-aspects must exist
 	if len(crossAspects) == 0 {
 		t.Error("XB DC: expected cross-aspects between natal and transit")
+	}
+
+	// Phase B baseline: 84 cross-aspects (extended from 52 after adding Chiron, NorthNodeMean, ASC, MC)
+	const xbCrossAspectCount = 84
+	if len(crossAspects) != xbCrossAspectCount {
+		t.Errorf("XB DC: got %d cross-aspects, expected baseline %d", len(crossAspects), xbCrossAspectCount)
 	}
 
 	t.Logf("XB DoubleChart: inner=%d, outer=%d, cross-aspects=%d", len(inner.Planets), len(outer.Planets), len(crossAspects))
