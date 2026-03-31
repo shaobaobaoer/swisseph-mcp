@@ -595,6 +595,52 @@ func TestPhaseD_v6_JN_HouseChange(t *testing.T) {
 	}
 }
 
+// TestPhaseD_v8_JN_TrTr validates Tr-Tr within-chart transit aspects
+func TestPhaseD_v8_JN_TrTr(t *testing.T) {
+	const csvPath = "../../testdata/solarfire/testcase-1-transit.csv"
+
+	// Find CSV with fallbacks
+	actualPath := csvPath
+	if _, err := checkFileExists(csvPath); err != nil {
+		actualPath = "../testdata/solarfire/testcase-1-transit.csv"
+		if _, err := checkFileExists(actualPath); err != nil {
+			actualPath = "testdata/solarfire/testcase-1-transit.csv"
+		}
+	}
+
+	t.Logf("=== Phase D v8: JN Tr-Tr Within-Chart Transit Aspects ===\n")
+
+	// Load all SF records
+	sfRecords, err := ParseSFCSV(actualPath, "", "", "")
+	if err != nil {
+		t.Fatalf("ParseSFCSV: %v", err)
+	}
+
+	t.Logf("Loaded %d total SF records from testcase-1\n", len(sfRecords))
+
+	// Validate Tr-Tr (transit vs transit) within-chart
+	startTime := time.Now()
+	report := ValidateTimelineTrTr(sfRecords, jnJDUT, jnLat, jnLon, jnPlanets)
+	elapsed := time.Since(startTime)
+	report.ExecutionTimeMs = elapsed.Seconds() * 1000
+
+	reportStr := PrintTimelineReport(report)
+	t.Log(reportStr)
+
+	// Summary assertions
+	t.Logf("\nSUMMARY:")
+	t.Logf("  Total Tr-Tr events: %d", report.TotalSFRecords)
+	t.Logf("  Matches: %d (%.1f%%)", report.TotalMatches, report.MatchRate)
+	t.Logf("  Divergences: %d", report.TotalDivergences)
+	t.Logf("  Execution time: %.0fms", report.ExecutionTimeMs)
+
+	if report.MatchRate >= 50 {
+		t.Logf("✅ PASS: Match rate %.1f%% >= 50%% target", report.MatchRate)
+	} else {
+		t.Logf("⚠️  WARNING: Match rate %.1f%% < 50%% target", report.MatchRate)
+	}
+}
+
 // TestPhaseD_v8_JN_Comprehensive validates all JN event validators
 func TestPhaseD_v8_JN_Comprehensive(t *testing.T) {
 	const csvPath = "../../testdata/solarfire/testcase-1-transit.csv"
@@ -632,6 +678,9 @@ func TestPhaseD_v8_JN_Comprehensive(t *testing.T) {
 	// Progressed within-chart (Sp-Sp)
 	results["Sp-Sp"] = ValidateTimelineSpSp(sfRecords, jnJDUT, jnLat, jnLon, jnPlanets)
 
+	// Transit within-chart (Tr-Tr)
+	results["Tr-Tr"] = ValidateTimelineTrTr(sfRecords, jnJDUT, jnLat, jnLon, jnPlanets)
+
 	// Station events (Retrograde/Direct) in "Tr" chart type
 	results["Stations"] = ValidateTimelineStations(sfRecords, jnJDUT, jnLat, jnLon, jnPlanets)
 
@@ -644,8 +693,8 @@ func TestPhaseD_v8_JN_Comprehensive(t *testing.T) {
 	totalEvents := 0
 
 	// Chart pairing validators
-	for _, name := range []string{"Tr-Na", "Sp-Na", "Sa-Na", "Sp-Sp"} {
-		if report, exists := results[name]; exists {
+	for _, name := range []string{"Tr-Na", "Sp-Na", "Sa-Na", "Sp-Sp", "Tr-Tr"} {
+		if report, exists := results[name]; exists && report.TotalSFRecords > 0 {
 			status := "⚠️ "
 			if report.MatchRate >= 70 {
 				status = "✅"

@@ -780,9 +780,10 @@ func ValidateTimelineAdvancedPairings(sfRecords []SFAspectRecord, natalJD, natal
 		ByDate:         make(map[string]*TimelineDateStats),
 	}
 
-	// Filter to advanced pairing records (Tr-Sp, Tr-Sa, Tr-Tr only)
+	// Filter to advanced pairing records (Tr-Sp, Tr-Sa only)
+	// Note: Tr-Tr is handled by ValidateTimelineTrTr (within-chart) which is superior
 	// Note: Sp-Sp is handled by ValidateTimelineSpSp (within-chart) which is superior
-	advancedTypes := []string{"Tr-Sp", "Tr-Sa", "Tr-Tr"}
+	advancedTypes := []string{"Tr-Sp", "Tr-Sa"}
 	var advancedRecords []SFAspectRecord
 	for _, rec := range sfRecords {
 		for _, adv := range advancedTypes {
@@ -895,20 +896,6 @@ func ValidateTimelineAdvancedPairings(sfRecords []SFAspectRecord, natalJD, natal
 					aspect.Body{ID: string(models.PointMC), Longitude: saMC},
 				)
 
-			case "Tr-Tr":
-				// Inner: natal, Outer: transit (both moving)
-				innerBodies = BuildBodiesFromPlanets(natalChart.Planets)
-				innerBodies = append(innerBodies,
-					aspect.Body{ID: string(models.PointASC), Longitude: natalChart.Angles.ASC},
-					aspect.Body{ID: string(models.PointMC), Longitude: natalChart.Angles.MC},
-				)
-
-				transitChart, _ := chart.CalcSingleChart(natalLat, natalLon, transitJD, natalPlanets, orbs, models.HousePlacidus)
-				outerBodies = BuildBodiesFromPlanets(transitChart.Planets)
-				outerBodies = append(outerBodies,
-					aspect.Body{ID: string(models.PointASC), Longitude: transitChart.Angles.ASC},
-					aspect.Body{ID: string(models.PointMC), Longitude: transitChart.Angles.MC},
-				)
 			}
 
 			if len(innerBodies) == 0 || len(outerBodies) == 0 {
@@ -1478,6 +1465,196 @@ func ValidateTimelineSpSp(sfRecords []SFAspectRecord, natalJD, natalLat, natalLo
 				}
 				report.ByChartType["Sp-Sp"].Divergences++
 				report.ByChartType["Sp-Sp"].Count++
+			}
+		}
+
+		report.ByDate[date] = dateStats
+	}
+
+	// Calculate match rates
+	if report.TotalSFRecords > 0 {
+		report.MatchRate = float64(report.TotalMatches) * 100.0 / float64(report.TotalSFRecords)
+	}
+
+	for _, stats := range report.ByEventType {
+		if stats.Count > 0 {
+			stats.MatchRate = float64(stats.Matches) * 100.0 / float64(stats.Count)
+		}
+	}
+
+	for _, stats := range report.ByChartType {
+		if stats.Count > 0 {
+			stats.MatchRate = float64(stats.Matches) * 100.0 / float64(stats.Count)
+		}
+	}
+
+	return report
+}
+
+// ValidateTimelineTrTr validates Tr-Tr (transit vs transit) within-chart events
+func ValidateTimelineTrTr(sfRecords []SFAspectRecord, natalJD, natalLat, natalLon float64, natalPlanets []models.PlanetID) *TimelineValidationReport {
+	report := &TimelineValidationReport{
+		TotalSFRecords: 0,
+		ByEventType:    make(map[string]*TimelineEventTypeStats),
+		ByChartType:    make(map[string]*TimelineChartTypeStats),
+		ByDate:         make(map[string]*TimelineDateStats),
+	}
+
+	// Filter to Tr-Tr records only (exclude special events handled separately)
+	var trTrRecords []SFAspectRecord
+	for _, rec := range sfRecords {
+		if rec.Type == "Tr-Tr" {
+			// Skip special events - they're handled by dedicated validators
+			if rec.EventType != "Void" && rec.EventType != "SignIngress" {
+				trTrRecords = append(trTrRecords, rec)
+			}
+		}
+	}
+
+	report.TotalSFRecords = len(trTrRecords)
+
+	if len(trTrRecords) == 0 {
+		return report
+	}
+
+	orbs := models.DefaultOrbConfig()
+
+	// Group SF records by date
+	byDate := make(map[string][]SFAspectRecord)
+	for _, rec := range trTrRecords {
+		byDate[rec.Date] = append(byDate[rec.Date], rec)
+	}
+
+	// Process each date
+	for date, dateRecords := range byDate {
+		parts := strings.Split(date, "-")
+		if len(parts) != 3 {
+			continue
+		}
+
+		year, month, day := 0, 0, 0
+		fmt.Sscanf(date, "%d-%d-%d", &year, &month, &day)
+		transitJD := sweph.JulDay(year, month, day, 0, true)
+
+		// For Tr-Tr: both inner and outer are transit planets at same date
+		// This creates aspects within the transit chart
+		var innerBodies, outerBodies []aspect.Body
+
+		// Inner ring: transit planets at this date
+		transitChart, _ := chart.CalcSingleChart(natalLat, natalLon, transitJD, natalPlanets, orbs, models.HousePlacidus)
+		for _, p := range transitChart.Planets {
+			innerBodies = append(innerBodies, aspect.Body{
+				ID:        string(p.PlanetID),
+				Longitude: p.Longitude,
+				Speed:     p.Speed,
+			})
+		}
+
+		innerBodies = append(innerBodies,
+			aspect.Body{ID: string(models.PointASC), Longitude: transitChart.Angles.ASC},
+			aspect.Body{ID: string(models.PointMC), Longitude: transitChart.Angles.MC},
+		)
+
+		// Outer ring: same transit planets (creates within-chart aspects)
+		for _, body := range innerBodies {
+			outerBodies = append(outerBodies, body)
+		}
+
+		// Find cross-aspects (which are now within-chart aspects)
+		crossAspects := aspect.FindCrossAspects(innerBodies, outerBodies, orbs)
+
+		// Validate each SF record for this date
+		dateStats := &TimelineDateStats{Date: date, Count: len(dateRecords)}
+
+		for _, sfRec := range dateRecords {
+			p1Name := sfRec.P1
+			p2Name := sfRec.P2
+			sfAspectType := sfRec.Aspect
+
+			found := false
+			minOrbDiff := 999.0
+
+			for _, ssAsp := range crossAspects {
+				bodyMatch := (strings.ToLower(ssAsp.InnerBody) == strings.ToLower(p1Name) &&
+					strings.ToLower(ssAsp.OuterBody) == strings.ToLower(p2Name)) ||
+					(strings.ToLower(ssAsp.InnerBody) == strings.ToLower(p2Name) &&
+						strings.ToLower(ssAsp.OuterBody) == strings.ToLower(p1Name))
+
+				if !bodyMatch {
+					continue
+				}
+
+				aspectMatch := strings.ToLower(string(ssAsp.AspectType)) == strings.ToLower(sfAspectType)
+				if !aspectMatch {
+					continue
+				}
+
+				orbDiff := math.Abs(ssAsp.Orb)
+				if orbDiff < minOrbDiff {
+					minOrbDiff = orbDiff
+					found = true
+
+					if orbDiff <= 1.5 {
+						report.TotalMatches++
+						dateStats.Matches++
+
+						if _, exists := report.ByEventType[sfRec.EventType]; !exists {
+							report.ByEventType[sfRec.EventType] = &TimelineEventTypeStats{
+								EventType: sfRec.EventType,
+							}
+						}
+						report.ByEventType[sfRec.EventType].Matches++
+						report.ByEventType[sfRec.EventType].Count++
+
+						if _, exists := report.ByChartType["Tr-Tr"]; !exists {
+							report.ByChartType["Tr-Tr"] = &TimelineChartTypeStats{
+								ChartType: "Tr-Tr",
+							}
+						}
+						report.ByChartType["Tr-Tr"].Matches++
+						report.ByChartType["Tr-Tr"].Count++
+					} else {
+						report.TotalDivergences++
+						dateStats.Divergences++
+
+						if _, exists := report.ByEventType[sfRec.EventType]; !exists {
+							report.ByEventType[sfRec.EventType] = &TimelineEventTypeStats{
+								EventType: sfRec.EventType,
+							}
+						}
+						report.ByEventType[sfRec.EventType].Divergences++
+						report.ByEventType[sfRec.EventType].Count++
+
+						if _, exists := report.ByChartType["Tr-Tr"]; !exists {
+							report.ByChartType["Tr-Tr"] = &TimelineChartTypeStats{
+								ChartType: "Tr-Tr",
+							}
+						}
+						report.ByChartType["Tr-Tr"].Divergences++
+						report.ByChartType["Tr-Tr"].Count++
+					}
+				}
+			}
+
+			if !found {
+				report.TotalDivergences++
+				dateStats.Divergences++
+
+				if _, exists := report.ByEventType[sfRec.EventType]; !exists {
+					report.ByEventType[sfRec.EventType] = &TimelineEventTypeStats{
+						EventType: sfRec.EventType,
+					}
+				}
+				report.ByEventType[sfRec.EventType].Divergences++
+				report.ByEventType[sfRec.EventType].Count++
+
+				if _, exists := report.ByChartType["Tr-Tr"]; !exists {
+					report.ByChartType["Tr-Tr"] = &TimelineChartTypeStats{
+						ChartType: "Tr-Tr",
+					}
+				}
+				report.ByChartType["Tr-Tr"].Divergences++
+				report.ByChartType["Tr-Tr"].Count++
 			}
 		}
 
