@@ -220,6 +220,94 @@ KEY IMPROVEMENTS IN v2:
 	t.Logf("Ready to execute Phase D v2 Milestone 1: Tr-Na Timeline Validator\n")
 }
 
+// TestPhaseD_v3_XB_TrNa_Stage1 validates XB Tr-Na events (1996-2001, 5 years)
+func TestPhaseD_v3_XB_TrNa_Stage1(t *testing.T) {
+	const csvPath = "../../testdata/solarfire/testcase-2-transit-1996-2001.csv"
+
+	t.Logf("=== Phase D v3: XB Tr-Na Full Timeline (1996-2001, 5 years) ===\n")
+
+	actualPath := csvPath
+	if _, err := checkFileExists(csvPath); err != nil {
+		actualPath = "../testdata/solarfire/testcase-2-transit-1996-2001.csv"
+		if _, err := checkFileExists(actualPath); err != nil {
+			actualPath = "testdata/solarfire/testcase-2-transit-1996-2001.csv"
+		}
+	}
+
+	startTime := time.Now()
+
+	sfRecords, err := ParseSFCSV(actualPath, "", "", "")
+	if err != nil {
+		t.Fatalf("ParseSFCSV: %v", err)
+	}
+
+	t.Logf("Loaded %d total SF records from testcase-2 (1996-2001)\n", len(sfRecords))
+
+	report := ValidateTimelineTrNa(sfRecords, xbJDUT, xbLat, xbLon, xbPlanets)
+
+	elapsed := time.Since(startTime)
+	report.ExecutionTimeMs = elapsed.Seconds() * 1000
+
+	reportStr := PrintTimelineReport(report)
+	t.Log(reportStr)
+
+	t.Logf("\nSUMMARY:")
+	t.Logf("  Total Tr-Na events: %d", report.TotalSFRecords)
+	t.Logf("  Matches: %d (%.1f%%)", report.TotalMatches, report.MatchRate)
+	t.Logf("  Divergences: %d", report.TotalDivergences)
+	t.Logf("  Execution time: %.0fms", report.ExecutionTimeMs)
+
+	if report.MatchRate >= 65 {
+		t.Logf("✅ PASS: Match rate %.1f%% >= 65%% target", report.MatchRate)
+	} else {
+		t.Logf("⚠️  WARNING: Match rate %.1f%% < 65%% target", report.MatchRate)
+	}
+}
+
+// TestPhaseD_v3_XB_TrNa_Stage2 validates XB Tr-Na events (2001-2006, 5 years)
+func TestPhaseD_v3_XB_TrNa_Stage2(t *testing.T) {
+	const csvPath = "../../testdata/solarfire/testcase-2-transit-2001-2006.csv"
+
+	t.Logf("=== Phase D v3: XB Tr-Na Full Timeline (2001-2006, 5 years) ===\n")
+
+	actualPath := csvPath
+	if _, err := checkFileExists(csvPath); err != nil {
+		actualPath = "../testdata/solarfire/testcase-2-transit-2001-2006.csv"
+		if _, err := checkFileExists(actualPath); err != nil {
+			actualPath = "testdata/solarfire/testcase-2-transit-2001-2006.csv"
+		}
+	}
+
+	startTime := time.Now()
+
+	sfRecords, err := ParseSFCSV(actualPath, "", "", "")
+	if err != nil {
+		t.Fatalf("ParseSFCSV: %v", err)
+	}
+
+	t.Logf("Loaded %d total SF records from testcase-2 (2001-2006)\n", len(sfRecords))
+
+	report := ValidateTimelineTrNa(sfRecords, xbJDUT, xbLat, xbLon, xbPlanets)
+
+	elapsed := time.Since(startTime)
+	report.ExecutionTimeMs = elapsed.Seconds() * 1000
+
+	reportStr := PrintTimelineReport(report)
+	t.Log(reportStr)
+
+	t.Logf("\nSUMMARY:")
+	t.Logf("  Total Tr-Na events: %d", report.TotalSFRecords)
+	t.Logf("  Matches: %d (%.1f%%)", report.TotalMatches, report.MatchRate)
+	t.Logf("  Divergences: %d", report.TotalDivergences)
+	t.Logf("  Execution time: %.0fms", report.ExecutionTimeMs)
+
+	if report.MatchRate >= 65 {
+		t.Logf("✅ PASS: Match rate %.1f%% >= 65%% target", report.MatchRate)
+	} else {
+		t.Logf("⚠️  WARNING: Match rate %.1f%% < 65%% target", report.MatchRate)
+	}
+}
+
 // Helper to check if file exists
 func checkFileExists(path string) (bool, error) {
 	_, err := os.Stat(path)
