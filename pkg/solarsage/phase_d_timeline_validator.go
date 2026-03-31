@@ -1331,6 +1331,137 @@ func ValidateTimelineVoidOfCourse(sfRecords []SFAspectRecord, natalJD, natalLat,
 	return report
 }
 
+// ValidateTimelineStations validates retrograde/direct station events
+func ValidateTimelineStations(sfRecords []SFAspectRecord, natalJD, natalLat, natalLon float64, natalPlanets []models.PlanetID) *TimelineValidationReport {
+	report := &TimelineValidationReport{
+		TotalSFRecords: 0,
+		ByEventType:    make(map[string]*TimelineEventTypeStats),
+		ByChartType:    make(map[string]*TimelineChartTypeStats),
+		ByDate:         make(map[string]*TimelineDateStats),
+	}
+
+	// Filter to Retrograde/Direct events
+	var stationRecords []SFAspectRecord
+	for _, rec := range sfRecords {
+		if rec.EventType == "Retrograde" || rec.EventType == "Direct" {
+			stationRecords = append(stationRecords, rec)
+		}
+	}
+
+	report.TotalSFRecords = len(stationRecords)
+
+	if len(stationRecords) == 0 {
+		return report
+	}
+
+	orbs := models.DefaultOrbConfig()
+
+	// Group SF records by date
+	byDate := make(map[string][]SFAspectRecord)
+	for _, rec := range stationRecords {
+		byDate[rec.Date] = append(byDate[rec.Date], rec)
+	}
+
+	// Process each date
+	for date, dateRecords := range byDate {
+		parts := strings.Split(date, "-")
+		if len(parts) != 3 {
+			continue
+		}
+
+		year, month, day := 0, 0, 0
+		fmt.Sscanf(date, "%d-%d-%d", &year, &month, &day)
+		transitJD := sweph.JulDay(year, month, day, 0, true)
+
+		// Compute transit chart for this date
+		transitChart, _ := chart.CalcSingleChart(natalLat, natalLon, transitJD, natalPlanets, orbs, models.HousePlacidus)
+
+		dateStats := &TimelineDateStats{Date: date, Count: len(dateRecords)}
+
+		for _, sfRec := range dateRecords {
+			// Station (Retrograde/Direct): Planet P1 at retrograde/direct station
+			// Validate by checking if planet exists and speed matches direction
+			found := false
+
+			for _, p := range transitChart.Planets {
+				if strings.EqualFold(string(p.PlanetID), sfRec.P1) {
+					// Retrograde: Speed < 0, Direct: Speed > 0
+					isRetrograde := p.Speed < 0
+					expectedRetrograde := sfRec.EventType == "Retrograde"
+
+					if isRetrograde == expectedRetrograde {
+						found = true
+					}
+					break
+				}
+			}
+
+			if found {
+				report.TotalMatches++
+				dateStats.Matches++
+
+				if _, exists := report.ByEventType[sfRec.EventType]; !exists {
+					report.ByEventType[sfRec.EventType] = &TimelineEventTypeStats{
+						EventType: sfRec.EventType,
+					}
+				}
+				report.ByEventType[sfRec.EventType].Matches++
+				report.ByEventType[sfRec.EventType].Count++
+
+				chartType := "Station_" + sfRec.EventType
+				if _, exists := report.ByChartType[chartType]; !exists {
+					report.ByChartType[chartType] = &TimelineChartTypeStats{
+						ChartType: chartType,
+					}
+				}
+				report.ByChartType[chartType].Matches++
+				report.ByChartType[chartType].Count++
+			} else {
+				report.TotalDivergences++
+				dateStats.Divergences++
+
+				if _, exists := report.ByEventType[sfRec.EventType]; !exists {
+					report.ByEventType[sfRec.EventType] = &TimelineEventTypeStats{
+						EventType: sfRec.EventType,
+					}
+				}
+				report.ByEventType[sfRec.EventType].Divergences++
+				report.ByEventType[sfRec.EventType].Count++
+
+				chartType := "Station_" + sfRec.EventType
+				if _, exists := report.ByChartType[chartType]; !exists {
+					report.ByChartType[chartType] = &TimelineChartTypeStats{
+						ChartType: chartType,
+					}
+				}
+				report.ByChartType[chartType].Divergences++
+				report.ByChartType[chartType].Count++
+			}
+		}
+
+		report.ByDate[date] = dateStats
+	}
+
+	// Calculate match rates
+	if report.TotalSFRecords > 0 {
+		report.MatchRate = float64(report.TotalMatches) * 100.0 / float64(report.TotalSFRecords)
+	}
+
+	for _, stats := range report.ByEventType {
+		if stats.Count > 0 {
+			stats.MatchRate = float64(stats.Matches) * 100.0 / float64(stats.Count)
+		}
+	}
+
+	for _, stats := range report.ByChartType {
+		if stats.Count > 0 {
+			stats.MatchRate = float64(stats.Matches) * 100.0 / float64(stats.Count)
+		}
+	}
+
+	return report
+}
+
 // ValidateTimelineHouseChange validates house change events (planet crossing house cusp)
 func ValidateTimelineHouseChange(sfRecords []SFAspectRecord, natalJD, natalLat, natalLon float64, natalPlanets []models.PlanetID) *TimelineValidationReport {
 	report := &TimelineValidationReport{
