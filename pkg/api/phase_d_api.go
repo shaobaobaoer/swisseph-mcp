@@ -144,6 +144,20 @@ func (s *Server) handleTimelineValidation(w http.ResponseWriter, r *http.Request
 		}
 	}
 
+	// Export as CSV if requested
+	if req.Format == "csv" {
+		csv, err := ExportDetailedValidationCSV(req.ValidatorType, report)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to export CSV: "+err.Error())
+			return
+		}
+		w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+		w.Header().Set("Content-Disposition", "attachment; filename="+req.ValidatorType+"-validation.csv")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(csv))
+		return
+	}
+
 	writeJSON(w, http.StatusOK, resp)
 }
 
@@ -187,6 +201,7 @@ func (s *Server) handlePhaseDAggregated(w http.ResponseWriter, r *http.Request) 
 	}
 
 	results := make(map[string]TimelineValidationResponse)
+	reports := make(map[string]*solarsage.TimelineValidationReport) // For CSV export
 	totalEvents := 0
 	totalMatches := 0
 
@@ -207,6 +222,7 @@ func (s *Server) handlePhaseDAggregated(w http.ResponseWriter, r *http.Request) 
 		}
 
 		results[name] = resp
+		reports[name] = report // Store for CSV export
 		totalEvents += report.TotalSFRecords
 		totalMatches += report.TotalMatches
 	}
@@ -215,6 +231,20 @@ func (s *Server) handlePhaseDAggregated(w http.ResponseWriter, r *http.Request) 
 	overallRate := 0.0
 	if totalEvents > 0 {
 		overallRate = float64(totalMatches) * 100.0 / float64(totalEvents)
+	}
+
+	// Export as CSV if requested
+	if req.Format == "csv" {
+		csv, err := ExportAggregatedValidationCSV(reports)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to export CSV: "+err.Error())
+			return
+		}
+		w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+		w.Header().Set("Content-Disposition", "attachment; filename=phase-d-validation.csv")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(csv))
+		return
 	}
 
 	response := map[string]interface{}{
