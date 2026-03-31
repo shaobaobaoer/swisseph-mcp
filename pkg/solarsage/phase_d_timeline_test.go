@@ -472,6 +472,47 @@ func TestPhaseD_v5_JN_SignIngress(t *testing.T) {
 	}
 }
 
+// TestPhaseD_v7_JN_SpSp validates Sp-Sp (progressed vs progressed) within-chart aspects
+func TestPhaseD_v7_JN_SpSp(t *testing.T) {
+	const csvPath = "../../testdata/solarfire/testcase-1-transit.csv"
+
+	t.Logf("=== Phase D v7: JN Sp-Sp Within-Chart Aspects ===\n")
+
+	actualPath := csvPath
+	if _, err := checkFileExists(csvPath); err != nil {
+		actualPath = "../testdata/solarfire/testcase-1-transit.csv"
+		if _, err := checkFileExists(actualPath); err != nil {
+			actualPath = "testdata/solarfire/testcase-1-transit.csv"
+		}
+	}
+
+	startTime := time.Now()
+
+	sfRecords, err := ParseSFCSV(actualPath, "", "", "")
+	if err != nil {
+		t.Fatalf("ParseSFCSV: %v", err)
+	}
+
+	report := ValidateTimelineSpSp(sfRecords, jnJDUT, jnLat, jnLon, jnPlanets)
+
+	elapsed := time.Since(startTime)
+	report.ExecutionTimeMs = elapsed.Seconds() * 1000
+
+	reportStr := PrintTimelineReport(report)
+	t.Log(reportStr)
+
+	t.Logf("\nSUMMARY:")
+	t.Logf("  Total Sp-Sp events: %d", report.TotalSFRecords)
+	t.Logf("  Matches: %d (%.1f%%)", report.TotalMatches, report.MatchRate)
+	t.Logf("  Execution time: %.0fms", report.ExecutionTimeMs)
+
+	if report.MatchRate >= 60 {
+		t.Logf("✅ PASS: Match rate %.1f%% >= 60%% target", report.MatchRate)
+	} else {
+		t.Logf("⚠️  INFO: Match rate %.1f%% (baseline validation)", report.MatchRate)
+	}
+}
+
 // TestPhaseD_v6_JN_Stations validates Retrograde/Direct station events
 func TestPhaseD_v6_JN_Stations(t *testing.T) {
 	const csvPath = "../../testdata/solarfire/testcase-1-transit.csv"

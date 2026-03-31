@@ -1331,6 +1331,205 @@ func ValidateTimelineVoidOfCourse(sfRecords []SFAspectRecord, natalJD, natalLat,
 	return report
 }
 
+// ValidateTimelineSpSp validates Sp-Sp (progressed vs progressed) events
+// Within-chart aspects: both inner and outer rings are progressed planets
+func ValidateTimelineSpSp(sfRecords []SFAspectRecord, natalJD, natalLat, natalLon float64, natalPlanets []models.PlanetID) *TimelineValidationReport {
+	report := &TimelineValidationReport{
+		TotalSFRecords: 0,
+		ByEventType:    make(map[string]*TimelineEventTypeStats),
+		ByChartType:    make(map[string]*TimelineChartTypeStats),
+		ByDate:         make(map[string]*TimelineDateStats),
+	}
+
+	// Filter to Sp-Sp records only
+	var spSpRecords []SFAspectRecord
+	for _, rec := range sfRecords {
+		if rec.Type == "Sp-Sp" {
+			spSpRecords = append(spSpRecords, rec)
+		}
+	}
+
+	report.TotalSFRecords = len(spSpRecords)
+
+	if len(spSpRecords) == 0 {
+		return report
+	}
+
+	orbs := models.DefaultOrbConfig()
+
+	// Group SF records by date
+	byDate := make(map[string][]SFAspectRecord)
+	for _, rec := range spSpRecords {
+		byDate[rec.Date] = append(byDate[rec.Date], rec)
+	}
+
+	// Process each date
+	for date, dateRecords := range byDate {
+		parts := strings.Split(date, "-")
+		if len(parts) != 3 {
+			continue
+		}
+
+		year, month, day := 0, 0, 0
+		fmt.Sscanf(date, "%d-%d-%d", &year, &month, &day)
+		transitJD := sweph.JulDay(year, month, day, 0, true)
+
+		// For Sp-Sp: both inner and outer are progressed planets at same date
+		// This creates aspects within the progressed chart
+		var innerBodies, outerBodies []aspect.Body
+
+		// Inner ring: progressed planets
+		for _, pid := range natalPlanets {
+			lon, speed, err := CalcProgressedLongitude(pid, natalJD, transitJD)
+			if err != nil {
+				continue
+			}
+			innerBodies = append(innerBodies, aspect.Body{
+				ID:        string(pid),
+				Longitude: lon,
+				Speed:     speed,
+			})
+		}
+
+		spASC, _ := CalcProgressedSpecialPoint(models.PointASC, natalJD, transitJD, natalLat, natalLon, models.HousePlacidus, 0, -1, -1)
+		spMC, _ := CalcProgressedSpecialPoint(models.PointMC, natalJD, transitJD, natalLat, natalLon, models.HousePlacidus, 0, -1, -1)
+		innerBodies = append(innerBodies,
+			aspect.Body{ID: string(models.PointASC), Longitude: spASC},
+			aspect.Body{ID: string(models.PointMC), Longitude: spMC},
+		)
+
+		// Outer ring: same progressed planets (creates within-chart aspects)
+		// Copy inner to outer to get aspects within the progressed chart
+		for _, body := range innerBodies {
+			outerBodies = append(outerBodies, body)
+		}
+
+		// Find cross-aspects (which are now within-chart aspects)
+		crossAspects := aspect.FindCrossAspects(innerBodies, outerBodies, orbs)
+
+		// Validate each SF record for this date
+		dateStats := &TimelineDateStats{Date: date, Count: len(dateRecords)}
+
+		for _, sfRec := range dateRecords {
+			p1Name := sfRec.P1
+			p2Name := sfRec.P2
+			sfAspectType := sfRec.Aspect
+
+			found := false
+			minOrbDiff := 999.0
+
+			for _, ssAsp := range crossAspects {
+				// Skip self-aspects (planet aspecting itself)
+				if strings.EqualFold(ssAsp.InnerBody, ssAsp.OuterBody) {
+					continue
+				}
+
+				bodyMatch := (strings.EqualFold(ssAsp.InnerBody, p1Name) &&
+					strings.EqualFold(ssAsp.OuterBody, p2Name)) ||
+					(strings.EqualFold(ssAsp.InnerBody, p2Name) &&
+						strings.EqualFold(ssAsp.OuterBody, p1Name))
+
+				if !bodyMatch {
+					continue
+				}
+
+				aspectMatch := strings.EqualFold(string(ssAsp.AspectType), sfAspectType)
+				if !aspectMatch {
+					continue
+				}
+
+				orbDiff := math.Abs(ssAsp.Orb)
+				if orbDiff < minOrbDiff {
+					minOrbDiff = orbDiff
+					found = true
+
+					if orbDiff <= 1.5 {
+						report.TotalMatches++
+						dateStats.Matches++
+
+						if _, exists := report.ByEventType[sfRec.EventType]; !exists {
+							report.ByEventType[sfRec.EventType] = &TimelineEventTypeStats{
+								EventType: sfRec.EventType,
+							}
+						}
+						report.ByEventType[sfRec.EventType].Matches++
+						report.ByEventType[sfRec.EventType].Count++
+
+						if _, exists := report.ByChartType["Sp-Sp"]; !exists {
+							report.ByChartType["Sp-Sp"] = &TimelineChartTypeStats{
+								ChartType: "Sp-Sp",
+							}
+						}
+						report.ByChartType["Sp-Sp"].Matches++
+						report.ByChartType["Sp-Sp"].Count++
+					} else {
+						report.TotalDivergences++
+						dateStats.Divergences++
+
+						if _, exists := report.ByEventType[sfRec.EventType]; !exists {
+							report.ByEventType[sfRec.EventType] = &TimelineEventTypeStats{
+								EventType: sfRec.EventType,
+							}
+						}
+						report.ByEventType[sfRec.EventType].Divergences++
+						report.ByEventType[sfRec.EventType].Count++
+
+						if _, exists := report.ByChartType["Sp-Sp"]; !exists {
+							report.ByChartType["Sp-Sp"] = &TimelineChartTypeStats{
+								ChartType: "Sp-Sp",
+							}
+						}
+						report.ByChartType["Sp-Sp"].Divergences++
+						report.ByChartType["Sp-Sp"].Count++
+					}
+				}
+			}
+
+			if !found {
+				report.TotalDivergences++
+				dateStats.Divergences++
+
+				if _, exists := report.ByEventType[sfRec.EventType]; !exists {
+					report.ByEventType[sfRec.EventType] = &TimelineEventTypeStats{
+						EventType: sfRec.EventType,
+					}
+				}
+				report.ByEventType[sfRec.EventType].Divergences++
+				report.ByEventType[sfRec.EventType].Count++
+
+				if _, exists := report.ByChartType["Sp-Sp"]; !exists {
+					report.ByChartType["Sp-Sp"] = &TimelineChartTypeStats{
+						ChartType: "Sp-Sp",
+					}
+				}
+				report.ByChartType["Sp-Sp"].Divergences++
+				report.ByChartType["Sp-Sp"].Count++
+			}
+		}
+
+		report.ByDate[date] = dateStats
+	}
+
+	// Calculate match rates
+	if report.TotalSFRecords > 0 {
+		report.MatchRate = float64(report.TotalMatches) * 100.0 / float64(report.TotalSFRecords)
+	}
+
+	for _, stats := range report.ByEventType {
+		if stats.Count > 0 {
+			stats.MatchRate = float64(stats.Matches) * 100.0 / float64(stats.Count)
+		}
+	}
+
+	for _, stats := range report.ByChartType {
+		if stats.Count > 0 {
+			stats.MatchRate = float64(stats.Matches) * 100.0 / float64(stats.Count)
+		}
+	}
+
+	return report
+}
+
 // ValidateTimelineStations validates retrograde/direct station events
 func ValidateTimelineStations(sfRecords []SFAspectRecord, natalJD, natalLat, natalLon float64, natalPlanets []models.PlanetID) *TimelineValidationReport {
 	report := &TimelineValidationReport{
