@@ -4,6 +4,7 @@ import (
 	"math"
 	"testing"
 
+	"github.com/shaobaobaoer/solarsage-mcp/internal/aspect"
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/chart"
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/lunar"
 	"github.com/shaobaobaoer/solarsage-mcp/pkg/models"
@@ -475,7 +476,7 @@ func TestJN_Moon(t *testing.T) {
 // - Cross-aspects exist between inner and outer planets
 // - All chart elements (houses, angles, aspects) are valid
 // =============================================================================
-func TestJN_DoubleChart(t *testing.T) {
+func TestJN_DC_NatalVsTransit(t *testing.T) {
 	orbs := models.DefaultOrbConfig()
 
 	// Special points: ASC and MC for both inner and outer charts
@@ -785,7 +786,7 @@ func TestXB_Moon(t *testing.T) {
 // =============================================================================
 // TestXB_DoubleChart: Biwheel (XB natal vs transit 2026-01-01)
 // =============================================================================
-func TestXB_DoubleChart(t *testing.T) {
+func TestXB_DC_NatalVsTransit(t *testing.T) {
 	orbs := models.DefaultOrbConfig()
 
 	// Special points: ASC and MC for both inner and outer charts
@@ -833,12 +834,364 @@ func TestXB_DoubleChart(t *testing.T) {
 		t.Errorf("XB DC: got %d cross-aspects, expected baseline %d", len(crossAspects), xbCrossAspectCount)
 	}
 
-	t.Logf("XB DoubleChart: inner=%d, outer=%d, cross-aspects=%d", len(inner.Planets), len(outer.Planets), len(crossAspects))
+	t.Logf("XB DC NatalVsTransit: inner=%d, outer=%d, cross-aspects=%d", len(inner.Planets), len(outer.Planets), len(crossAspects))
+}
+
+// =============================================================================
+// TestJN_DC_NatalVsSR: Double Chart — Natal vs Solar Return
+// =============================================================================
+func TestJN_DC_NatalVsSR(t *testing.T) {
+	searchJD := sweph.JulDay(2025, 11, 1, 0, true)
+	rc, err := returns.CalcSolarReturn(returns.ReturnInput{
+		NatalJD:     jnJDUT,
+		NatalLat:    jnLat,
+		NatalLon:    jnLon,
+		SearchJD:    searchJD,
+		Planets:     jnPlanets,
+		OrbConfig:   models.DefaultOrbConfig(),
+		HouseSystem: models.HousePlacidus,
+	})
+	if err != nil {
+		t.Fatalf("CalcSolarReturn: %v", err)
+	}
+
+	orbs := models.DefaultOrbConfig()
+	sp := &models.SpecialPointsConfig{
+		InnerPoints: []models.SpecialPointID{models.PointASC, models.PointMC},
+		OuterPoints: []models.SpecialPointID{models.PointASC, models.PointMC},
+	}
+
+	inner, outer, crossAspects, err := chart.CalcDoubleChart(
+		jnLat, jnLon, jnJDUT, jnPlanets,        // natal inner
+		jnLat, jnLon, rc.ReturnJD, jnPlanets,   // solar return outer
+		sp, orbs, models.HousePlacidus,
+	)
+	if err != nil {
+		t.Fatalf("CalcDoubleChart NatalVsSR: %v", err)
+	}
+
+	// Inner Sun must be natal Sun
+	for _, p := range inner.Planets {
+		if p.PlanetID == models.PlanetSun {
+			if math.Abs(p.Longitude-266.500) > tolLon {
+				t.Errorf("DC SR inner Sun: got %.4f, want 266.500", p.Longitude)
+			}
+		}
+	}
+	// Outer Sun must match natal Sun (that's the definition of solar return)
+	for _, p := range outer.Planets {
+		if p.PlanetID == models.PlanetSun {
+			if math.Abs(normDiff180(p.Longitude, 266.500)) > 0.01 {
+				t.Errorf("DC SR outer Sun: got %.4f, want ~266.500 (solar return)", p.Longitude)
+			}
+		}
+	}
+
+	// Cross-aspects must exist
+	if len(crossAspects) == 0 {
+		t.Error("DC NatalVsSR: expected cross-aspects")
+	}
+
+	// Phase B baseline: 73 cross-aspects for JN natal vs SR
+	const jnDCSRCrossAspectCount = 73
+	if len(crossAspects) != jnDCSRCrossAspectCount {
+		t.Errorf("DC SR cross-aspects: got %d, expected baseline %d", len(crossAspects), jnDCSRCrossAspectCount)
+	}
+
+	t.Logf("DC NatalVsSR: inner=%d outer=%d cross=%d returnJD=%.2f",
+		len(inner.Planets), len(outer.Planets), len(crossAspects), rc.ReturnJD)
+}
+
+// =============================================================================
+// TestXB_DC_NatalVsSR: Double Chart — XB Natal vs Solar Return
+// =============================================================================
+func TestXB_DC_NatalVsSR(t *testing.T) {
+	searchJD := sweph.JulDay(2026, 6, 1, 0, true)
+	rc, err := returns.CalcSolarReturn(returns.ReturnInput{
+		NatalJD:     xbJDUT,
+		NatalLat:    xbLat,
+		NatalLon:    xbLon,
+		SearchJD:    searchJD,
+		Planets:     xbPlanets,
+		OrbConfig:   models.DefaultOrbConfig(),
+		HouseSystem: models.HousePlacidus,
+	})
+	if err != nil {
+		t.Fatalf("CalcSolarReturn XB: %v", err)
+	}
+
+	orbs := models.DefaultOrbConfig()
+	sp := &models.SpecialPointsConfig{
+		InnerPoints: []models.SpecialPointID{models.PointASC, models.PointMC},
+		OuterPoints: []models.SpecialPointID{models.PointASC, models.PointMC},
+	}
+
+	inner, outer, crossAspects, err := chart.CalcDoubleChart(
+		xbLat, xbLon, xbJDUT, xbPlanets,
+		xbLat, xbLon, rc.ReturnJD, xbPlanets,
+		sp, orbs, models.HousePlacidus,
+	)
+	if err != nil {
+		t.Fatalf("CalcDoubleChart XB NatalVsSR: %v", err)
+	}
+
+	if len(crossAspects) == 0 {
+		t.Error("XB DC NatalVsSR: expected cross-aspects")
+	}
+
+	// Phase B baseline: 95 cross-aspects for XB natal vs SR
+	const xbDCSRCrossAspectCount = 95
+	if len(crossAspects) != xbDCSRCrossAspectCount {
+		t.Errorf("XB DC SR cross-aspects: got %d, expected baseline %d", len(crossAspects), xbDCSRCrossAspectCount)
+	}
+
+	t.Logf("XB DC NatalVsSR: inner=%d outer=%d cross=%d returnJD=%.2f",
+		len(inner.Planets), len(outer.Planets), len(crossAspects), rc.ReturnJD)
+}
+
+// =============================================================================
+// TestJN_DC_NatalVsSP: Double Chart — Natal vs Secondary Progressions
+// =============================================================================
+func TestJN_DC_NatalVsSP(t *testing.T) {
+	orbs := models.DefaultOrbConfig()
+
+	// Inner: natal chart
+	natalChart, err := chart.CalcSingleChart(jnLat, jnLon, jnJDUT, jnPlanets, orbs, models.HousePlacidus)
+	if err != nil {
+		t.Fatalf("CalcSingleChart natal: %v", err)
+	}
+
+	// Inner bodies: 12 natal planets + natal ASC/MC
+	innerBodies := buildBodiesFromPlanets(natalChart.Planets)
+	innerBodies = append(innerBodies,
+		aspect.Body{ID: string(models.PointASC), Longitude: natalChart.Angles.ASC},
+		aspect.Body{ID: string(models.PointMC), Longitude: natalChart.Angles.MC},
+	)
+
+	// Outer bodies: 12 progressed planets
+	var spBodies []aspect.Body
+	for _, pid := range jnPlanets {
+		lon, speed, err := progressions.CalcProgressedLongitude(pid, jnJDUT, transitJD)
+		if err != nil {
+			t.Fatalf("SP %s: %v", pid, err)
+		}
+		spBodies = append(spBodies, aspect.Body{ID: string(pid), Longitude: lon, Speed: speed})
+	}
+
+	// Progressed ASC and MC (SF-compatible method)
+	spASC, err := progressions.CalcProgressedSpecialPoint(
+		models.PointASC, jnJDUT, transitJD, jnLat, jnLon, models.HousePlacidus, 0, -1, -1)
+	if err != nil {
+		t.Fatalf("SP ASC: %v", err)
+	}
+	spMC, err := progressions.CalcProgressedSpecialPoint(
+		models.PointMC, jnJDUT, transitJD, jnLat, jnLon, models.HousePlacidus, 0, -1, -1)
+	if err != nil {
+		t.Fatalf("SP MC: %v", err)
+	}
+	spBodies = append(spBodies,
+		aspect.Body{ID: string(models.PointASC), Longitude: spASC},
+		aspect.Body{ID: string(models.PointMC), Longitude: spMC},
+	)
+
+	crossAspects := aspect.FindCrossAspects(innerBodies, spBodies, orbs)
+
+	if len(crossAspects) == 0 {
+		t.Error("DC NatalVsSP: expected cross-aspects")
+	}
+
+	// Phase B baseline: 73 cross-aspects for JN natal vs SP
+	const jnDCSPCrossAspectCount = 73
+	if len(crossAspects) != jnDCSPCrossAspectCount {
+		t.Errorf("DC SP cross-aspects: got %d, expected baseline %d", len(crossAspects), jnDCSPCrossAspectCount)
+	}
+
+	t.Logf("DC NatalVsSP: inner=%d outer=%d cross=%d spASC=%.4f spMC=%.4f",
+		len(innerBodies), len(spBodies), len(crossAspects), spASC, spMC)
+}
+
+// =============================================================================
+// TestXB_DC_NatalVsSP: Double Chart — XB Natal vs Secondary Progressions
+// =============================================================================
+func TestXB_DC_NatalVsSP(t *testing.T) {
+	orbs := models.DefaultOrbConfig()
+
+	natalChart, err := chart.CalcSingleChart(xbLat, xbLon, xbJDUT, xbPlanets, orbs, models.HousePlacidus)
+	if err != nil {
+		t.Fatalf("CalcSingleChart XB natal: %v", err)
+	}
+
+	innerBodies := buildBodiesFromPlanets(natalChart.Planets)
+	innerBodies = append(innerBodies,
+		aspect.Body{ID: string(models.PointASC), Longitude: natalChart.Angles.ASC},
+		aspect.Body{ID: string(models.PointMC), Longitude: natalChart.Angles.MC},
+	)
+
+	var spBodies []aspect.Body
+	for _, pid := range xbPlanets {
+		lon, speed, err := progressions.CalcProgressedLongitude(pid, xbJDUT, transitJD)
+		if err != nil {
+			t.Fatalf("XB SP %s: %v", pid, err)
+		}
+		spBodies = append(spBodies, aspect.Body{ID: string(pid), Longitude: lon, Speed: speed})
+	}
+
+	spASC, err := progressions.CalcProgressedSpecialPoint(
+		models.PointASC, xbJDUT, transitJD, xbLat, xbLon, models.HousePlacidus, 0, -1, -1)
+	if err != nil {
+		t.Fatalf("XB SP ASC: %v", err)
+	}
+	spMC, err := progressions.CalcProgressedSpecialPoint(
+		models.PointMC, xbJDUT, transitJD, xbLat, xbLon, models.HousePlacidus, 0, -1, -1)
+	if err != nil {
+		t.Fatalf("XB SP MC: %v", err)
+	}
+	spBodies = append(spBodies,
+		aspect.Body{ID: string(models.PointASC), Longitude: spASC},
+		aspect.Body{ID: string(models.PointMC), Longitude: spMC},
+	)
+
+	crossAspects := aspect.FindCrossAspects(innerBodies, spBodies, orbs)
+
+	if len(crossAspects) == 0 {
+		t.Error("XB DC NatalVsSP: expected cross-aspects")
+	}
+
+	// Phase B baseline: 79 cross-aspects for XB natal vs SP
+	const xbDCSPCrossAspectCount = 79
+	if len(crossAspects) != xbDCSPCrossAspectCount {
+		t.Errorf("XB DC SP cross-aspects: got %d, expected baseline %d", len(crossAspects), xbDCSPCrossAspectCount)
+	}
+
+	t.Logf("XB DC NatalVsSP: inner=%d outer=%d cross=%d",
+		len(innerBodies), len(spBodies), len(crossAspects))
+}
+
+// =============================================================================
+// TestJN_DC_NatalVsSA: Double Chart — Natal vs Solar Arc
+// =============================================================================
+func TestJN_DC_NatalVsSA(t *testing.T) {
+	orbs := models.DefaultOrbConfig()
+
+	natalChart, err := chart.CalcSingleChart(jnLat, jnLon, jnJDUT, jnPlanets, orbs, models.HousePlacidus)
+	if err != nil {
+		t.Fatalf("CalcSingleChart natal: %v", err)
+	}
+
+	saOffset, err := progressions.SolarArcOffset(jnJDUT, transitJD)
+	if err != nil {
+		t.Fatalf("SolarArcOffset: %v", err)
+	}
+
+	innerBodies := buildBodiesFromPlanets(natalChart.Planets)
+	innerBodies = append(innerBodies,
+		aspect.Body{ID: string(models.PointASC), Longitude: natalChart.Angles.ASC},
+		aspect.Body{ID: string(models.PointMC), Longitude: natalChart.Angles.MC},
+	)
+
+	var saBodies []aspect.Body
+	for _, pid := range jnPlanets {
+		lon, speed, err := progressions.CalcSolarArcLongitude(pid, jnJDUT, transitJD)
+		if err != nil {
+			t.Fatalf("SA %s: %v", pid, err)
+		}
+		saBodies = append(saBodies, aspect.Body{ID: string(pid), Longitude: lon, Speed: speed})
+	}
+
+	saASC := sweph.NormalizeDegrees(natalChart.Angles.ASC + saOffset)
+	saMC := sweph.NormalizeDegrees(natalChart.Angles.MC + saOffset)
+	saBodies = append(saBodies,
+		aspect.Body{ID: string(models.PointASC), Longitude: saASC},
+		aspect.Body{ID: string(models.PointMC), Longitude: saMC},
+	)
+
+	crossAspects := aspect.FindCrossAspects(innerBodies, saBodies, orbs)
+
+	if len(crossAspects) == 0 {
+		t.Error("DC NatalVsSA: expected cross-aspects")
+	}
+
+	// Phase B baseline: 80 cross-aspects for JN natal vs SA
+	const jnDCSACrossAspectCount = 80
+	if len(crossAspects) != jnDCSACrossAspectCount {
+		t.Errorf("DC SA cross-aspects: got %d, expected baseline %d", len(crossAspects), jnDCSACrossAspectCount)
+	}
+
+	t.Logf("DC NatalVsSA: inner=%d outer=%d cross=%d saOffset=%.4f",
+		len(innerBodies), len(saBodies), len(crossAspects), saOffset)
+}
+
+// =============================================================================
+// TestXB_DC_NatalVsSA: Double Chart — XB Natal vs Solar Arc
+// =============================================================================
+func TestXB_DC_NatalVsSA(t *testing.T) {
+	orbs := models.DefaultOrbConfig()
+
+	natalChart, err := chart.CalcSingleChart(xbLat, xbLon, xbJDUT, xbPlanets, orbs, models.HousePlacidus)
+	if err != nil {
+		t.Fatalf("CalcSingleChart XB natal: %v", err)
+	}
+
+	saOffset, err := progressions.SolarArcOffset(xbJDUT, transitJD)
+	if err != nil {
+		t.Fatalf("XB SolarArcOffset: %v", err)
+	}
+
+	innerBodies := buildBodiesFromPlanets(natalChart.Planets)
+	innerBodies = append(innerBodies,
+		aspect.Body{ID: string(models.PointASC), Longitude: natalChart.Angles.ASC},
+		aspect.Body{ID: string(models.PointMC), Longitude: natalChart.Angles.MC},
+	)
+
+	var saBodies []aspect.Body
+	for _, pid := range xbPlanets {
+		lon, speed, err := progressions.CalcSolarArcLongitude(pid, xbJDUT, transitJD)
+		if err != nil {
+			t.Fatalf("XB SA %s: %v", pid, err)
+		}
+		saBodies = append(saBodies, aspect.Body{ID: string(pid), Longitude: lon, Speed: speed})
+	}
+
+	saASC := sweph.NormalizeDegrees(natalChart.Angles.ASC + saOffset)
+	saMC := sweph.NormalizeDegrees(natalChart.Angles.MC + saOffset)
+	saBodies = append(saBodies,
+		aspect.Body{ID: string(models.PointASC), Longitude: saASC},
+		aspect.Body{ID: string(models.PointMC), Longitude: saMC},
+	)
+
+	crossAspects := aspect.FindCrossAspects(innerBodies, saBodies, orbs)
+
+	if len(crossAspects) == 0 {
+		t.Error("XB DC NatalVsSA: expected cross-aspects")
+	}
+
+	// Phase B baseline: 94 cross-aspects for XB natal vs SA
+	const xbDCSACrossAspectCount = 94
+	if len(crossAspects) != xbDCSACrossAspectCount {
+		t.Errorf("XB DC SA cross-aspects: got %d, expected baseline %d", len(crossAspects), xbDCSACrossAspectCount)
+	}
+
+	t.Logf("XB DC NatalVsSA: inner=%d outer=%d cross=%d saOffset=%.4f",
+		len(innerBodies), len(saBodies), len(crossAspects), saOffset)
 }
 
 // =============================================================================
 // Helper Functions
 // =============================================================================
+
+// buildBodiesFromPlanets converts a PlanetPosition slice to aspect.Body slice.
+// Used for SP and SA biwheel tests where CalcDoubleChart cannot be used directly.
+func buildBodiesFromPlanets(planets []models.PlanetPosition) []aspect.Body {
+	bodies := make([]aspect.Body, 0, len(planets))
+	for _, p := range planets {
+		bodies = append(bodies, aspect.Body{
+			ID:        string(p.PlanetID),
+			Longitude: p.Longitude,
+			Speed:     p.Speed,
+		})
+	}
+	return bodies
+}
 
 // normDiff180 returns the smallest signed difference between two angles,
 // handling the 0/360° wrap-around.
