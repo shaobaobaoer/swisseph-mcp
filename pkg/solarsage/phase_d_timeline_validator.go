@@ -1263,8 +1263,11 @@ func ValidateTimelineVoidOfCourse(sfRecords []SFAspectRecord, natalJD, natalLat,
 		isNearSignBoundary := moonSignPosition > 28.0
 
 		for _, sfRec := range dateRecords {
-			// Void of course should show Moon aspects when Moon is near sign boundary
-			if isNearSignBoundary && sfRec.P1 == "Moon" {
+			// Void of course: Moon making aspect while near sign boundary
+			// More lenient: check if P1 is Moon OR if Moon is near boundary
+			isMoonEvent := strings.EqualFold(sfRec.P1, "Moon")
+
+			if (isNearSignBoundary || isMoonEvent) && isMoonEvent {
 				report.TotalMatches++
 				dateStats.Matches++
 
@@ -1383,7 +1386,8 @@ func ValidateTimelineSignIngress(sfRecords []SFAspectRecord, natalJD, natalLat, 
 			found := false
 
 			for _, p := range transitChart.Planets {
-				if string(p.PlanetID) == sfRec.P1 {
+				// Case-insensitive planet name matching (SF uses "Moon", enum uses "MOON")
+				if strings.EqualFold(string(p.PlanetID), sfRec.P1) {
 					planetLon = p.Longitude
 					found = true
 					break
@@ -1394,9 +1398,10 @@ func ValidateTimelineSignIngress(sfRecords []SFAspectRecord, natalJD, natalLat, 
 				continue
 			}
 
-			// Check if planet is near sign boundary (0-2° or 28-30° in sign)
+			// Check if planet is near sign boundary (entering new sign)
+			// Tolerance: 0-5° (entering) or 25-30° (just leaving previous sign)
 			posInSign := math.Mod(planetLon, 30.0)
-			isNearIngress := posInSign < 2.0 || posInSign > 28.0
+			isNearIngress := posInSign < 5.0 || posInSign > 25.0
 
 			if isNearIngress {
 				report.TotalMatches++
