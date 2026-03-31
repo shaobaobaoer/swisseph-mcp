@@ -595,6 +595,111 @@ func TestPhaseD_v6_JN_HouseChange(t *testing.T) {
 	}
 }
 
+// TestPhaseD_v11_XB_Comprehensive validates all 10 validators on XB timeline
+func TestPhaseD_v11_XB_Comprehensive(t *testing.T) {
+	// Test XB timeline on both 5-year periods
+	testPeriods := []struct {
+		name   string
+		path   string
+		years  string
+	}{
+		{
+			name:  "1996-2001",
+			path:  "../../testdata/solarfire/testcase-2-transit-1996-2001.csv",
+			years: "1996-2001",
+		},
+		{
+			name:  "2001-2006",
+			path:  "../../testdata/solarfire/testcase-2-transit-2001-2006.csv",
+			years: "2001-2006",
+		},
+	}
+
+	// Use XB constants from jn_precision_test.go
+	// xbJDUT, xbLat, xbLon, xbPlanets are defined there
+	// This test uses them directly as they're package-level
+
+	t.Logf("\n=== Phase D v11: XB Timeline Validation (10-Year Span) ===\n")
+
+	grandTotalEvents := 0
+	grandTotalMatches := 0
+
+	for _, period := range testPeriods {
+		// Find CSV with fallbacks
+		actualPath := period.path
+		if _, err := checkFileExists(period.path); err != nil {
+			actualPath = "../testdata/solarfire/testcase-2-transit-" + period.name + ".csv"
+			if _, err := checkFileExists(actualPath); err != nil {
+				actualPath = "testdata/solarfire/testcase-2-transit-" + period.name + ".csv"
+			}
+		}
+
+		// Load records
+		sfRecords, err := ParseSFCSV(actualPath, "", "", "")
+		if err != nil {
+			t.Logf("Warning: Could not load %s: %v\n", period.name, err)
+			continue
+		}
+
+		t.Logf("\n[Period: %s] Loaded %d events\n", period.years, len(sfRecords))
+
+		// Run all 10 validators
+		startTime := time.Now()
+
+		trNa := ValidateTimelineTrNa(sfRecords, xbJDUT, xbLat, xbLon, xbPlanets)
+		spNa := ValidateTimelineSpNa(sfRecords, xbJDUT, xbLat, xbLon, xbPlanets)
+		saNa := ValidateTimelineSaNa(sfRecords, xbJDUT, xbLat, xbLon, xbPlanets)
+		trAdv := ValidateTimelineAdvancedPairings(sfRecords, xbJDUT, xbLat, xbLon, xbPlanets)
+		spSp := ValidateTimelineSpSp(sfRecords, xbJDUT, xbLat, xbLon, xbPlanets)
+		trTr := ValidateTimelineTrTr(sfRecords, xbJDUT, xbLat, xbLon, xbPlanets)
+		voc := ValidateTimelineVoidOfCourse(sfRecords, xbJDUT, xbLat, xbLon, xbPlanets)
+		sig := ValidateTimelineSignIngress(sfRecords, xbJDUT, xbLat, xbLon, xbPlanets)
+		hc := ValidateTimelineHouseChange(sfRecords, xbJDUT, xbLat, xbLon, xbPlanets)
+		st := ValidateTimelineStations(sfRecords, xbJDUT, xbLat, xbLon, xbPlanets)
+
+		elapsed := time.Since(startTime)
+
+		// Calculate totals
+		periodTotal := trNa.TotalSFRecords + spNa.TotalSFRecords + saNa.TotalSFRecords +
+			trAdv.TotalSFRecords + spSp.TotalSFRecords + trTr.TotalSFRecords +
+			voc.TotalSFRecords + sig.TotalSFRecords + hc.TotalSFRecords + st.TotalSFRecords
+
+		periodMatches := trNa.TotalMatches + spNa.TotalMatches + saNa.TotalMatches +
+			trAdv.TotalMatches + spSp.TotalMatches + trTr.TotalMatches +
+			voc.TotalMatches + sig.TotalMatches + hc.TotalMatches + st.TotalMatches
+
+		periodRate := 0.0
+		if periodTotal > 0 {
+			periodRate = float64(periodMatches) * 100.0 / float64(periodTotal)
+		}
+
+		t.Logf("Validator Results for %s:\n", period.years)
+		t.Logf("  Tr-Na: %.1f%%, Sp-Na: %.1f%%, Sa-Na: %.1f%%\n",
+			trNa.MatchRate, spNa.MatchRate, saNa.MatchRate)
+		t.Logf("  Advanced: %.1f%%, Sp-Sp: %.1f%%, Tr-Tr: %.1f%%\n",
+			trAdv.MatchRate, spSp.MatchRate, trTr.MatchRate)
+		t.Logf("  Void: %.1f%%, SignIngress: %.1f%%, HouseChange: %.1f%%, Stations: %.1f%%\n",
+			voc.MatchRate, sig.MatchRate, hc.MatchRate, st.MatchRate)
+		t.Logf("  Total: %d events, %d validated (%.1f%%) in %.0fms\n\n",
+			periodTotal, periodMatches, periodRate, elapsed.Seconds()*1000)
+
+		grandTotalEvents += periodTotal
+		grandTotalMatches += periodMatches
+	}
+
+	// Final summary
+	grandRate := 0.0
+	if grandTotalEvents > 0 {
+		grandRate = float64(grandTotalMatches) * 100.0 / float64(grandTotalEvents)
+	}
+
+	t.Logf("\n=== XB Timeline (10-Year) Grand Total ===\n")
+	t.Logf("Total Events: %d\n", grandTotalEvents)
+	t.Logf("Total Validated: %d\n", grandTotalMatches)
+	t.Logf("Coverage: %.1f%%\n", grandRate)
+	t.Logf("\nComparison to JN (1-Year) Timeline: JN was 80.1%% (926/1,156)")
+}
+
 // TestPhaseD_v9_JN_EventCoverage analyzes which event types remain unvalidated
 func TestPhaseD_v9_JN_EventCoverage(t *testing.T) {
 	const csvPath = "../../testdata/solarfire/testcase-1-transit.csv"
