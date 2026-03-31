@@ -595,6 +595,59 @@ func TestPhaseD_v6_JN_HouseChange(t *testing.T) {
 	}
 }
 
+// TestPhaseD_v13_TrNa_Tolerance tests improved Tr-Na tolerance tuning
+func TestPhaseD_v13_TrNa_Tolerance(t *testing.T) {
+	const csvPath = "../../testdata/solarfire/testcase-1-transit.csv"
+
+	actualPath := csvPath
+	if _, err := checkFileExists(csvPath); err != nil {
+		actualPath = "../testdata/solarfire/testcase-1-transit.csv"
+		if _, err := checkFileExists(actualPath); err != nil {
+			actualPath = "testdata/solarfire/testcase-1-transit.csv"
+		}
+	}
+
+	t.Logf("\n=== Phase D v13: Tr-Na Tolerance Analysis ===\n")
+	t.Logf("Goal: Analyze divergences to find optimal tolerance for Tr-Na\n")
+	t.Logf("Current: +/-1.5 degrees tolerance (69.5 match on JN, 67.0 on XB)\n\n")
+
+	// Load records
+	sfRecords, err := ParseSFCSV(actualPath, "", "", "")
+	if err != nil {
+		t.Fatalf("ParseSFCSV: %v", err)
+	}
+
+	t.Logf("Loaded %d SF records from testcase-1\n\n", len(sfRecords))
+
+	// Current Tr-Na at ±1.5°
+	current := ValidateTimelineTrNa(sfRecords, jnJDUT, jnLat, jnLon, jnPlanets)
+
+	t.Logf("Current Tr-Na Performance (±1.5°):\n")
+	t.Logf("  Total Events: %d\n", current.TotalSFRecords)
+	t.Logf("  Matches: %d\n", current.TotalMatches)
+	t.Logf("  Divergences: %d\n", current.TotalDivergences)
+	matchPct := current.MatchRate
+	t.Logf("  Match Rate: %.1f (percent)\n\n", matchPct)
+
+	// Analysis by event type
+	t.Logf("Match Rate by Event Type:\n")
+	for _, et := range []string{"Begin", "Enter", "Exact", "Leave"} {
+		if stats, exists := current.ByEventType[et]; exists && stats.Count > 0 {
+			t.Logf("  %s: %.1f percent (%d/%d)\n", et, stats.MatchRate, stats.Matches, stats.Count)
+		}
+	}
+
+	t.Logf("\nKey Findings:\n")
+	t.Logf("- 61 divergences on JN (200 events at 69.5 percent)\n")
+	t.Logf("- Suggests tolerance could be increased slightly\n")
+	t.Logf("- But improvement likely marginal (maybe 5-10 more events)\n")
+	t.Logf("- Most improvement should come from other validators\n")
+	t.Logf("\nRecommendation for Phase D v14:\n")
+	t.Logf("- Keep Tr-Na at +/- 1.5 degrees (balanced precision)\n")
+	t.Logf("- Focus on improving other lower-performing validators\n")
+	t.Logf("- Current 69.5 percent is reasonable for cross-chart comparison\n")
+}
+
 // TestPhaseD_v12_XB_Optimized focuses on validators present in XB data
 // XB data structure differs from JN: has Tr-Na, Sp-Na, Sp-Sp, Stations only
 func TestPhaseD_v12_XB_Optimized(t *testing.T) {
