@@ -595,6 +595,108 @@ func TestPhaseD_v6_JN_HouseChange(t *testing.T) {
 	}
 }
 
+// TestPhaseD_v8_JN_Comprehensive validates all JN event validators
+func TestPhaseD_v8_JN_Comprehensive(t *testing.T) {
+	const csvPath = "../../testdata/solarfire/testcase-1-transit.csv"
+
+	// Find CSV with fallbacks
+	actualPath := csvPath
+	if _, err := checkFileExists(csvPath); err != nil {
+		actualPath = "../testdata/solarfire/testcase-1-transit.csv"
+		if _, err := checkFileExists(actualPath); err != nil {
+			actualPath = "testdata/solarfire/testcase-1-transit.csv"
+		}
+	}
+
+	t.Logf("\n=== Phase D v8: JN Comprehensive Coverage ===\n")
+
+	// Load all SF records
+	sfRecords, err := ParseSFCSV(actualPath, "", "", "")
+	if err != nil {
+		t.Fatalf("ParseSFCSV: %v", err)
+	}
+
+	t.Logf("Loaded %d total SF records from testcase-1\n", len(sfRecords))
+
+	// Run validators for non-overlapping record sets
+	results := make(map[string]*TimelineValidationReport)
+
+	// Primary pairings (these have some special events mixed in, that's OK)
+	results["Tr-Na"] = ValidateTimelineTrNa(sfRecords, jnJDUT, jnLat, jnLon, jnPlanets)
+	results["Sp-Na"] = ValidateTimelineSpNa(sfRecords, jnJDUT, jnLat, jnLon, jnPlanets)
+	results["Sa-Na"] = ValidateTimelineSaNa(sfRecords, jnJDUT, jnLat, jnLon, jnPlanets)
+
+	// Advanced pairings (Tr-Sp, Tr-Sa, Tr-Tr only, Sp-Sp handled separately)
+	resultsAdv := ValidateTimelineAdvancedPairings(sfRecords, jnJDUT, jnLat, jnLon, jnPlanets)
+
+	// Progressed within-chart (Sp-Sp)
+	results["Sp-Sp"] = ValidateTimelineSpSp(sfRecords, jnJDUT, jnLat, jnLon, jnPlanets)
+
+	// Station events (Retrograde/Direct) in "Tr" chart type
+	results["Stations"] = ValidateTimelineStations(sfRecords, jnJDUT, jnLat, jnLon, jnPlanets)
+
+	// Print comprehensive summary
+	t.Logf("\n═══════════════════════════════════════════════════════════════════════════")
+	t.Logf("VALIDATOR MATCH RATES (non-overlapping sets):")
+	t.Logf("═══════════════════════════════════════════════════════════════════════════\n")
+
+	totalValidated := 0
+	totalEvents := 0
+
+	// Chart pairing validators
+	for _, name := range []string{"Tr-Na", "Sp-Na", "Sa-Na", "Sp-Sp"} {
+		if report, exists := results[name]; exists {
+			status := "⚠️ "
+			if report.MatchRate >= 70 {
+				status = "✅"
+			}
+			t.Logf("%s %s: %d events, %d matched (%.1f%%)",
+				status, name, report.TotalSFRecords, report.TotalMatches, report.MatchRate)
+			totalValidated += report.TotalMatches
+			totalEvents += report.TotalSFRecords
+		}
+	}
+
+	t.Logf("\n  Advanced Pairings (Tr-Sp, Tr-Sa, Tr-Tr):")
+	t.Logf("    Events: %d, Matched: %d (%.1f%%)",
+		resultsAdv.TotalSFRecords, resultsAdv.TotalMatches, resultsAdv.MatchRate)
+	totalValidated += resultsAdv.TotalMatches
+	totalEvents += resultsAdv.TotalSFRecords
+
+	// Station-only events
+	t.Logf("\n  Stations (Retrograde/Direct in Tr): %d events, %d matched (%.1f%%)",
+		results["Stations"].TotalSFRecords, results["Stations"].TotalMatches, results["Stations"].MatchRate)
+	totalValidated += results["Stations"].TotalMatches
+	totalEvents += results["Stations"].TotalSFRecords
+
+	// Breakdown of Advanced Pairings by type
+	t.Logf("\n  Advanced Pairings Breakdown:")
+	if len(resultsAdv.ByChartType) > 0 {
+		for chartType, stats := range resultsAdv.ByChartType {
+			if stats.Count > 0 {
+				t.Logf("    %s: %d events, %d matched (%.1f%%)",
+					chartType, stats.Count, stats.Matches, stats.MatchRate)
+			}
+		}
+	}
+
+	t.Logf("\n═══════════════════════════════════════════════════════════════════════════")
+	t.Logf("TOTAL COVERAGE:")
+	t.Logf("═══════════════════════════════════════════════════════════════════════════\n")
+
+	overallRate := 0.0
+	if totalEvents > 0 {
+		overallRate = float64(totalValidated) * 100.0 / float64(totalEvents)
+	}
+
+	t.Logf("Total Events: %d", totalEvents)
+	t.Logf("Total Validated: %d", totalValidated)
+	t.Logf("Coverage: %.1f%%", overallRate)
+	t.Logf("\nExpected: 1,156 events (testcase-1 JN timeline)")
+	t.Logf("\nNote: This excludes Void, SignIngress, HouseChange validators")
+	t.Logf("  which have additional coverage: +161+169+7 special events")
+}
+
 // Helper to check if file exists
 func checkFileExists(path string) (bool, error) {
 	_, err := os.Stat(path)

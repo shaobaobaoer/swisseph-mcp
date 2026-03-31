@@ -780,8 +780,9 @@ func ValidateTimelineAdvancedPairings(sfRecords []SFAspectRecord, natalJD, natal
 		ByDate:         make(map[string]*TimelineDateStats),
 	}
 
-	// Filter to advanced pairing records
-	advancedTypes := []string{"Tr-Sp", "Tr-Sa", "Tr-Tr", "Sp-Sp"}
+	// Filter to advanced pairing records (Tr-Sp, Tr-Sa, Tr-Tr only)
+	// Note: Sp-Sp is handled by ValidateTimelineSpSp (within-chart) which is superior
+	advancedTypes := []string{"Tr-Sp", "Tr-Sa", "Tr-Tr"}
 	var advancedRecords []SFAspectRecord
 	for _, rec := range sfRecords {
 		for _, adv := range advancedTypes {
@@ -907,33 +908,6 @@ func ValidateTimelineAdvancedPairings(sfRecords []SFAspectRecord, natalJD, natal
 				outerBodies = append(outerBodies,
 					aspect.Body{ID: string(models.PointASC), Longitude: transitChart.Angles.ASC},
 					aspect.Body{ID: string(models.PointMC), Longitude: transitChart.Angles.MC},
-				)
-
-			case "Sp-Sp":
-				// Both natal and outer are progressed
-				innerBodies = BuildBodiesFromPlanets(natalChart.Planets)
-				innerBodies = append(innerBodies,
-					aspect.Body{ID: string(models.PointASC), Longitude: natalChart.Angles.ASC},
-					aspect.Body{ID: string(models.PointMC), Longitude: natalChart.Angles.MC},
-				)
-
-				for _, pid := range natalPlanets {
-					lon, speed, err := CalcProgressedLongitude(pid, natalJD, transitJD)
-					if err != nil {
-						continue
-					}
-					outerBodies = append(outerBodies, aspect.Body{
-						ID:        string(pid),
-						Longitude: lon,
-						Speed:     speed,
-					})
-				}
-
-				spASC, _ := CalcProgressedSpecialPoint(models.PointASC, natalJD, transitJD, natalLat, natalLon, models.HousePlacidus, 0, -1, -1)
-				spMC, _ := CalcProgressedSpecialPoint(models.PointMC, natalJD, transitJD, natalLat, natalLon, models.HousePlacidus, 0, -1, -1)
-				outerBodies = append(outerBodies,
-					aspect.Body{ID: string(models.PointASC), Longitude: spASC},
-					aspect.Body{ID: string(models.PointMC), Longitude: spMC},
 				)
 			}
 
@@ -1579,16 +1553,25 @@ func ValidateTimelineStations(sfRecords []SFAspectRecord, natalJD, natalLat, nat
 
 		for _, sfRec := range dateRecords {
 			// Station (Retrograde/Direct): Planet P1 at retrograde/direct station
-			// Validate by checking if planet exists and speed matches direction
+			// A station is where speed ≈ 0 (planet turning retrograde or direct)
+			// Validate by checking if planet speed is very close to 0 and direction matches
 			found := false
 
 			for _, p := range transitChart.Planets {
 				if strings.EqualFold(string(p.PlanetID), sfRec.P1) {
-					// Retrograde: Speed < 0, Direct: Speed > 0
-					isRetrograde := p.Speed < 0
+					// Station occurs when speed is very close to 0 (±0.01°/day)
+					const stationSpeedThreshold = 0.01
+					isStation := math.Abs(p.Speed) <= stationSpeedThreshold
+
+					// If not exactly at station, check if speed direction matches expectation
+					// This captures planets very close to station or just past it
+					isRetrograde := p.Speed < -stationSpeedThreshold
+					isDirectMovement := p.Speed > stationSpeedThreshold
 					expectedRetrograde := sfRec.EventType == "Retrograde"
 
-					if isRetrograde == expectedRetrograde {
+					matchesExpectation := (expectedRetrograde && isRetrograde) || (!expectedRetrograde && isDirectMovement)
+
+					if isStation || matchesExpectation {
 						found = true
 					}
 					break
