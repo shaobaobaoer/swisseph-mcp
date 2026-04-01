@@ -1243,6 +1243,10 @@ func matchSFEvents(sfEvents []sfEvent, ourEvents []models.TransitEvent, windowSe
 			}
 
 			// 4. Chart type match (for aspect events only, not station/ingress)
+			// Note: Chart type classification may differ between systems (e.g., SF might call
+			// a Tr-Na event "Sp-Na"). For now, we enforce strict chart type matching.
+			// If position and time are excellent (< 0.1° and < 1s), chart type differences
+			// could be investigated separately.
 			isStationOrIngress := sfe.EventType == "Retrograde" || sfe.EventType == "Direct" ||
 				sfe.EventType == "SignIngress" || sfe.EventType == "HouseChange"
 			if !isStationOrIngress {
