@@ -1198,6 +1198,107 @@ func minInt(a, b int) int {
 	return b
 }
 
+// matchSFEventsWithDifferentiatedTolerance uses different time windows per chart type.
+// Transits (Tr-Na, Tr-Tr, Tr-Sp): tighter window (transits are precise)
+// Progressions (Sp-Na, Sp-Sp): wider window (progressions are inherently less precise)
+func matchSFEventsWithDifferentiatedTolerance(sfEvents []sfEvent, ourEvents []models.TransitEvent) matchResult {
+	// Sort both lists by JD for better matching performance
+	sortedSF := make([]sfEvent, len(sfEvents))
+	copy(sortedSF, sfEvents)
+	sort.Slice(sortedSF, func(i, j int) bool { return sortedSF[i].SFJD < sortedSF[j].SFJD })
+
+	sortedOur := make([]models.TransitEvent, len(ourEvents))
+	copy(sortedOur, ourEvents)
+	sort.Slice(sortedOur, func(i, j int) bool { return sortedOur[i].JD < sortedOur[j].JD })
+
+	usedOurs := make([]bool, len(sortedOur))
+	var deviations []float64
+	matched := 0
+
+	for _, sfe := range sortedSF {
+		sfPID, planetOK := sfPlanetMap[sfe.P1]
+		// Determine if we should apply ΔT correction for this chart type
+		tcCorr := 0.0
+		if sfIsTransitBody(sfe.ChartType) {
+			tcCorr = tcDaysDE431
+		}
+
+		// Choose window based on chart type
+		windowSec := 60.0 // default (Tr-Na, Tr-Tr, Tr-Sp)
+		if strings.HasPrefix(sfe.ChartType, "Sp-") || sfe.ChartType == "Sp" {
+			// Progression events: wider window (Sp-Na, Sp-Sp move more slowly)
+			windowSec = 120.0
+		}
+
+		for i, ours := range sortedOur {
+			if usedOurs[i] {
+				continue
+			}
+
+			// 1. Planet match: P1 must be the same planet
+			if planetOK && ours.Planet != sfPID {
+				continue
+			}
+
+			// 1b. For aspect events, also check target planet (P2) to avoid matching wrong aspects
+			isStationOrIngress := sfe.EventType == "Retrograde" || sfe.EventType == "Direct" ||
+				sfe.EventType == "SignIngress" || sfe.EventType == "HouseChange"
+			if !isStationOrIngress {
+				// This is an aspect event - check target planet compatibility
+				if sfP2ID, ok := sfPlanetMap[sfe.P2]; ok && ours.Target != "" {
+					if string(sfP2ID) != ours.Target {
+						continue
+					}
+				}
+			}
+
+			// 2. P1 position match: within 0.1° (wrap-aware comparison)
+			if sfe.Pos1Lon > 0 && lonDiff(ours.PlanetLongitude, sfe.Pos1Lon) > 0.1 {
+				continue
+			}
+
+			// 3. Corrected time match: within windowSec after ΔT correction
+			corrJDDiff := math.Abs((ours.JD - sfe.SFJD - tcCorr) * 86400)
+			if corrJDDiff > windowSec {
+				continue
+			}
+
+			// 4. Chart type match (for aspect events only, not station/ingress)
+			if !isStationOrIngress {
+				exactMatch := chartTypeMatches(string(ours.ChartType), string(ours.TargetChartType), sfe.ChartType)
+
+				if !exactMatch {
+					// Tier 2: Allow flexibility if accuracy is excellent
+					posErr := lonDiff(ours.PlanetLongitude, sfe.Pos1Lon)
+					if !(posErr < 0.1 && corrJDDiff < 2.0) {
+						continue
+					}
+				}
+			}
+
+			// All criteria matched
+			usedOurs[i] = true
+			matched++
+			deviations = append(deviations, (ours.JD-sfe.SFJD-tcCorr)*86400)
+			break
+		}
+	}
+
+	spurious := 0
+	for _, used := range usedOurs {
+		if !used {
+			spurious++
+		}
+	}
+
+	return matchResult{
+		matched:    matched,
+		missed:     len(sfEvents) - matched,
+		spurious:   spurious,
+		deviations: deviations,
+	}
+}
+
 func matchSFEvents(sfEvents []sfEvent, ourEvents []models.TransitEvent, windowSec float64) matchResult {
 	// Sort both lists by JD for better matching performance
 	sortedSF := make([]sfEvent, len(sfEvents))
@@ -1691,7 +1792,12 @@ func TestSolarFireCSV_TC2_DoubleChart(t *testing.T) {
 	// Trade-off: wider window = more matches but less time accuracy
 	result := matchSFEvents(filtered, exactOurEvents, 60.0)
 
-	t.Logf("TC2 DoubleChart: matched=%d, missed=%d, spurious=%d", result.matched, result.missed, result.spurious)
+	// Also test differentiated tolerances (Tr-Na: 60s, Sp-Na/Sp-Sp: 120s)
+	// Result: same as uniform, indicating Tr-Na is the bottleneck, not Sp events
+	resultDiff := matchSFEventsWithDifferentiatedTolerance(filtered, exactOurEvents)
+
+	t.Logf("TC2 DoubleChart (60s uniform): matched=%d, missed=%d, spurious=%d", result.matched, result.missed, result.spurious)
+	t.Logf("TC2 DoubleChart (differentiated: Tr-Na 60s, Sp 120s): matched=%d, missed=%d, spurious=%d (same - Tr-Na is bottleneck)", resultDiff.matched, resultDiff.missed, resultDiff.spurious)
 
 	// Debug: Analyze progression event structure
 	if len(exactOurEvents) > 0 {
