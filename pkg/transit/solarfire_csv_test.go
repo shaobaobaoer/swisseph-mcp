@@ -1198,6 +1198,120 @@ func minInt(a, b int) int {
 	return b
 }
 
+// matchSFEventsOptimized uses diagnostic-based windows from chart-type analysis.
+// Windows determined by actual timing differences observed:
+// - Tr-Na: 5.0s (59.3% success, excellent timing match)
+// - Tr-Sp: 600s (position 0.003° but timing 522s off)
+// - Tr-Sa: 600s (position 0.003° but timing similar)
+// - Sp-Na: 4000s (position 0.001° but timing 3997s off)
+// - Sp-Sp: skip (7-day timing difference indicates algorithm incompatibility)
+func matchSFEventsOptimized(sfEvents []sfEvent, ourEvents []models.TransitEvent) matchResult {
+	// Sort both lists by JD for better matching performance
+	sortedSF := make([]sfEvent, len(sfEvents))
+	copy(sortedSF, sfEvents)
+	sort.Slice(sortedSF, func(i, j int) bool { return sortedSF[i].SFJD < sortedSF[j].SFJD })
+
+	sortedOur := make([]models.TransitEvent, len(ourEvents))
+	copy(sortedOur, ourEvents)
+	sort.Slice(sortedOur, func(i, j int) bool { return sortedOur[i].JD < sortedOur[j].JD })
+
+	usedOurs := make([]bool, len(sortedOur))
+	var deviations []float64
+	matched := 0
+
+	for _, sfe := range sortedSF {
+		sfPID, planetOK := sfPlanetMap[sfe.P1]
+		tcCorr := 0.0
+		if sfIsTransitBody(sfe.ChartType) {
+			tcCorr = tcDaysDE431
+		}
+
+		// Choose window based on diagnostic timing data
+		var windowSec float64
+		switch sfe.ChartType {
+		case "Tr-Na":
+			windowSec = 5.0 // Excellent match
+		case "Tr-Sp", "Tr-Sa":
+			windowSec = 600.0 // ~9-10 min timing offset
+		case "Sp-Na":
+			windowSec = 4000.0 // ~67 min timing offset
+		case "Sp-Sp":
+			windowSec = -1.0 // Skip (algorithm incompatible)
+		default:
+			windowSec = 5.0
+		}
+
+		// Skip Sp-Sp events (7-day algorithm mismatch)
+		if windowSec < 0 {
+			continue
+		}
+
+		for i, ours := range sortedOur {
+			if usedOurs[i] {
+				continue
+			}
+
+			if planetOK && ours.Planet != sfPID {
+				continue
+			}
+
+			isStationOrIngress := sfe.EventType == "Retrograde" || sfe.EventType == "Direct" ||
+				sfe.EventType == "SignIngress" || sfe.EventType == "HouseChange"
+			if !isStationOrIngress {
+				if sfP2ID, ok := sfPlanetMap[sfe.P2]; ok && ours.Target != "" {
+					if string(sfP2ID) != ours.Target {
+						continue
+					}
+				}
+			}
+
+			if sfe.Pos1Lon > 0 && lonDiff(ours.PlanetLongitude, sfe.Pos1Lon) > 0.1 {
+				continue
+			}
+
+			if sfe.Pos2Lon > 0 && ours.TargetLongitude > 0 {
+				if lonDiff(ours.TargetLongitude, sfe.Pos2Lon) > 0.2 {
+					continue
+				}
+			}
+
+			corrJDDiff := math.Abs((ours.JD - sfe.SFJD - tcCorr) * 86400)
+			if corrJDDiff > windowSec {
+				continue
+			}
+
+			if !isStationOrIngress {
+				exactMatch := chartTypeMatches(string(ours.ChartType), string(ours.TargetChartType), sfe.ChartType)
+				if !exactMatch {
+					posErr := lonDiff(ours.PlanetLongitude, sfe.Pos1Lon)
+					if !(posErr < 0.1 && corrJDDiff < 2.0) {
+						continue
+					}
+				}
+			}
+
+			usedOurs[i] = true
+			matched++
+			deviations = append(deviations, (ours.JD-sfe.SFJD-tcCorr)*86400)
+			break
+		}
+	}
+
+	spurious := 0
+	for _, used := range usedOurs {
+		if !used {
+			spurious++
+		}
+	}
+
+	return matchResult{
+		matched:    matched,
+		missed:     len(sfEvents) - matched,
+		spurious:   spurious,
+		deviations: deviations,
+	}
+}
+
 // matchSFEventsWithDifferentiatedTolerance uses different time windows per chart type.
 // Transits (Tr-Na, Tr-Tr, Tr-Sp): tighter window (transits are precise)
 // Progressions (Sp-Na, Sp-Sp): wider window (progressions are inherently less precise)
@@ -1663,8 +1777,10 @@ func TestSolarFireCSV_TC1_DoubleChart(t *testing.T) {
 	}
 
 	result := matchSFEvents(filtered, ourEvents, 5.0)
+	resultOptimized := matchSFEventsOptimized(filtered, ourEvents)
 
-	t.Logf("TC1 DoubleChart: matched=%d, missed=%d, spurious=%d", result.matched, result.missed, result.spurious)
+	t.Logf("TC1 DoubleChart (uniform 5.0s): matched=%d, missed=%d, spurious=%d", result.matched, result.missed, result.spurious)
+	t.Logf("TC1 DoubleChart (diagnostic windows): matched=%d, missed=%d, spurious=%d", resultOptimized.matched, resultOptimized.missed, resultOptimized.spurious)
 
 	// Breakdown by chart type: what's failing?
 	sfByChartType := make(map[string]int)
@@ -1739,7 +1855,81 @@ func TestSolarFireCSV_TC1_DoubleChart(t *testing.T) {
 	}
 
 	// Diagnostic: for failing chart types, check closest matches
-	t.Logf("\nDiagnostic: Why are Tr-Sa, Sp-Na, Sp-Sp, Sa-Na failing?")
+	// Breakdown with optimized windows
+	matchedOptByChartType := make(map[string]int)
+	usedOursOpt := make([]bool, len(ourEvents))
+	for _, sfe := range filtered {
+		sfPID, planetOK := sfPlanetMap[sfe.P1]
+		tcCorr := 0.0
+		if sfIsTransitBody(sfe.ChartType) {
+			tcCorr = tcDaysDE431
+		}
+
+		var windowSec float64
+		switch sfe.ChartType {
+		case "Tr-Na":
+			windowSec = 5.0
+		case "Tr-Sp", "Tr-Sa":
+			windowSec = 600.0
+		case "Sp-Na":
+			windowSec = 4000.0
+		case "Sp-Sp":
+			windowSec = -1.0 // Skip
+		default:
+			windowSec = 5.0
+		}
+		if windowSec < 0 {
+			continue
+		}
+
+		for i, ours := range ourEvents {
+			if usedOursOpt[i] {
+				continue
+			}
+			if planetOK && ours.Planet != sfPID {
+				continue
+			}
+			isStationOrIngress := sfe.EventType == "Retrograde" || sfe.EventType == "Direct" ||
+				sfe.EventType == "SignIngress" || sfe.EventType == "HouseChange"
+			if !isStationOrIngress {
+				if sfP2ID, ok := sfPlanetMap[sfe.P2]; ok && ours.Target != "" {
+					if string(sfP2ID) != ours.Target {
+						continue
+					}
+				}
+			}
+			if sfe.Pos1Lon > 0 && lonDiff(ours.PlanetLongitude, sfe.Pos1Lon) > 0.1 {
+				continue
+			}
+			corrJDDiff := math.Abs((ours.JD - sfe.SFJD - tcCorr) * 86400)
+			if corrJDDiff > windowSec {
+				continue
+			}
+			if !isStationOrIngress {
+				exactMatch := chartTypeMatches(string(ours.ChartType), string(ours.TargetChartType), sfe.ChartType)
+				if !exactMatch {
+					posErr := lonDiff(ours.PlanetLongitude, sfe.Pos1Lon)
+					if !(posErr < 0.1 && corrJDDiff < 2.0) {
+						continue
+					}
+				}
+			}
+			usedOursOpt[i] = true
+			matchedOptByChartType[sfe.ChartType]++
+			break
+		}
+	}
+	t.Logf("\nMatched with Optimized Windows (diagnostic-based):")
+	for _, ct := range []string{"Tr-Na", "Tr-Sp", "Tr-Sa", "Sp-Na", "Sp-Sp", "Sa-Na"} {
+		sf := sfByChartType[ct]
+		matched := matchedOptByChartType[ct]
+		if sf > 0 {
+			pct := 100.0 * float64(matched) / float64(sf)
+			t.Logf("  %s: %d/%d = %.1f%%", ct, matched, sf, pct)
+		}
+	}
+
+	t.Logf("\nDiagnostic: Why are Tr-Sa, Sp-Na, Sp-Sp, Sa-Na failing with uniform 5.0s?")
 	for chartType := range map[string]bool{"Tr-Sa": true, "Sp-Na": true, "Sp-Sp": true, "Sa-Na": true} {
 		var sfEvents []sfEvent
 		for _, e := range filtered {
