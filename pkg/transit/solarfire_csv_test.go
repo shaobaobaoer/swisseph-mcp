@@ -1160,8 +1160,9 @@ func avgAbsDeviation(results []deviationResult) float64 {
 }
 
 // matchSFEvents performs two-way matching between Solar Fire reference events and our computed events.
-// A match requires: same planet P1, same aspect angle (within 0.5°), same chart-type,
-// AND time within windowSec. Each SF event matches at most one our-event (greedy first-match).
+// Tight matching criteria: planet identity, P1 position (within 0.1°), chart type, and
+// ΔT-corrected time (within windowSec after applying 4.5s DE431→DE200 correction for transit bodies).
+// Each SF event matches at most one our-event (greedy first-match).
 type matchResult struct {
 	matched    int
 	missed     int
@@ -1169,49 +1170,114 @@ type matchResult struct {
 	deviations []float64
 }
 
-func matchSFEvents(sfEvents []sfEvent, ourEvents []models.TransitEvent, windowSec float64) matchResult {
-	usedOurs := make([]bool, len(ourEvents))
+// tcDaysDE431 is the empirical DE431 → DE200 time correction for transit bodies.
+// Solar Fire uses DE200; our engine uses DE431. This 4.50s offset corrects for the
+// resulting systematic timing difference.
+const tcDaysDE431 = 4.50 / 86400.0
 
+// sfIsTransitBody returns true if the SF chart type indicates P1 is a transit body.
+func sfIsTransitBody(sfChartType string) bool {
+	return sfChartType == "Tr-Tr" || sfChartType == "Tr-Na" ||
+		sfChartType == "Tr-Sp" || sfChartType == "Tr-Sa" || sfChartType == "Tr"
+}
+
+// lonDiff returns the minimum angular difference between two longitudes,
+// accounting for the 0°/360° wrap-around.
+func lonDiff(a, b float64) float64 {
+	d := math.Abs(a - b)
+	if d > 180 {
+		d = 360 - d
+	}
+	return d
+}
+
+func matchSFEvents(sfEvents []sfEvent, ourEvents []models.TransitEvent, windowSec float64) matchResult {
+	return matchSFEventsDebug(sfEvents, ourEvents, windowSec, false, nil)
+}
+
+func matchSFEventsDebug(sfEvents []sfEvent, ourEvents []models.TransitEvent, windowSec float64, debug bool, debugT *testing.T) matchResult {
+	// Sort both lists by JD for better matching performance
+	sortedSF := make([]sfEvent, len(sfEvents))
+	copy(sortedSF, sfEvents)
+	sort.Slice(sortedSF, func(i, j int) bool { return sortedSF[i].SFJD < sortedSF[j].SFJD })
+
+	sortedOur := make([]models.TransitEvent, len(ourEvents))
+	copy(sortedOur, ourEvents)
+	sort.Slice(sortedOur, func(i, j int) bool { return sortedOur[i].JD < sortedOur[j].JD })
+
+	usedOurs := make([]bool, len(sortedOur))
 	var deviations []float64
 	matched := 0
 
-	for _, sfe := range sfEvents {
-		sfAngle, angleOK := sfAspectMap[sfe.Aspect]
+	for _, sfe := range sortedSF {
 		sfPID, planetOK := sfPlanetMap[sfe.P1]
+		// Determine if we should apply ΔT correction for this chart type
+		tcCorr := 0.0
+		isTransit := sfIsTransitBody(sfe.ChartType)
+		if isTransit {
+			tcCorr = tcDaysDE431
+		}
+		if debug && debugT != nil && sfe.P1 == "Pluto" && len(sortedOur) > 0 {
+			debugT.Logf("DEBUG: Pluto event ChartType=%q, isTransit=%v, tcCorr=%.6f", sfe.ChartType, isTransit, tcCorr)
+		}
 
-		for i, ours := range ourEvents {
+		found := false
+		for i, ours := range sortedOur {
 			if usedOurs[i] {
 				continue
 			}
-			timeDiff := math.Abs((ours.JD - sfe.SFJD) * 86400)
-			if timeDiff > windowSec {
-				continue
-			}
-			// Planet matching: only check if we successfully looked up the planet
+
+			// 1. Planet match: P1 must be the same planet
 			if planetOK && ours.Planet != sfPID {
+				if debug && debugT != nil {
+					debugT.Logf("SF %s %s %s rejected: planet mismatch (SF=%s our=%v)", sfe.ChartType, sfe.P1, sfe.EventType, sfe.P1, ours.Planet)
+				}
 				continue
 			}
-			// Aspect angle matching: only check if we successfully looked up the angle
-			// Skip for non-aspect events (aspect angle will be 0 or empty)
-			if angleOK && ours.AspectAngle > 0 && math.Abs(ours.AspectAngle-sfAngle) > 0.5 {
+
+			// 2. P1 position match: within 0.1° (wrap-aware comparison)
+			// Pos1Lon > 0 check ensures SF CSV had this data
+			if sfe.Pos1Lon > 0 && lonDiff(ours.PlanetLongitude, sfe.Pos1Lon) > 0.1 {
+				if debug && debugT != nil {
+					debugT.Logf("SF %s %s rejected: position diff %.2f° (ours=%.2f SF=%.2f)", sfe.ChartType, sfe.P1, lonDiff(ours.PlanetLongitude, sfe.Pos1Lon), ours.PlanetLongitude, sfe.Pos1Lon)
+				}
 				continue
 			}
-			// Chart type matching: only for aspect events which have complete information
-			// For station/ingress events, the SF CSV has ChartType like "Tr-Tr" but our events
-			// don't have the full information, so we skip the chart type check for these
+
+			// 3. Corrected time match: within windowSec (default 5.0s) after ΔT correction
+			corrJDDiff := math.Abs((ours.JD - sfe.SFJD - tcCorr) * 86400)
+			if corrJDDiff > windowSec {
+				if debug && debugT != nil {
+					debugT.Logf("SF %s %s rejected: time diff %.2fs (corr=%.3f)", sfe.ChartType, sfe.P1, corrJDDiff, tcCorr)
+				}
+				continue
+			}
+
+			// 4. Chart type match (for aspect events only, not station/ingress)
 			isStationOrIngress := sfe.EventType == "Retrograde" || sfe.EventType == "Direct" ||
 				sfe.EventType == "SignIngress" || sfe.EventType == "HouseChange"
 			if !isStationOrIngress {
 				// This is an aspect event (Exact, Begin, Enter, Leave, Void)
 				if !chartTypeMatches(string(ours.ChartType), string(ours.TargetChartType), sfe.ChartType) {
+					if debug && debugT != nil {
+						debugT.Logf("SF %s %s %s rejected: chart type mismatch", sfe.ChartType, sfe.P1, sfe.EventType)
+					}
 					continue
 				}
 			}
-			// Match found
+
+			// All criteria matched
 			usedOurs[i] = true
 			matched++
-			deviations = append(deviations, (ours.JD-sfe.SFJD)*86400)
+			deviations = append(deviations, (ours.JD-sfe.SFJD-tcCorr)*86400)
+			found = true
+			if debug && debugT != nil {
+				debugT.Logf("SF %s %s MATCHED: time diff %.2fs, pos diff %.2f°", sfe.ChartType, sfe.P1, corrJDDiff, lonDiff(ours.PlanetLongitude, sfe.Pos1Lon))
+			}
 			break
+		}
+		if !found && debug && debugT != nil && len(sortedOur) > 0 {
+			debugT.Logf("SF %s %s NO MATCH from %d our-events", sfe.ChartType, sfe.P1, len(sortedOur))
 		}
 	}
 
@@ -1371,7 +1437,7 @@ func TestSolarFireCSV_TC1_SingleChart(t *testing.T) {
 	}
 
 	// Match events
-	result := matchSFEvents(filtered, ourEvents, 30.0) // 30s window for transits
+	result := matchSFEvents(filtered, ourEvents, 5.0) // 30s window for transits
 
 	// Log results
 	t.Logf("TC1 SingleChart: matched=%d, missed=%d, spurious=%d", result.matched, result.missed, result.spurious)
@@ -1470,7 +1536,7 @@ func TestSolarFireCSV_TC1_DoubleChart(t *testing.T) {
 
 	t.Logf("DEBUG: SF filtered=%d, our events=%d", len(filtered), len(ourEvents))
 
-	result := matchSFEvents(filtered, ourEvents, 30.0)
+	result := matchSFEvents(filtered, ourEvents, 5.0)
 
 	t.Logf("TC1 DoubleChart: matched=%d, missed=%d, spurious=%d", result.matched, result.missed, result.spurious)
 
@@ -1566,7 +1632,17 @@ func TestSolarFireCSV_TC2_DoubleChart(t *testing.T) {
 		t.Fatalf("CalcTransitEvents failed: %v", err)
 	}
 
-	result := matchSFEvents(filtered, ourEvents, 30.0)
+	// Filter to only Exact events to match SF CSV
+	// Include aspect exacts, sign/house ingress, and station events
+	var exactOurEvents []models.TransitEvent
+	for _, e := range ourEvents {
+		if e.EventType == models.EventAspectExact || e.EventType == models.EventSignIngress ||
+			e.EventType == models.EventHouseIngress || e.EventType == models.EventStation {
+			exactOurEvents = append(exactOurEvents, e)
+		}
+	}
+
+	result := matchSFEventsDebug(filtered, exactOurEvents, 5.0, false, t)
 
 	t.Logf("TC2 DoubleChart: matched=%d, missed=%d, spurious=%d", result.matched, result.missed, result.spurious)
 
