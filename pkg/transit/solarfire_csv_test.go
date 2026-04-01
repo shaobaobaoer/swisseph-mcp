@@ -1619,6 +1619,23 @@ func TestSolarFireCSV_TC2_DoubleChart(t *testing.T) {
 		}
 	}
 
+	// Debug: breakdown of computed events by chart type
+	ourByChartType := make(map[models.ChartType]int)
+	ourByEventType := make(map[models.EventType]int)
+	for _, e := range exactOurEvents {
+		ourByChartType[e.ChartType]++
+		ourByEventType[e.EventType]++
+	}
+	t.Logf("Our Computed Events (Exact only):")
+	for ct, count := range ourByChartType {
+		t.Logf("  ChartType %v: %d", ct, count)
+	}
+	t.Logf("Event Types distribution:")
+	for et, count := range ourByEventType {
+		t.Logf("  EventType %v: %d", et, count)
+	}
+	t.Logf("Total computed: %d (filtered to %d exact)", len(ourEvents), len(exactOurEvents))
+
 	// Investigation finding: TC2 events show BIMODAL offset distribution:
 	// - Good matches: 1-7s errors (these are the 7 matched events)
 	// - Bad matches: median 13-97 min errors (the 995 missed events)
@@ -1628,6 +1645,78 @@ func TestSolarFireCSV_TC2_DoubleChart(t *testing.T) {
 	result := matchSFEvents(filtered, exactOurEvents, 5.0)
 
 	t.Logf("TC2 DoubleChart: matched=%d, missed=%d, spurious=%d", result.matched, result.missed, result.spurious)
+
+	// Debug: Analyze which events matched and breakdown by chart type
+	if result.matched > 0 || len(filtered) > 0 {
+		t.Logf("=== TC2 Chart Type Breakdown ===")
+
+		// Count SF events by chart type
+		sfByChartType := make(map[string]int)
+		for _, sfe := range filtered {
+			sfByChartType[sfe.ChartType]++
+		}
+		for ct, count := range sfByChartType {
+			t.Logf("SF Events - ChartType %s: %d", ct, count)
+		}
+
+		if result.matched > 0 {
+			t.Logf("=== TC2 Matched Events Analysis ===")
+			matchedChartTypes := make(map[string]int)
+			matchedPlanets := make(map[string]int)
+
+			// Identify matched events by marking which our-events were used
+			usedOurs := make([]bool, len(exactOurEvents))
+			for _, sfe := range filtered {
+				sfPID, planetOK := sfPlanetMap[sfe.P1]
+				if !planetOK {
+					continue
+				}
+
+				tcCorr := 0.0
+				if sfIsTransitBody(sfe.ChartType) {
+					tcCorr = tcDaysDE431
+				}
+
+				for i, ours := range exactOurEvents {
+					if usedOurs[i] {
+						continue
+					}
+					if ours.Planet != sfPID {
+						continue
+					}
+					if sfe.Pos1Lon > 0 && lonDiff(ours.PlanetLongitude, sfe.Pos1Lon) > 0.1 {
+						continue
+					}
+					corrJDDiff := math.Abs((ours.JD - sfe.SFJD - tcCorr) * 86400)
+					if corrJDDiff > 5.0 {
+						continue
+					}
+					isStation := sfe.EventType == "Retrograde" || sfe.EventType == "Direct" ||
+						sfe.EventType == "SignIngress" || sfe.EventType == "HouseChange"
+					if !isStation {
+						if !chartTypeMatches(string(ours.ChartType), string(ours.TargetChartType), sfe.ChartType) {
+							continue
+						}
+					}
+
+					// Match found
+					usedOurs[i] = true
+					matchedChartTypes[sfe.ChartType]++
+					matchedPlanets[sfe.P1]++
+					break
+				}
+			}
+
+			t.Logf("Matched breakdown:")
+			for ct, count := range matchedChartTypes {
+				pct := float64(count) * 100 / float64(sfByChartType[ct])
+				t.Logf("  ChartType %s: %d/%d matches (%.1f%%)", ct, count, sfByChartType[ct], pct)
+			}
+			for planet, count := range matchedPlanets {
+				t.Logf("  Planet %s: %d matches", planet, count)
+			}
+		}
+	}
 
 	// TC2 (Sp-Na, Sp-Sp) events show significant timing offsets due to algorithm differences.
 	// Position accuracy is excellent (< 0.1° always), but event timing fundamentally differs.
