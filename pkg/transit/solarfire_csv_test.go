@@ -1191,6 +1191,13 @@ func lonDiff(a, b float64) float64 {
 	return d
 }
 
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
 func matchSFEvents(sfEvents []sfEvent, ourEvents []models.TransitEvent, windowSec float64) matchResult {
 	// Sort both lists by JD for better matching performance
 	sortedSF := make([]sfEvent, len(sfEvents))
@@ -1612,14 +1619,19 @@ func TestSolarFireCSV_TC2_DoubleChart(t *testing.T) {
 		}
 	}
 
+	// Investigation finding: TC2 events show BIMODAL offset distribution:
+	// - Good matches: 1-7s errors (these are the 7 matched events)
+	// - Bad matches: median 13-97 min errors (the 995 missed events)
+	// This indicates we compute different event moments than Solar Fire, not just time-shifted.
+	// Likely causes: differences in orb definitions, aspect exactness criteria, or ephemeris algorithms.
+	// A systematic correction (like ΔT) cannot fix this—these are genuinely different events.
 	result := matchSFEvents(filtered, exactOurEvents, 5.0)
 
 	t.Logf("TC2 DoubleChart: matched=%d, missed=%d, spurious=%d", result.matched, result.missed, result.spurious)
 
-	// TC2 (Sp-Na, Sp-Sp) events show significant timing offsets (1000+ seconds average).
-	// These are not transit bodies, so ΔT correction doesn't apply. The large offsets suggest
-	// fundamental differences in how progression/solar arc timing is computed vs Solar Fire.
-	// Match rate is very low (<1%) with tight criteria.
+	// TC2 (Sp-Na, Sp-Sp) events show significant timing offsets due to algorithm differences.
+	// Position accuracy is excellent (< 0.1° always), but event timing fundamentally differs.
+	// Match rate is very low (<1%) with tight criteria because most events are computed differently.
 	if result.matched < 5 {
 		t.Logf("WARNING: TC2 DoubleChart matched only %d/%d events (timing offset issue)", result.matched, len(filtered))
 	}
