@@ -2425,8 +2425,15 @@ func TestSolarFireCSV_TC2_DoubleChart(t *testing.T) {
 	// Result: same as uniform, indicating Tr-Na is the bottleneck, not Sp events
 	resultDiff := matchSFEventsWithDifferentiatedTolerance(filtered, exactOurEvents)
 
+	// NOTE: TC1's diagnostic windows (Tr-Na 5s, Tr-Sp/Sa 600s, Sp-Na 4000s) perform poorly on TC2 (18 matches)
+	// This reveals that diagnostic windows are dataset-specific, not universal:
+	// - TC1 Tr-Na events work at 5.0s (different location, time range)
+	// - TC2 Tr-Na events need 60.0s
+	// Diagnostic windows optimization cannot transfer between datasets without recalibration.
+
 	t.Logf("TC2 DoubleChart (60s uniform): matched=%d, missed=%d, spurious=%d", result.matched, result.missed, result.spurious)
-	t.Logf("TC2 DoubleChart (differentiated: Tr-Na 60s, Sp 120s): matched=%d, missed=%d, spurious=%d (same - Tr-Na is bottleneck)", resultDiff.matched, resultDiff.missed, resultDiff.spurious)
+	t.Logf("TC2 DoubleChart (differentiated: Tr-Na 60s, Sp 120s): matched=%d, missed=%d, spurious=%d", resultDiff.matched, resultDiff.missed, resultDiff.spurious)
+	t.Logf("TC2 Note: Diagnostic windows from TC1 hurt performance (18 matches), confirming window values are dataset-specific")
 
 	// Debug: Analyze progression event structure
 	if len(exactOurEvents) > 0 {
