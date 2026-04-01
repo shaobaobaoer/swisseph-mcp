@@ -1595,6 +1595,12 @@ func TestSolarFireCSV_TC2_DoubleChart(t *testing.T) {
 				Orbs:        models.DefaultOrbConfig(),
 				HouseSystem: models.HousePlacidus,
 			},
+			Progressions: &ProgressionsChartConfig{
+				Planets:     defaultPlanets,
+				Points:      []models.SpecialPointID{},
+				Orbs:        models.DefaultOrbConfig(),
+				HouseSystem: models.HousePlacidus,
+			},
 		},
 		EventFilter: EventFilterConfig{
 			TrNa: true,
@@ -1622,13 +1628,23 @@ func TestSolarFireCSV_TC2_DoubleChart(t *testing.T) {
 	// Debug: breakdown of computed events by chart type
 	ourByChartType := make(map[models.ChartType]int)
 	ourByEventType := make(map[models.EventType]int)
+	ourByChartPlanet := make(map[string]int)
 	for _, e := range exactOurEvents {
 		ourByChartType[e.ChartType]++
 		ourByEventType[e.EventType]++
+		if e.ChartType == models.ChartProgressions {
+			ourByChartPlanet[fmt.Sprintf("%v (Sp)", e.Planet)]++
+		}
 	}
 	t.Logf("Our Computed Events (Exact only):")
 	for ct, count := range ourByChartType {
 		t.Logf("  ChartType %v: %d", ct, count)
+	}
+	if len(ourByChartPlanet) > 0 {
+		t.Logf("  Progressions by planet:")
+		for planet, count := range ourByChartPlanet {
+			t.Logf("    %s: %d", planet, count)
+		}
 	}
 	t.Logf("Event Types distribution:")
 	for et, count := range ourByEventType {
@@ -1645,6 +1661,20 @@ func TestSolarFireCSV_TC2_DoubleChart(t *testing.T) {
 	result := matchSFEvents(filtered, exactOurEvents, 5.0)
 
 	t.Logf("TC2 DoubleChart: matched=%d, missed=%d, spurious=%d", result.matched, result.missed, result.spurious)
+
+	// Debug: Analyze progression event structure
+	if len(exactOurEvents) > 0 {
+		t.Logf("=== Sample Progression Event ===")
+		for _, e := range exactOurEvents {
+			if e.ChartType == models.ChartProgressions {
+				t.Logf("Sample Sp event: Planet=%v, Target=%s, TargetChart=%v",
+					e.Planet, e.Target, e.TargetChartType)
+				t.Logf("  TargetLongitude=%.2f, AspectType=%v, AspectAngle=%.2f",
+					e.TargetLongitude, e.AspectType, e.AspectAngle)
+				break
+			}
+		}
+	}
 
 	// Debug: Analyze which events matched and breakdown by chart type
 	if result.matched > 0 || len(filtered) > 0 {
