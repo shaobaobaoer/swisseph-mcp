@@ -1631,6 +1631,20 @@ func TestSolarFireCSV_TC1_DoubleChart(t *testing.T) {
 				Orbs:        models.DefaultOrbConfig(),
 				HouseSystem: models.HousePlacidus,
 			},
+			// Progressions needed for Tr-Sp, Sp-Na, Sp-Sp events
+			Progressions: &ProgressionsChartConfig{
+				Planets:     defaultPlanets,
+				Points:      []models.SpecialPointID{},
+				Orbs:        models.DefaultOrbConfig(),
+				HouseSystem: models.HousePlacidus,
+			},
+			// SolarArc needed for Tr-Sa, Sa-Na events
+			SolarArc: &SolarArcChartConfig{
+				Planets:     defaultPlanets,
+				Points:      []models.SpecialPointID{},
+				Orbs:        models.DefaultOrbConfig(),
+				HouseSystem: models.HousePlacidus,
+			},
 		},
 		EventFilter: EventFilterConfig{
 			TrNa: true,
@@ -1652,11 +1666,37 @@ func TestSolarFireCSV_TC1_DoubleChart(t *testing.T) {
 
 	t.Logf("TC1 DoubleChart: matched=%d, missed=%d, spurious=%d", result.matched, result.missed, result.spurious)
 
+	// Breakdown by chart type: what's failing?
+	sfByChartType := make(map[string]int)
+	for _, sfe := range filtered {
+		sfByChartType[sfe.ChartType]++
+	}
+	t.Logf("\n=== TC1 DoubleChart Breakdown ===")
+	t.Logf("SF Events by ChartType:")
+	for _, ct := range []string{"Tr-Na", "Tr-Sp", "Tr-Sa", "Sp-Na", "Sp-Sp", "Sa-Na"} {
+		if count, ok := sfByChartType[ct]; ok && count > 0 {
+			t.Logf("  %s: %d events", ct, count)
+		}
+	}
+
+	// Count our events by chart type
+	ourByChartType := make(map[string]int)
+	for _, oe := range ourEvents {
+		key := fmt.Sprintf("%s-%s", oe.ChartType, oe.TargetChartType)
+		ourByChartType[key]++
+	}
+	t.Logf("Our Computed Events by ChartType:")
+	for _, ct := range []string{"TRANSIT-NATAL", "TRANSIT-PROGRESSIONS", "TRANSIT-SOLAR_ARC", "PROGRESSIONS-NATAL", "PROGRESSIONS-PROGRESSIONS", "SOLAR_ARC-NATAL"} {
+		if count, ok := ourByChartType[ct]; ok && count > 0 {
+			t.Logf("  %s: %d events", ct, count)
+		}
+	}
+
 	// Double-chart events have lower match rates (~16%) with tight criteria (0.1° pos, 5.0s).
 	// This is primarily due to timing offsets for non-transit aspects (Tr-Sp, Sp-Na, etc).
 	// Note: We filter to Exact events only, improving from 100% spurious rate.
 	if result.matched < 20 {
-		t.Logf("WARNING: TC1 DoubleChart matched only %d/%d events", result.matched, len(filtered))
+		t.Logf("\nWARNING: TC1 DoubleChart matched only %d/%d events", result.matched, len(filtered))
 	}
 	if len(result.deviations) > 0 {
 		avg := 0.0
