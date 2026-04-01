@@ -1679,6 +1679,109 @@ func TestSolarFireCSV_TC1_DoubleChart(t *testing.T) {
 		}
 	}
 
+	// Count matches by chart type
+	matchedByChartType := make(map[string]int)
+	usedOurs := make([]bool, len(ourEvents))
+	for _, sfe := range filtered {
+		sfPID, planetOK := sfPlanetMap[sfe.P1]
+		tcCorr := 0.0
+		if sfIsTransitBody(sfe.ChartType) {
+			tcCorr = tcDaysDE431
+		}
+
+		for i, ours := range ourEvents {
+			if usedOurs[i] {
+				continue
+			}
+			if planetOK && ours.Planet != sfPID {
+				continue
+			}
+			isStationOrIngress := sfe.EventType == "Retrograde" || sfe.EventType == "Direct" ||
+				sfe.EventType == "SignIngress" || sfe.EventType == "HouseChange"
+			if !isStationOrIngress {
+				if sfP2ID, ok := sfPlanetMap[sfe.P2]; ok && ours.Target != "" {
+					if string(sfP2ID) != ours.Target {
+						continue
+					}
+				}
+			}
+			if sfe.Pos1Lon > 0 && lonDiff(ours.PlanetLongitude, sfe.Pos1Lon) > 0.1 {
+				continue
+			}
+			corrJDDiff := math.Abs((ours.JD - sfe.SFJD - tcCorr) * 86400)
+			if corrJDDiff > 5.0 {
+				continue
+			}
+			if !isStationOrIngress {
+				exactMatch := chartTypeMatches(string(ours.ChartType), string(ours.TargetChartType), sfe.ChartType)
+				if !exactMatch {
+					posErr := lonDiff(ours.PlanetLongitude, sfe.Pos1Lon)
+					if !(posErr < 0.1 && corrJDDiff < 2.0) {
+						continue
+					}
+				}
+			}
+			usedOurs[i] = true
+			matchedByChartType[sfe.ChartType]++
+			break
+		}
+	}
+	t.Logf("\nMatched Events by ChartType:")
+	totalMatched := 0
+	for _, ct := range []string{"Tr-Na", "Tr-Sp", "Tr-Sa", "Sp-Na", "Sp-Sp", "Sa-Na"} {
+		sf := sfByChartType[ct]
+		matched := matchedByChartType[ct]
+		totalMatched += matched
+		if sf > 0 {
+			pct := 100.0 * float64(matched) / float64(sf)
+			t.Logf("  %s: %d/%d = %.1f%%", ct, matched, sf, pct)
+		}
+	}
+
+	// Diagnostic: for failing chart types, check closest matches
+	t.Logf("\nDiagnostic: Why are Tr-Sa, Sp-Na, Sp-Sp, Sa-Na failing?")
+	for chartType := range map[string]bool{"Tr-Sa": true, "Sp-Na": true, "Sp-Sp": true, "Sa-Na": true} {
+		var sfEvents []sfEvent
+		for _, e := range filtered {
+			if e.ChartType == chartType {
+				sfEvents = append(sfEvents, e)
+			}
+		}
+		if len(sfEvents) == 0 {
+			continue
+		}
+
+		// For first event of this type, find closest our-event
+		sfe := sfEvents[0]
+		sfPID, _ := sfPlanetMap[sfe.P1]
+		var closest *models.TransitEvent
+		minDiff := math.MaxFloat64
+
+		for _, ours := range ourEvents {
+			if ours.Planet != sfPID {
+				continue
+			}
+			// Check chart type match
+			exactMatch := chartTypeMatches(string(ours.ChartType), string(ours.TargetChartType), sfe.ChartType)
+			if !exactMatch {
+				continue
+			}
+			diff := math.Abs((ours.JD - sfe.SFJD) * 86400)
+			if diff < minDiff {
+				minDiff = diff
+				ours := ours
+				closest = &ours
+			}
+		}
+
+		if closest != nil {
+			posErr := lonDiff(closest.PlanetLongitude, sfe.Pos1Lon)
+			t.Logf("  %s (%s): closest event pos_err=%.3f°, time_diff=%.1fs", chartType, sfe.P1, posErr, minDiff)
+		} else {
+			t.Logf("  %s (%s): NO matching chart type found in computed events!", chartType, sfe.P1)
+		}
+	}
+
 	// Count our events by chart type
 	ourByChartType := make(map[string]int)
 	for _, oe := range ourEvents {
