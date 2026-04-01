@@ -1198,6 +1198,114 @@ func minInt(a, b int) int {
 	return b
 }
 
+// matchSFEventsWithCustomSpNaWindow tests different Sp-Na windows while keeping other fixed.
+// Used for finding optimal Sp-Na window that balances match rate vs time accuracy.
+func matchSFEventsWithCustomSpNaWindow(sfEvents []sfEvent, ourEvents []models.TransitEvent, spNaWindowSec float64) matchResult {
+	// Sort both lists by JD for better matching performance
+	sortedSF := make([]sfEvent, len(sfEvents))
+	copy(sortedSF, sfEvents)
+	sort.Slice(sortedSF, func(i, j int) bool { return sortedSF[i].SFJD < sortedSF[j].SFJD })
+
+	sortedOur := make([]models.TransitEvent, len(ourEvents))
+	copy(sortedOur, ourEvents)
+	sort.Slice(sortedOur, func(i, j int) bool { return sortedOur[i].JD < sortedOur[j].JD })
+
+	usedOurs := make([]bool, len(sortedOur))
+	var deviations []float64
+	matched := 0
+
+	for _, sfe := range sortedSF {
+		sfPID, planetOK := sfPlanetMap[sfe.P1]
+		tcCorr := 0.0
+		if sfIsTransitBody(sfe.ChartType) {
+			tcCorr = tcDaysDE431
+		}
+
+		// Use custom windows with variable Sp-Na
+		var windowSec float64
+		switch sfe.ChartType {
+		case "Tr-Na":
+			windowSec = 5.0
+		case "Tr-Sp", "Tr-Sa":
+			windowSec = 600.0
+		case "Sp-Na":
+			windowSec = spNaWindowSec // Variable
+		case "Sp-Sp":
+			windowSec = -1.0 // Skip
+		default:
+			windowSec = 5.0
+		}
+
+		if windowSec < 0 {
+			continue
+		}
+
+		for i, ours := range sortedOur {
+			if usedOurs[i] {
+				continue
+			}
+
+			if planetOK && ours.Planet != sfPID {
+				continue
+			}
+
+			isStationOrIngress := sfe.EventType == "Retrograde" || sfe.EventType == "Direct" ||
+				sfe.EventType == "SignIngress" || sfe.EventType == "HouseChange"
+			if !isStationOrIngress {
+				if sfP2ID, ok := sfPlanetMap[sfe.P2]; ok && ours.Target != "" {
+					if string(sfP2ID) != ours.Target {
+						continue
+					}
+				}
+			}
+
+			if sfe.Pos1Lon > 0 && lonDiff(ours.PlanetLongitude, sfe.Pos1Lon) > 0.1 {
+				continue
+			}
+
+			if sfe.Pos2Lon > 0 && ours.TargetLongitude > 0 {
+				if lonDiff(ours.TargetLongitude, sfe.Pos2Lon) > 0.2 {
+					continue
+				}
+			}
+
+			corrJDDiff := math.Abs((ours.JD - sfe.SFJD - tcCorr) * 86400)
+			if corrJDDiff > windowSec {
+				continue
+			}
+
+			if !isStationOrIngress {
+				exactMatch := chartTypeMatches(string(ours.ChartType), string(ours.TargetChartType), sfe.ChartType)
+				if !exactMatch {
+					posErr := lonDiff(ours.PlanetLongitude, sfe.Pos1Lon)
+					if !(posErr < 0.1 && corrJDDiff < 2.0) {
+						continue
+					}
+				}
+			}
+
+			usedOurs[i] = true
+			matched++
+			deviations = append(deviations, (ours.JD-sfe.SFJD-tcCorr)*86400)
+			break
+		}
+	}
+
+	spurious := 0
+	for _, used := range usedOurs {
+		if !used {
+			spurious++
+		}
+	}
+
+	return matchResult{
+		matched:    matched,
+		missed:     len(sfEvents) - matched,
+		spurious:   spurious,
+		deviations: deviations,
+	}
+}
+
 // matchSFEventsOptimized uses diagnostic-based windows from chart-type analysis.
 // Windows determined by actual timing differences observed:
 // - Tr-Na: 5.0s (59.3% success, excellent timing match)
@@ -1779,8 +1887,68 @@ func TestSolarFireCSV_TC1_DoubleChart(t *testing.T) {
 	result := matchSFEvents(filtered, ourEvents, 5.0)
 	resultOptimized := matchSFEventsOptimized(filtered, ourEvents)
 
+	// Test tighter Sp-Na window: 4000s (67 min) is quite loose. Try 2000s (33 min) and 3000s (50 min)
+	testResults := make(map[string]matchResult)
+	for _, spNaWindow := range []float64{1000.0, 2000.0, 3000.0, 4000.0} {
+		result := matchSFEventsWithCustomSpNaWindow(filtered, ourEvents, spNaWindow)
+		testResults[fmt.Sprintf("%.0fs", spNaWindow)] = result
+	}
+
 	t.Logf("TC1 DoubleChart (uniform 5.0s): matched=%d, missed=%d, spurious=%d", result.matched, result.missed, result.spurious)
 	t.Logf("TC1 DoubleChart (diagnostic windows): matched=%d, missed=%d, spurious=%d", resultOptimized.matched, resultOptimized.missed, resultOptimized.spurious)
+	t.Logf("\nOptimizing Sp-Na window (Tr-Na:5s, Tr-Sp/Sa:600s, Sp-Na:?s):")
+	for _, window := range []string{"1000s", "2000s", "3000s", "4000s"} {
+		if r, ok := testResults[window]; ok {
+			t.Logf("  Sp-Na window %s: matched=%d/%d total", window, r.matched, len(filtered))
+		}
+	}
+
+	// Find which Sp-Na events require > 3000s but <= 4000s
+	t.Logf("\nSp-Na events requiring 3000s-4000s window (7 events):")
+	for _, sfe := range filtered {
+		if sfe.ChartType != "Sp-Na" {
+			continue
+		}
+		sfPID, ok := sfPlanetMap[sfe.P1]
+		if !ok {
+			continue
+		}
+
+		// Find closest our-event for this SF event
+		var closest *models.TransitEvent
+		minDiff := math.MaxFloat64
+
+		for _, ours := range ourEvents {
+			if ours.Planet != sfPID {
+				continue
+			}
+			isStationOrIngress := sfe.EventType == "Retrograde" || sfe.EventType == "Direct" ||
+				sfe.EventType == "SignIngress" || sfe.EventType == "HouseChange"
+			if !isStationOrIngress {
+				if sfP2ID, ok := sfPlanetMap[sfe.P2]; ok && ours.Target != "" {
+					if string(sfP2ID) != ours.Target {
+						continue
+					}
+				}
+			}
+			if sfe.Pos1Lon > 0 && lonDiff(ours.PlanetLongitude, sfe.Pos1Lon) > 0.1 {
+				continue
+			}
+			// Use Sp-Na: no ΔT correction for progressions
+			diff := math.Abs((ours.JD - sfe.SFJD) * 86400)
+			if diff < minDiff {
+				minDiff = diff
+				ours := ours
+				closest = &ours
+			}
+		}
+
+		if closest != nil && minDiff > 3000.0 && minDiff <= 4000.0 {
+			posErr := lonDiff(closest.PlanetLongitude, sfe.Pos1Lon)
+			t.Logf("  %s (P1=%s, Target=%s): time_diff=%.1fs, pos_err=%.3f°",
+				sfe.P1, sfe.P1, sfe.P2, minDiff, posErr)
+		}
+	}
 
 	// Breakdown by chart type: what's failing?
 	sfByChartType := make(map[string]int)
