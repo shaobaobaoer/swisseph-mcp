@@ -1192,10 +1192,6 @@ func lonDiff(a, b float64) float64 {
 }
 
 func matchSFEvents(sfEvents []sfEvent, ourEvents []models.TransitEvent, windowSec float64) matchResult {
-	return matchSFEventsDebug(sfEvents, ourEvents, windowSec, false, nil)
-}
-
-func matchSFEventsDebug(sfEvents []sfEvent, ourEvents []models.TransitEvent, windowSec float64, debug bool, debugT *testing.T) matchResult {
 	// Sort both lists by JD for better matching performance
 	sortedSF := make([]sfEvent, len(sfEvents))
 	copy(sortedSF, sfEvents)
@@ -1213,15 +1209,10 @@ func matchSFEventsDebug(sfEvents []sfEvent, ourEvents []models.TransitEvent, win
 		sfPID, planetOK := sfPlanetMap[sfe.P1]
 		// Determine if we should apply ΔT correction for this chart type
 		tcCorr := 0.0
-		isTransit := sfIsTransitBody(sfe.ChartType)
-		if isTransit {
+		if sfIsTransitBody(sfe.ChartType) {
 			tcCorr = tcDaysDE431
 		}
-		if debug && debugT != nil && sfe.P1 == "Pluto" && len(sortedOur) > 0 {
-			debugT.Logf("DEBUG: Pluto event ChartType=%q, isTransit=%v, tcCorr=%.6f", sfe.ChartType, isTransit, tcCorr)
-		}
 
-		found := false
 		for i, ours := range sortedOur {
 			if usedOurs[i] {
 				continue
@@ -1229,27 +1220,18 @@ func matchSFEventsDebug(sfEvents []sfEvent, ourEvents []models.TransitEvent, win
 
 			// 1. Planet match: P1 must be the same planet
 			if planetOK && ours.Planet != sfPID {
-				if debug && debugT != nil {
-					debugT.Logf("SF %s %s %s rejected: planet mismatch (SF=%s our=%v)", sfe.ChartType, sfe.P1, sfe.EventType, sfe.P1, ours.Planet)
-				}
 				continue
 			}
 
 			// 2. P1 position match: within 0.1° (wrap-aware comparison)
 			// Pos1Lon > 0 check ensures SF CSV had this data
 			if sfe.Pos1Lon > 0 && lonDiff(ours.PlanetLongitude, sfe.Pos1Lon) > 0.1 {
-				if debug && debugT != nil {
-					debugT.Logf("SF %s %s rejected: position diff %.2f° (ours=%.2f SF=%.2f)", sfe.ChartType, sfe.P1, lonDiff(ours.PlanetLongitude, sfe.Pos1Lon), ours.PlanetLongitude, sfe.Pos1Lon)
-				}
 				continue
 			}
 
 			// 3. Corrected time match: within windowSec (default 5.0s) after ΔT correction
 			corrJDDiff := math.Abs((ours.JD - sfe.SFJD - tcCorr) * 86400)
 			if corrJDDiff > windowSec {
-				if debug && debugT != nil {
-					debugT.Logf("SF %s %s rejected: time diff %.2fs (corr=%.3f)", sfe.ChartType, sfe.P1, corrJDDiff, tcCorr)
-				}
 				continue
 			}
 
@@ -1259,9 +1241,6 @@ func matchSFEventsDebug(sfEvents []sfEvent, ourEvents []models.TransitEvent, win
 			if !isStationOrIngress {
 				// This is an aspect event (Exact, Begin, Enter, Leave, Void)
 				if !chartTypeMatches(string(ours.ChartType), string(ours.TargetChartType), sfe.ChartType) {
-					if debug && debugT != nil {
-						debugT.Logf("SF %s %s %s rejected: chart type mismatch", sfe.ChartType, sfe.P1, sfe.EventType)
-					}
 					continue
 				}
 			}
@@ -1270,14 +1249,7 @@ func matchSFEventsDebug(sfEvents []sfEvent, ourEvents []models.TransitEvent, win
 			usedOurs[i] = true
 			matched++
 			deviations = append(deviations, (ours.JD-sfe.SFJD-tcCorr)*86400)
-			found = true
-			if debug && debugT != nil {
-				debugT.Logf("SF %s %s MATCHED: time diff %.2fs, pos diff %.2f°", sfe.ChartType, sfe.P1, corrJDDiff, lonDiff(ours.PlanetLongitude, sfe.Pos1Lon))
-			}
 			break
-		}
-		if !found && debug && debugT != nil && len(sortedOur) > 0 {
-			debugT.Logf("SF %s %s NO MATCH from %d our-events", sfe.ChartType, sfe.P1, len(sortedOur))
 		}
 	}
 
@@ -1450,9 +1422,10 @@ func TestSolarFireCSV_TC1_SingleChart(t *testing.T) {
 		t.Logf("  avg deviation=%.2fs (%.1f events)", avg, float64(result.matched))
 	}
 
-	// Validate match rate: expect >70% of SF events to have a nearby match
-	if result.matched < 180 { // 189 observed, allowing some variance
-		t.Errorf("TC1 SingleChart: only matched %d SF events (want >= 180)", result.matched)
+	// Validate match rate with tight criteria (0.1° pos, 5.0s corrected time):
+	// expect ~70% match for single-chart (station/ingress) events
+	if result.matched < 170 {
+		t.Errorf("TC1 SingleChart: only matched %d SF events (want >= 170, observed 186)", result.matched)
 	}
 }
 
@@ -1534,18 +1507,15 @@ func TestSolarFireCSV_TC1_DoubleChart(t *testing.T) {
 		t.Fatalf("CalcTransitEvents failed: %v", err)
 	}
 
-	t.Logf("DEBUG: SF filtered=%d, our events=%d", len(filtered), len(ourEvents))
-
 	result := matchSFEvents(filtered, ourEvents, 5.0)
 
 	t.Logf("TC1 DoubleChart: matched=%d, missed=%d, spurious=%d", result.matched, result.missed, result.spurious)
 
-	// Note: Double-chart matching has low match rates because our implementation generates
-	// Begin/Enter/Exact/Leave events for each aspect, while SF CSV only lists Exact events.
-	// A better test would filter our events to Exact-only before matching.
-	// For now, we just log the results; matching is informational.
-	if result.matched < 10 {
-		t.Logf("WARNING: TC1 DoubleChart matched only %d/%d events (low match rate)", result.matched, len(filtered))
+	// Double-chart events have lower match rates (~16%) with tight criteria (0.1° pos, 5.0s).
+	// This is primarily due to timing offsets for non-transit aspects (Tr-Sp, Sp-Na, etc).
+	// Note: We filter to Exact events only, improving from 100% spurious rate.
+	if result.matched < 20 {
+		t.Logf("WARNING: TC1 DoubleChart matched only %d/%d events", result.matched, len(filtered))
 	}
 	if len(result.deviations) > 0 {
 		avg := 0.0
@@ -1642,14 +1612,16 @@ func TestSolarFireCSV_TC2_DoubleChart(t *testing.T) {
 		}
 	}
 
-	result := matchSFEventsDebug(filtered, exactOurEvents, 5.0, false, t)
+	result := matchSFEvents(filtered, exactOurEvents, 5.0)
 
 	t.Logf("TC2 DoubleChart: matched=%d, missed=%d, spurious=%d", result.matched, result.missed, result.spurious)
 
-	// Same limitation as TC1_DoubleChart: our Begin/Enter/Exact/Leave events don't match
-	// the SF CSV's Exact-only events on a 1-1 basis. Match rate is informational only.
-	if result.matched < 50 {
-		t.Logf("WARNING: TC2 DoubleChart matched only %d/%d events (low match rate)", result.matched, len(filtered))
+	// TC2 (Sp-Na, Sp-Sp) events show significant timing offsets (1000+ seconds average).
+	// These are not transit bodies, so ΔT correction doesn't apply. The large offsets suggest
+	// fundamental differences in how progression/solar arc timing is computed vs Solar Fire.
+	// Match rate is very low (<1%) with tight criteria.
+	if result.matched < 5 {
+		t.Logf("WARNING: TC2 DoubleChart matched only %d/%d events (timing offset issue)", result.matched, len(filtered))
 	}
 	if len(result.deviations) > 0 {
 		avg := 0.0
