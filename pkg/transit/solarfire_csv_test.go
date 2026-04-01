@@ -1689,7 +1689,7 @@ func TestSolarFireCSV_TC2_DoubleChart(t *testing.T) {
 			t.Logf("SF Events - ChartType %s: %d", ct, count)
 		}
 
-		if result.matched > 0 {
+		if result.matched > 0 || len(filtered) > 0 {
 			t.Logf("=== TC2 Matched Events Analysis ===")
 			matchedChartTypes := make(map[string]int)
 			matchedPlanets := make(map[string]int)
@@ -1744,6 +1744,68 @@ func TestSolarFireCSV_TC2_DoubleChart(t *testing.T) {
 			}
 			for planet, count := range matchedPlanets {
 				t.Logf("  Planet %s: %d matches", planet, count)
+			}
+
+			// Debug: Analyze chart type mismatch for Sp-Na/Sp-Sp
+			if sfByChartType["Sp-Na"] > 0 || sfByChartType["Sp-Sp"] > 0 {
+				t.Logf("\n=== Event Classification Mismatch Analysis ===")
+				t.Logf("SF expects %d Sp-Na/Sp-Sp events, but we computed 0 with correct chart type.",
+					sfByChartType["Sp-Na"]+sfByChartType["Sp-Sp"])
+				t.Logf("Hypothesis: Same events exist, but classified differently")
+				t.Logf("  - SF says: event is a Progression (Sp-Na, Sp-Sp)")
+				t.Logf("  - We say:  event is a Transit (Tr-Na, Tr-Sp, etc)")
+
+				// Sample one SF Sp-Na event and find closest matches
+				for _, sfe := range filtered {
+					if sfe.ChartType != "Sp-Na" && sfe.ChartType != "Sp-Sp" {
+						continue
+					}
+
+					sfPID, ok := sfPlanetMap[sfe.P1]
+					if !ok {
+						continue
+					}
+
+					t.Logf("\nExample: SF %s %s: P1=%s, pos=%.2f°, time=%v",
+						sfe.ChartType, sfe.EventType, sfe.P1, sfe.Pos1Lon, sfe.SFJD)
+
+					// Find all our events for this planet, grouped by chart type
+					byChartType := make(map[models.ChartType][]models.TransitEvent)
+					for _, ours := range exactOurEvents {
+						if ours.Planet == sfPID {
+							byChartType[ours.ChartType] = append(byChartType[ours.ChartType], ours)
+						}
+					}
+
+					for chartType, events := range byChartType {
+						t.Logf("  Our %v events for this planet: %d", chartType, len(events))
+
+						// Find closest by position and time
+						type match struct {
+							event models.TransitEvent
+							posErr float64
+							timeErr float64
+						}
+						var matches []match
+						for _, e := range events {
+							posErr := lonDiff(e.PlanetLongitude, sfe.Pos1Lon)
+							timeErr := math.Abs((e.JD - sfe.SFJD) * 86400)
+							if posErr < 0.2 && timeErr < 100 { // Reasonable window
+								matches = append(matches, match{e, posErr, timeErr})
+							}
+						}
+
+						if len(matches) > 0 {
+							sort.Slice(matches, func(i, j int) bool {
+								return matches[i].posErr + matches[j].timeErr < matches[j].posErr + matches[i].timeErr
+							})
+							best := matches[0]
+							t.Logf("    Best match: pos_err=%.2f°, time_err=%.0fs - WOULD MATCH IF chartType aligned!",
+								best.posErr, best.timeErr)
+						}
+					}
+					break // Only analyze one example
+				}
 			}
 		}
 	}
