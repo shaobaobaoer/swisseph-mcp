@@ -1350,6 +1350,15 @@ func matchSFEvents(sfEvents []sfEvent, ourEvents []models.TransitEvent, windowSe
 				continue
 			}
 
+			// 2b. For aspect events, also check P2 position (target) to be stricter
+			// This filters out matches where target position diverges significantly
+			if !isStationOrIngress && sfe.Pos2Lon > 0 && ours.TargetLongitude > 0 {
+				if lonDiff(ours.TargetLongitude, sfe.Pos2Lon) > 0.2 {
+					// Use looser tolerance (0.2°) for targets since they move less predictably
+					continue
+				}
+			}
+
 			// 3. Corrected time match: within windowSec (default 5.0s) after ΔT correction
 			corrJDDiff := math.Abs((ours.JD - sfe.SFJD - tcCorr) * 86400)
 			if corrJDDiff > windowSec {
