@@ -1306,6 +1306,123 @@ func matchSFEventsWithCustomSpNaWindow(sfEvents []sfEvent, ourEvents []models.Tr
 	}
 }
 
+// matchSFEventsWithPerPlanetSpNa uses per-planet windows for Sp-Na based on observed timing patterns.
+// Moon: 4000s (67 min offset observed)
+// Mercury: 3600s (60 min offset observed)
+// Others: 2000s (conservative, tighter window)
+func matchSFEventsWithPerPlanetSpNa(sfEvents []sfEvent, ourEvents []models.TransitEvent) matchResult {
+	sortedSF := make([]sfEvent, len(sfEvents))
+	copy(sortedSF, sfEvents)
+	sort.Slice(sortedSF, func(i, j int) bool { return sortedSF[i].SFJD < sortedSF[j].SFJD })
+
+	sortedOur := make([]models.TransitEvent, len(ourEvents))
+	copy(sortedOur, ourEvents)
+	sort.Slice(sortedOur, func(i, j int) bool { return sortedOur[i].JD < sortedOur[j].JD })
+
+	usedOurs := make([]bool, len(sortedOur))
+	var deviations []float64
+	matched := 0
+
+	for _, sfe := range sortedSF {
+		sfPID, planetOK := sfPlanetMap[sfe.P1]
+		tcCorr := 0.0
+		if sfIsTransitBody(sfe.ChartType) {
+			tcCorr = tcDaysDE431
+		}
+
+		// Choose window based on chart type and planet
+		var windowSec float64
+		switch sfe.ChartType {
+		case "Tr-Na":
+			windowSec = 5.0
+		case "Tr-Sp", "Tr-Sa":
+			windowSec = 600.0
+		case "Sp-Na":
+			// Per-planet windows based on observed timing offsets
+			switch sfe.P1 {
+			case "Moon":
+				windowSec = 4000.0 // 67 min offset observed
+			case "Mercury":
+				windowSec = 3600.0 // 60 min offset observed
+			default:
+				windowSec = 2000.0 // Conservative for others
+			}
+		case "Sp-Sp":
+			windowSec = -1.0 // Skip
+		default:
+			windowSec = 5.0
+		}
+
+		if windowSec < 0 {
+			continue
+		}
+
+		for i, ours := range sortedOur {
+			if usedOurs[i] {
+				continue
+			}
+
+			if planetOK && ours.Planet != sfPID {
+				continue
+			}
+
+			isStationOrIngress := sfe.EventType == "Retrograde" || sfe.EventType == "Direct" ||
+				sfe.EventType == "SignIngress" || sfe.EventType == "HouseChange"
+			if !isStationOrIngress {
+				if sfP2ID, ok := sfPlanetMap[sfe.P2]; ok && ours.Target != "" {
+					if string(sfP2ID) != ours.Target {
+						continue
+					}
+				}
+			}
+
+			if sfe.Pos1Lon > 0 && lonDiff(ours.PlanetLongitude, sfe.Pos1Lon) > 0.1 {
+				continue
+			}
+
+			if sfe.Pos2Lon > 0 && ours.TargetLongitude > 0 {
+				if lonDiff(ours.TargetLongitude, sfe.Pos2Lon) > 0.2 {
+					continue
+				}
+			}
+
+			corrJDDiff := math.Abs((ours.JD - sfe.SFJD - tcCorr) * 86400)
+			if corrJDDiff > windowSec {
+				continue
+			}
+
+			if !isStationOrIngress {
+				exactMatch := chartTypeMatches(string(ours.ChartType), string(ours.TargetChartType), sfe.ChartType)
+				if !exactMatch {
+					posErr := lonDiff(ours.PlanetLongitude, sfe.Pos1Lon)
+					if !(posErr < 0.1 && corrJDDiff < 2.0) {
+						continue
+					}
+				}
+			}
+
+			usedOurs[i] = true
+			matched++
+			deviations = append(deviations, (ours.JD-sfe.SFJD-tcCorr)*86400)
+			break
+		}
+	}
+
+	spurious := 0
+	for _, used := range usedOurs {
+		if !used {
+			spurious++
+		}
+	}
+
+	return matchResult{
+		matched:    matched,
+		missed:     len(sfEvents) - matched,
+		spurious:   spurious,
+		deviations: deviations,
+	}
+}
+
 // matchSFEventsOptimized uses diagnostic-based windows from chart-type analysis.
 // Windows determined by actual timing differences observed:
 // - Tr-Na: 5.0s (59.3% success, excellent timing match)
@@ -1886,6 +2003,7 @@ func TestSolarFireCSV_TC1_DoubleChart(t *testing.T) {
 
 	result := matchSFEvents(filtered, ourEvents, 5.0)
 	resultOptimized := matchSFEventsOptimized(filtered, ourEvents)
+	resultPerPlanet := matchSFEventsWithPerPlanetSpNa(filtered, ourEvents)
 
 	// Test tighter Sp-Na window: 4000s (67 min) is quite loose. Try 2000s (33 min) and 3000s (50 min)
 	testResults := make(map[string]matchResult)
@@ -1896,6 +2014,7 @@ func TestSolarFireCSV_TC1_DoubleChart(t *testing.T) {
 
 	t.Logf("TC1 DoubleChart (uniform 5.0s): matched=%d, missed=%d, spurious=%d", result.matched, result.missed, result.spurious)
 	t.Logf("TC1 DoubleChart (diagnostic windows): matched=%d, missed=%d, spurious=%d", resultOptimized.matched, resultOptimized.missed, resultOptimized.spurious)
+	t.Logf("TC1 DoubleChart (per-planet Sp-Na windows): matched=%d, missed=%d, spurious=%d", resultPerPlanet.matched, resultPerPlanet.missed, resultPerPlanet.spurious)
 	t.Logf("\nOptimizing Sp-Na window (Tr-Na:5s, Tr-Sp/Sa:600s, Sp-Na:?s):")
 	for _, window := range []string{"1000s", "2000s", "3000s", "4000s"} {
 		if r, ok := testResults[window]; ok {
