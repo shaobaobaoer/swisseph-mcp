@@ -2882,12 +2882,20 @@ func TestSolarFireCSV_TC2_DoubleChart(t *testing.T) {
 	t.Logf("  Result with per-planet max windows: matched=%d (%.1f%%)",
 		rPerPlanetMax.matched, 100*float64(rPerPlanetMax.matched)/float64(len(filtered)))
 
+	// Test very wide Sp-Na windows (these chart types have algorithmic offsets of minutes)
+	t.Logf("\nTC2 Sp-Na/Sp-Sp window expansion (extreme testing):")
+	for spNaWin := 300.0; spNaWin <= 3600.0; spNaWin += 600.0 {
+		// Keep per-planet Tr-Na max, but expand Sp-Na/Sp-Sp
+		r := matchSFEventsWithChartTypeWindow(filtered, exactOurEvents, 300.0, 120.0, spNaWin, spNaWin)
+		t.Logf("  Sp-Na/Sp-Sp window %6.0fs: matched=%d (%.1f%%) [+%d vs baseline]", spNaWin, r.matched, 100*float64(r.matched)/float64(len(filtered)), r.matched-result.matched)
+	}
+
 	// Compare strategies
 	t.Logf("\nTC2 Matching Strategy Summary:")
 	t.Logf("  Baseline (60s uniform): %d matches (30.5%%)", result.matched)
 	t.Logf("  Uniform 300s Tr-Na: %d matches (43.4%%)", resultOptimal.matched)
 	t.Logf("  Per-planet p90 windows: %d matches (50.8%%)", rPerPlanet.matched)
-	t.Logf("  Per-planet max windows: %d matches (54.6%%) ← OPTIMAL", rPerPlanetMax.matched)
+	t.Logf("  Per-planet max windows: %d matches (54.6%%) ← OPTIMAL FOR ACCURACY", rPerPlanetMax.matched)
 	t.Logf("  Improvement: +%d matches from baseline, +2.86x match rate increase", rPerPlanetMax.matched-result.matched)
 
 	// Debug: Analyze progression event structure
