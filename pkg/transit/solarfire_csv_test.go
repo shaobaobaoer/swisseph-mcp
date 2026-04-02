@@ -1821,7 +1821,7 @@ func TestSolarFireCSV_TC1_SingleChart(t *testing.T) {
 		models.PlanetSun, models.PlanetMoon, models.PlanetMercury,
 		models.PlanetVenus, models.PlanetMars, models.PlanetJupiter,
 		models.PlanetSaturn, models.PlanetUranus, models.PlanetNeptune,
-		models.PlanetPluto,
+		models.PlanetPluto, models.PlanetChiron, models.PlanetNorthNodeMean,
 	}
 
 	// Filter to single-chart event types
@@ -1920,7 +1920,7 @@ func TestSolarFireCSV_TC1_DoubleChart(t *testing.T) {
 		models.PlanetSun, models.PlanetMoon, models.PlanetMercury,
 		models.PlanetVenus, models.PlanetMars, models.PlanetJupiter,
 		models.PlanetSaturn, models.PlanetUranus, models.PlanetNeptune,
-		models.PlanetPluto,
+		models.PlanetPluto, models.PlanetChiron, models.PlanetNorthNodeMean,
 	}
 
 	// Filter to double-chart Exact events only (for now)
@@ -2300,7 +2300,7 @@ func TestSolarFireCSV_TC2_DoubleChart(t *testing.T) {
 		models.PlanetSun, models.PlanetMoon, models.PlanetMercury,
 		models.PlanetVenus, models.PlanetMars, models.PlanetJupiter,
 		models.PlanetSaturn, models.PlanetUranus, models.PlanetNeptune,
-		models.PlanetPluto,
+		models.PlanetPluto, models.PlanetChiron, models.PlanetNorthNodeMean,
 	}
 
 	// Filter to Tr-Na, Sp-Na, Sp-Sp Exact events only
