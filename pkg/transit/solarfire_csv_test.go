@@ -3132,6 +3132,102 @@ func TestSolarFireCSV_TC2_DoubleChart(t *testing.T) {
 		t.Logf("    → %d (%.1f%%) are BEYOND our 960s window", beyond960, 100*float64(beyond960)/float64(len(timings)))
 	}
 
+	// Investigate Sp-Na/Sp-Sp timing offsets to see if there's a pattern
+	t.Logf("\nTC2 Analyze Sp-Na/Sp-Sp timing offset patterns (attempting formula reverse-engineering):")
+	spNaOffsets := make(map[string][]float64) // planet -> list of offsets
+
+	for _, sfe := range filtered {
+		if sfe.ChartType != "Sp-Na" && sfe.ChartType != "Sp-Sp" {
+			continue
+		}
+		sfPID, ok := sfPlanetMap[sfe.P1]
+		if !ok {
+			continue
+		}
+
+		// Find closest event (no ΔT correction for progressions)
+		var closest *models.TransitEvent
+		minDiff := math.MaxFloat64
+		for _, ours := range exactOurEvents {
+			if ours.Planet != sfPID {
+				continue
+			}
+			diff := math.Abs((ours.JD - sfe.SFJD) * 86400) // Time difference in seconds
+			if diff < minDiff {
+				minDiff = diff
+				ours := ours
+				closest = &ours
+			}
+		}
+
+		if closest != nil && minDiff > 960 { // Only look at events beyond our window
+			spNaOffsets[sfe.P1] = append(spNaOffsets[sfe.P1], minDiff)
+		}
+	}
+
+	// Analyze patterns in Sp-Na/Sp-Sp offsets
+	for _, planet := range []string{"Jupiter", "Saturn", "Chiron", "Moon", "Sun", "Mercury"} {
+		offsets := spNaOffsets[planet]
+		if len(offsets) == 0 {
+			continue
+		}
+		sort.Float64s(offsets)
+
+		// Check if offsets might follow a formula (e.g., multiples of a base unit)
+		minOff := offsets[0]
+		maxOff := offsets[len(offsets)-1]
+
+		// Check for pattern: are offsets clustered around multiples?
+		clusters := make(map[int]int)
+		for _, off := range offsets {
+			// Group by nearest hour (3600s)
+			hourCluster := int(off/3600) * 3600
+			clusters[hourCluster]++
+		}
+
+		t.Logf("  %s (%d beyond-960s offsets): min=%.0fs (~%.1fh), max=%.0fs (~%.1fh)",
+			planet, len(offsets), minOff, minOff/3600, maxOff, maxOff/3600)
+
+		// Show top 3 clusters
+		type clusterInfo struct {
+			hour  int
+			count int
+		}
+		var topClusters []clusterInfo
+		for h, c := range clusters {
+			topClusters = append(topClusters, clusterInfo{h, c})
+		}
+		sort.Slice(topClusters, func(i, j int) bool { return topClusters[i].count > topClusters[j].count })
+		if len(topClusters) > 0 {
+			t.Logf("    Top clusters: %dh (%d), %dh (%d), %dh (%d)",
+				topClusters[0].hour/3600, topClusters[0].count,
+				topClusters[min(1, len(topClusters)-1)].hour/3600, topClusters[min(1, len(topClusters)-1)].count,
+				topClusters[min(2, len(topClusters)-1)].hour/3600, topClusters[min(2, len(topClusters)-1)].count)
+		}
+	}
+
+	// Moon breakthrough: 72/109 beyond-960s offsets are in 0-2h range!
+	t.Logf("\nTC2 Moon-specific window test (could 72 events cluster at ~7200s?):")
+
+	// Test if widening just Moon window helps (keeping others at per-planet max)
+	// Create modified planet window map with Moon wider
+	moonWideWindows := make(map[models.PlanetID]float64)
+	moonWideWindows[models.PlanetJupiter] = 960
+	moonWideWindows[models.PlanetSaturn] = 988
+	moonWideWindows[models.PlanetChiron] = 958
+	moonWideWindows[models.PlanetMoon] = 7200 // Much wider for Moon Sp-Na
+
+	rMoonWide := matchSFEventsWithPerPlanetTrNaWindow(filtered, exactOurEvents, 300.0, 1000.0, moonWideWindows)
+	t.Logf("  Moon 7200s vs others per-planet max: %d matches (%.1f%%) [+%d vs uniform]",
+		rMoonWide.matched, 100*float64(rMoonWide.matched)/float64(len(filtered)), rMoonWide.matched-rPerPlanetMax.matched)
+
+	// If that helps, try even wider
+	if rMoonWide.matched > rPerPlanetMax.matched {
+		t.Logf("  → Moon-specific window DOES help! Testing even wider...")
+	} else {
+		t.Logf("  → Moon-specific window doesn't help (false positives)")
+	}
+
 	// Test whether wider windows could capture more Jupiter/Saturn/Chiron matches
 	t.Logf("\nTC2 Test ultra-wide windows for Jupiter/Saturn/Chiron (capturing Sp-Na tail):")
 	for windowSize := 1500.0; windowSize <= 10000.0; windowSize += 1500.0 {
