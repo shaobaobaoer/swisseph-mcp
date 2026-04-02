@@ -1860,6 +1860,110 @@ func matchSFEventsWithPerBodyWindow(sfEvents []sfEvent, ourEvents []models.Trans
 	}
 }
 
+// matchSFEventsWithPerPlanetTrNaWindow applies per-planet time windows for Tr-Na events.
+// Different planets may have different timing offsets vs Solar Fire.
+func matchSFEventsWithPerPlanetTrNaWindow(sfEvents []sfEvent, ourEvents []models.TransitEvent,
+	baseTrNaWindow, otherChartWindow float64,
+	planetWindows map[models.PlanetID]float64) matchResult {
+
+	sortedSF := make([]sfEvent, len(sfEvents))
+	copy(sortedSF, sfEvents)
+	sort.Slice(sortedSF, func(i, j int) bool { return sortedSF[i].SFJD < sortedSF[j].SFJD })
+
+	sortedOur := make([]models.TransitEvent, len(ourEvents))
+	copy(sortedOur, ourEvents)
+	sort.Slice(sortedOur, func(i, j int) bool { return sortedOur[i].JD < sortedOur[j].JD })
+
+	usedOurs := make([]bool, len(sortedOur))
+	var deviations []float64
+	matched := 0
+
+	getWindowForTrNa := func(planetID models.PlanetID) float64 {
+		if w, ok := planetWindows[planetID]; ok {
+			return w
+		}
+		return baseTrNaWindow
+	}
+
+	for _, sfe := range sortedSF {
+		sfPID, planetOK := sfPlanetMap[sfe.P1]
+		tcCorr := 0.0
+		if sfIsTransitBody(sfe.ChartType) {
+			tcCorr = tcDaysDE431
+		}
+
+		// Determine window based on chart type and planet
+		windowSec := otherChartWindow
+		if sfe.ChartType == "Tr-Na" && planetOK {
+			windowSec = getWindowForTrNa(sfPID)
+		}
+
+		for i, ours := range sortedOur {
+			if usedOurs[i] {
+				continue
+			}
+
+			if planetOK && ours.Planet != sfPID {
+				continue
+			}
+
+			isStationOrIngress := sfe.EventType == "Retrograde" || sfe.EventType == "Direct" ||
+				sfe.EventType == "SignIngress" || sfe.EventType == "HouseChange"
+			if !isStationOrIngress {
+				if sfP2ID, ok := sfPlanetMap[sfe.P2]; ok && ours.Target != "" {
+					if string(sfP2ID) != ours.Target {
+						continue
+					}
+				}
+			}
+
+			if sfe.Pos1Lon > 0 && lonDiff(ours.PlanetLongitude, sfe.Pos1Lon) > 0.1 {
+				continue
+			}
+
+			if !isStationOrIngress && sfe.Pos2Lon > 0 && ours.TargetLongitude > 0 {
+				if lonDiff(ours.TargetLongitude, sfe.Pos2Lon) > 0.2 {
+					continue
+				}
+			}
+
+			corrJDDiff := math.Abs((ours.JD - sfe.SFJD - tcCorr) * 86400)
+			if corrJDDiff > windowSec {
+				continue
+			}
+
+			if !isStationOrIngress {
+				exactMatch := chartTypeMatches(string(ours.ChartType), string(ours.TargetChartType), sfe.ChartType)
+				if !exactMatch {
+					posErr := lonDiff(ours.PlanetLongitude, sfe.Pos1Lon)
+					if !(posErr < 0.1 && corrJDDiff < 2.0) {
+						continue
+					}
+				}
+			}
+
+			usedOurs[i] = true
+			matched++
+			deviations = append(deviations, (ours.JD-sfe.SFJD-tcCorr)*86400)
+			break
+		}
+	}
+
+	spurious := 0
+	for _, used := range usedOurs {
+		if !used {
+			spurious++
+		}
+	}
+
+	return matchResult{
+		matched:    matched,
+		missed:     len(sfEvents) - matched,
+		spurious:   spurious,
+		deviations: deviations,
+	}
+}
+
 // matchSFEventsWithChartTypeWindow allows different time windows by chart type combination.
 // Useful for discovering optimal windows for each chart type pairing.
 func matchSFEventsWithChartTypeWindow(sfEvents []sfEvent, ourEvents []models.TransitEvent,
@@ -2663,6 +2767,105 @@ func TestSolarFireCSV_TC2_DoubleChart(t *testing.T) {
 		t.Logf("  Tr-Na window %7.0fs: matched=%d (%.1f%%) [+%d]", trNaWindow, r.matched, 100*float64(r.matched)/float64(len(filtered)), delta)
 		prevMatched = r.matched
 	}
+
+	// Analyze Tr-Na timing distribution by planet to see if per-planet windows could help
+	t.Logf("\nTC2 Per-planet Tr-Na timing analysis (to find if planets have different offsets):")
+	planetTimingOffsets := make(map[models.PlanetID][]float64)
+	for _, sfe := range filtered {
+		if sfe.ChartType != "Tr-Na" {
+			continue
+		}
+		sfPID, ok := sfPlanetMap[sfe.P1]
+		if !ok {
+			continue
+		}
+
+		// Find closest our-event for this SF event
+		var closest *models.TransitEvent
+		minDiff := math.MaxFloat64
+
+		for _, ours := range exactOurEvents {
+			if ours.Planet != sfPID {
+				continue
+			}
+			isStationOrIngress := sfe.EventType == "Retrograde" || sfe.EventType == "Direct" ||
+				sfe.EventType == "SignIngress" || sfe.EventType == "HouseChange"
+			if !isStationOrIngress {
+				if sfP2ID, ok := sfPlanetMap[sfe.P2]; ok && ours.Target != "" {
+					if string(sfP2ID) != ours.Target {
+						continue
+					}
+				}
+			}
+			if sfe.Pos1Lon > 0 && lonDiff(ours.PlanetLongitude, sfe.Pos1Lon) > 0.1 {
+				continue
+			}
+			tcCorr := tcDaysDE431
+			diff := math.Abs((ours.JD - sfe.SFJD - tcCorr) * 86400)
+			if diff < minDiff {
+				minDiff = diff
+				ours := ours
+				closest = &ours
+			}
+		}
+
+		if closest != nil && minDiff < 1000.0 { // Only include events within 1000s (potential matches)
+			planetTimingOffsets[sfPID] = append(planetTimingOffsets[sfPID], minDiff)
+		}
+	}
+
+	// Calculate median timing offset per planet
+	type planetStats struct {
+		planet   models.PlanetID
+		count    int
+		avgTime  float64
+		medTime  float64
+		maxTime  float64
+	}
+	var stats []planetStats
+	for planet, offsets := range planetTimingOffsets {
+		if len(offsets) == 0 {
+			continue
+		}
+		sort.Float64s(offsets)
+		sum := 0.0
+		for _, o := range offsets {
+			sum += o
+		}
+		avg := sum / float64(len(offsets))
+		med := offsets[len(offsets)/2]
+		max := offsets[len(offsets)-1]
+		stats = append(stats, planetStats{planet, len(offsets), avg, med, max})
+	}
+	sort.Slice(stats, func(i, j int) bool { return stats[i].medTime < stats[j].medTime })
+	for _, s := range stats {
+		t.Logf("  %s: count=%d, median=%.0fs, avg=%.0fs, max=%.0fs", s.planet, s.count, s.medTime, s.avgTime, s.maxTime)
+	}
+
+	// Per-planet windows: test using percentile-based cutoffs
+	t.Logf("\nTC2 Per-planet Tr-Na windows (using percentile cutoffs):")
+	planetWindowMap := make(map[models.PlanetID]float64)
+	for _, s := range stats {
+		// Calculate 90th percentile for each planet
+		idx := int(math.Ceil(0.9 * float64(len(planetTimingOffsets[s.planet]))))
+		if idx > len(planetTimingOffsets[s.planet]) {
+			idx = len(planetTimingOffsets[s.planet])
+		}
+		if idx > 0 {
+			p90 := planetTimingOffsets[s.planet][idx-1]
+			// Round to nearest 60s
+			window := math.Ceil(p90/60.0) * 60.0
+			if window < 60.0 {
+				window = 60.0
+			}
+			planetWindowMap[s.planet] = window
+			t.Logf("    %s: 90th percentile=%.0fs, window=%.0fs", s.planet, p90, window)
+		}
+	}
+	rPerPlanet := matchSFEventsWithPerPlanetTrNaWindow(filtered, exactOurEvents, 300.0, 120.0, planetWindowMap)
+	t.Logf("  Result with per-planet p90 windows: matched=%d (%.1f%%) vs uniform 300s: matched=%d (%.1f%%)",
+		rPerPlanet.matched, 100*float64(rPerPlanet.matched)/float64(len(filtered)),
+		resultOptimal.matched, 100*float64(resultOptimal.matched)/float64(len(filtered)))
 
 	// Debug: Analyze progression event structure
 	if len(exactOurEvents) > 0 {
