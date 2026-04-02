@@ -1696,6 +1696,16 @@ func matchSFEvents(sfEvents []sfEvent, ourEvents []models.TransitEvent, windowSe
 					// Use looser tolerance (0.2°) for targets since they move less predictably
 					continue
 				}
+
+				// 2c. For aspect events, also validate aspect angle matches
+				// Compute the aspect angle from SF event positions
+				sfAspectAngle := lonDiff(sfe.Pos1Lon, sfe.Pos2Lon)
+				ourAspectAngle := ours.AspectAngle
+
+				// Allow ±3° tolerance for aspect angle (conjunctions can be slightly off)
+				if math.Abs(sfAspectAngle-ourAspectAngle) > 3.0 {
+					continue
+				}
 			}
 
 			// 3. Corrected time match: within windowSec (default 5.0s) after ΔT correction
@@ -1816,6 +1826,13 @@ func matchSFEventsWithPerBodyWindow(sfEvents []sfEvent, ourEvents []models.Trans
 			// 2b. For aspect events, also check P2 position
 			if !isStationOrIngress && sfe.Pos2Lon > 0 && ours.TargetLongitude > 0 {
 				if lonDiff(ours.TargetLongitude, sfe.Pos2Lon) > 0.2 {
+					continue
+				}
+
+				// 2c. For aspect events, also validate aspect angle matches
+				sfAspectAngle := lonDiff(sfe.Pos1Lon, sfe.Pos2Lon)
+				ourAspectAngle := ours.AspectAngle
+				if math.Abs(sfAspectAngle-ourAspectAngle) > 3.0 {
 					continue
 				}
 			}
