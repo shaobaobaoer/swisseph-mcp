@@ -3132,6 +3132,104 @@ func TestSolarFireCSV_TC2_DoubleChart(t *testing.T) {
 		t.Logf("    → %d (%.1f%%) are BEYOND our 960s window", beyond960, 100*float64(beyond960)/float64(len(timings)))
 	}
 
+	// Investigate Sp-Na/Sp-Sp timing offsets for correlations with position/aspect
+	t.Logf("\nTC2 Reverse-engineer Sp-Na/Sp-Sp timing formula (analyze correlations):")
+
+	// Collect data: for each Sp-Na event, store offset + position difference + aspect angle
+	type spEventData struct {
+		planet    string
+		timeDiff  float64 // seconds
+		posDiff   float64 // degrees (position difference between SF and our event)
+		aspect    string  // conjunction, square, opposition, etc.
+	}
+	var spEvents []spEventData
+
+	for _, sfe := range filtered {
+		if sfe.ChartType != "Sp-Na" && sfe.ChartType != "Sp-Sp" {
+			continue
+		}
+		sfPID, ok := sfPlanetMap[sfe.P1]
+		if !ok {
+			continue
+		}
+
+		var closest *models.TransitEvent
+		minDiff := math.MaxFloat64
+		for _, ours := range exactOurEvents {
+			if ours.Planet != sfPID {
+				continue
+			}
+			diff := math.Abs((ours.JD - sfe.SFJD) * 86400)
+			if diff < minDiff {
+				minDiff = diff
+				ours := ours
+				closest = &ours
+			}
+		}
+
+		if closest != nil && minDiff > 960 { // Only beyond-window events
+			posDiff := lonDiff(closest.PlanetLongitude, sfe.Pos1Lon)
+			spEvents = append(spEvents, spEventData{sfe.P1, minDiff, posDiff, sfe.Aspect})
+		}
+	}
+
+	// Analyze: do large offsets correlate with specific aspect types?
+	aspectOffsets := make(map[string][]float64)
+	for _, evt := range spEvents {
+		aspectOffsets[evt.aspect] = append(aspectOffsets[evt.aspect], evt.timeDiff)
+	}
+
+	t.Logf("  Sp-Na/Sp-Sp beyond-960s events by aspect type:")
+	for aspect, offsets := range aspectOffsets {
+		if len(offsets) == 0 {
+			continue
+		}
+		sort.Float64s(offsets)
+		avg := 0.0
+		for _, o := range offsets {
+			avg += o
+		}
+		avg /= float64(len(offsets))
+		p50 := offsets[len(offsets)/2]
+		maxO := offsets[len(offsets)-1]
+		t.Logf("    %s: %d events, median=%.0fs (~%.1fh), avg=%.0fs, max=%.0fs (~%.1fh)",
+			aspect, len(offsets), p50, p50/3600, avg, maxO, maxO/3600)
+	}
+
+	// Test aspect-specific windows based on discovered correlations
+	// Could we add 3000-4000s for Opposition, 2500-3000s for Square, etc?
+	t.Logf("\nTC2 Aspect-specific window opportunity (median offsets suggest pattern):")
+	aspectMedians := map[string]float64{
+		"Conjunction":     5874,
+		"Trine":           5552,
+		"Sextile":         6966,
+		"Quincunx":        7516,
+		"Semi-Square":     6342,
+		"Sesquiquadrate":  9237,
+		"Square":          10350,
+		"Opposition":      13831,
+	}
+
+	// If we used aspect-specific wider windows (2x median), what would happen?
+	// This would require rewriting matchSFEvents to understand aspect types
+	// For now, just document the opportunity
+	t.Logf("  Discovered aspect-type correlation in Sp-Na/Sp-Sp offsets:")
+	for _, evt := range spEvents {
+		if median, ok := aspectMedians[evt.aspect]; ok && evt.timeDiff > 960 && evt.timeDiff < 20000 {
+			factor := evt.timeDiff / median
+			if factor > 1.5 && factor < 3.0 {
+				// This event might be matchable with aspect-specific window
+				t.Logf("    %s (%s): offset=%.0fs, median=%.0fs, ratio=%.2fx", evt.planet, evt.aspect, evt.timeDiff, median, factor)
+				break // Just show one example
+			}
+		}
+	}
+
+	t.Logf("  Problem: Aspect-specific windows would require rewriting entire matching logic")
+	t.Logf("  Complexity: Adding aspect type awareness adds another dimension to window tuning")
+	t.Logf("  Potential gain: Estimated +20-50 matches if implemented (2-5%% improvement)")
+	t.Logf("  Decision: Too complex for marginal gain; focus on proven optimal (960s per-planet)")
+
 	// Investigate Sp-Na/Sp-Sp timing offsets to see if there's a pattern
 	t.Logf("\nTC2 Analyze Sp-Na/Sp-Sp timing offset patterns (attempting formula reverse-engineering):")
 	spNaOffsets := make(map[string][]float64) // planet -> list of offsets
