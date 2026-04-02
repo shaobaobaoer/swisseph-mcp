@@ -3089,23 +3089,111 @@ func TestSolarFireCSV_TC2_DoubleChart(t *testing.T) {
 					}
 				}
 
-				// Breakdown: position error by planet
+				// Breakdown: position error by planet with detailed distribution
 				if tooFarByPosition > 0 {
-					t.Logf("\n  Position errors > 0.1° by planet:")
-					for planet, count := range positionErrorByPlanet {
-						t.Logf("    %s: %d (%.1f%% of position errors)", planet, count, 100*float64(count)/float64(tooFarByPosition))
+					t.Logf("\n  Position errors > 0.1° by planet (investigating bimodal pattern):")
+
+					// Compute per-planet statistics
+					planetErrorStats := make(map[string][]float64)
+					for _, sfe := range filtered {
+						sfPID, ok := sfPlanetMap[sfe.P1]
+						if !ok {
+							continue
+						}
+
+						tcCorr := 0.0
+						if sfIsTransitBody(sfe.ChartType) {
+							tcCorr = tcDaysDE431
+						}
+
+						var closest *models.TransitEvent
+						minDiff := math.MaxFloat64
+
+						for _, ours := range exactOurEvents {
+							if ours.Planet != sfPID {
+								continue
+							}
+							diff := math.Abs((ours.JD - sfe.SFJD - tcCorr) * 86400)
+							if diff < minDiff {
+								minDiff = diff
+								ours := ours
+								closest = &ours
+							}
+						}
+
+						if closest != nil {
+							posErr := lonDiff(closest.PlanetLongitude, sfe.Pos1Lon)
+							if posErr > 0.1 {
+								planetErrorStats[sfe.P1] = append(planetErrorStats[sfe.P1], posErr)
+							}
+						}
 					}
+
+				// Show per-planet error distribution (sorted by error count)
+					type planetErr struct {
+						name   string
+						count  int
+						median float64
+						avg    float64
+						max    float64
+						small  int // count < 5°
+						large  int // count >= 85°
+					}
+					var peStats []planetErr
+					for planet, errors := range planetErrorStats {
+						if len(errors) > 0 {
+							sort.Float64s(errors)
+							avg := 0.0
+							small := 0
+							large := 0
+							for _, e := range errors {
+								avg += e
+								if e < 5.0 {
+									small++
+								}
+								if e >= 85.0 {
+									large++
+								}
+							}
+							avg /= float64(len(errors))
+							median := errors[len(errors)/2]
+							maxErr := errors[len(errors)-1]
+							peStats = append(peStats, planetErr{planet, len(errors), median, avg, maxErr, small, large})
+						}
+					}
+					sort.Slice(peStats, func(i, j int) bool { return peStats[i].count > peStats[j].count })
+					for _, pe := range peStats {
+						t.Logf("    %s: %d errors, median=%.2f°, avg=%.2f°, max=%.2f° [small<5°:%d, large>=85°:%d]",
+							pe.name, pe.count, pe.median, pe.avg, pe.max, pe.small, pe.large)
+					}
+
 					if len(positionErrors) > 0 {
+						sort.Float64s(positionErrors)
 						avgPos := 0.0
-						maxPos := 0.0
+						bimodalCount := 0
 						for _, e := range positionErrors {
 							avgPos += e
-							if e > maxPos {
-								maxPos = e
+							if e >= 85.0 {
+								bimodalCount++
 							}
 						}
 						avgPos /= float64(len(positionErrors))
-						t.Logf("    Position error stats: avg=%.3f°, max=%.3f°", avgPos, maxPos)
+						medianPos := positionErrors[len(positionErrors)/2]
+						maxPos := positionErrors[len(positionErrors)-1]
+						t.Logf("    Overall: median=%.3f°, avg=%.3f°, max=%.3f° [bimodal>=85°: %d/%.1f%%]",
+							medianPos, avgPos, maxPos, bimodalCount, 100*float64(bimodalCount)/float64(len(positionErrors)))
+
+						// Check if Moon errors cluster near 180°
+						if moonErrs, ok := planetErrorStats["MOON"]; ok && len(moonErrs) > 0 {
+							near180 := 0
+							for _, e := range moonErrs {
+								if e >= 170.0 {
+									near180++
+								}
+							}
+							t.Logf("    Moon: %.1f%% of errors are >=170° (near opposite zodiac point)",
+								100*float64(near180)/float64(len(moonErrs)))
+						}
 					}
 				}
 			}
