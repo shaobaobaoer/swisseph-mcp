@@ -3061,8 +3061,85 @@ func TestSolarFireCSV_TC2_DoubleChart(t *testing.T) {
 		}
 	}
 
-	// Analyze Jupiter/Saturn/Chiron: they have tight position matches but some are timing-constrained
-	t.Logf("\nTC2 Jupiter/Saturn/Chiron tight-match analysis:")
+	// Analyze Jupiter/Saturn/Chiron timing distribution for tight position matches
+	t.Logf("\nTC2 Jupiter/Saturn/Chiron tight-match TIME DISTRIBUTION:")
+	tightMatchTimings := make(map[string][]float64)
+
+	for _, planet := range []string{"Jupiter", "Saturn", "Chiron"} {
+		for _, sfe := range filtered {
+			if sfe.P1 != planet {
+				continue
+			}
+			sfPID, ok := sfPlanetMap[sfe.P1]
+			if !ok {
+				continue
+			}
+
+			tcCorr := 0.0
+			if sfIsTransitBody(sfe.ChartType) {
+				tcCorr = tcDaysDE431
+			}
+
+			var closest *models.TransitEvent
+			minDiff := math.MaxFloat64
+			for _, ours := range exactOurEvents {
+				if ours.Planet != sfPID {
+					continue
+				}
+				diff := math.Abs((ours.JD - sfe.SFJD - tcCorr) * 86400)
+				if diff < minDiff {
+					minDiff = diff
+					ours := ours
+					closest = &ours
+				}
+			}
+
+			if closest != nil {
+				posErr := lonDiff(closest.PlanetLongitude, sfe.Pos1Lon)
+				if posErr < 5.0 { // Tight position match
+					tightMatchTimings[planet] = append(tightMatchTimings[planet], minDiff)
+				}
+			}
+		}
+	}
+
+	// Analyze timing distribution for tight matches
+	for _, planet := range []string{"Jupiter", "Saturn", "Chiron"} {
+		timings := tightMatchTimings[planet]
+		if len(timings) == 0 {
+			continue
+		}
+		sort.Float64s(timings)
+
+		// Calculate percentiles
+		p25 := timings[len(timings)/4]
+		p50 := timings[len(timings)/2]
+		p75 := timings[3*len(timings)/4]
+		p90 := timings[9*len(timings)/10]
+		minT := timings[0]
+		maxT := timings[len(timings)-1]
+
+		// Count how many are beyond our current window
+		beyond960 := 0
+		for _, t := range timings {
+			if t > 960 {
+				beyond960++
+			}
+		}
+
+		t.Logf("  %s (%d tight matches): min=%.0fs, p25=%.0fs, p50=%.0fs, p75=%.0fs, p90=%.0fs, max=%.0fs",
+			planet, len(timings), minT, p25, p50, p75, p90, maxT)
+		t.Logf("    → %d (%.1f%%) are BEYOND our 960s window", beyond960, 100*float64(beyond960)/float64(len(timings)))
+	}
+
+	// Test whether wider windows could capture more Jupiter/Saturn/Chiron matches
+	t.Logf("\nTC2 Test ultra-wide windows for Jupiter/Saturn/Chiron (capturing Sp-Na tail):")
+	for windowSize := 1500.0; windowSize <= 10000.0; windowSize += 1500.0 {
+		// Create a window config with Jupiter/Saturn/Chiron at wide window
+		// Keep Tr-Na at current settings, widen Tr-Sp to half window, widen Sp-Na/Sp-Sp to match
+		r := matchSFEventsWithChartTypeWindow(filtered, exactOurEvents, 300.0, 1000.0, windowSize, windowSize)
+		t.Logf("  Window %.0fs: %d matches (%.1f%%) [+%d vs current]", windowSize, r.matched, 100*float64(r.matched)/float64(len(filtered)), r.matched-rPerPlanetMax.matched)
+	}
 	tightMatchCount := 0
 	fastPlanets := []string{"Jupiter", "Saturn", "Chiron"}
 	for _, planet := range fastPlanets {
