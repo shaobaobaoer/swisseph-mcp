@@ -1191,6 +1191,15 @@ func lonDiff(a, b float64) float64 {
 	return d
 }
 
+// oppositePoint returns the opposite point on the zodiac (180° away)
+func oppositePoint(lon float64) float64 {
+	opposite := lon + 180.0
+	if opposite >= 360 {
+		opposite -= 360.0
+	}
+	return opposite
+}
+
 func minInt(a, b int) int {
 	if a < b {
 		return a
@@ -2907,12 +2916,66 @@ func TestSolarFireCSV_TC2_DoubleChart(t *testing.T) {
 		t.Logf("  Sp-Na/Sp-Sp window %6.0fs: matched=%d (%.1f%%) [+%d vs baseline]", spNaWin, r.matched, 100*float64(r.matched)/float64(len(filtered)), r.matched-result.matched)
 	}
 
+	// Test 180° correction for bimodal planets (Moon, Mercury, Sun, Venus, Mars)
+	t.Logf("\nTC2 180-degree correction analysis (for bimodal planets):")
+	bimodalPlanets := map[string]bool{"Moon": true, "Mercury": true, "Sun": true, "Venus": true, "Mars": true}
+
+	// Count events that could be fixed with 180° correction
+	potentialFix := 0
+	for _, sfe := range filtered {
+		if !bimodalPlanets[sfe.P1] {
+			continue
+		}
+		sfPID, ok := sfPlanetMap[sfe.P1]
+		if !ok {
+			continue
+		}
+
+		tcCorr := 0.0
+		if sfIsTransitBody(sfe.ChartType) {
+			tcCorr = tcDaysDE431
+		}
+
+		// Find closest our-event
+		var closest *models.TransitEvent
+		minDiff := math.MaxFloat64
+
+		for _, ours := range exactOurEvents {
+			if ours.Planet != sfPID {
+				continue
+			}
+			diff := math.Abs((ours.JD - sfe.SFJD - tcCorr) * 86400)
+			if diff < minDiff {
+				minDiff = diff
+				ours := ours
+				closest = &ours
+			}
+		}
+
+		if closest != nil {
+			posErr := lonDiff(closest.PlanetLongitude, sfe.Pos1Lon)
+			// If position error is large (>85°), check if 180° correction helps
+			if posErr > 85.0 {
+				oppositeErr := lonDiff(oppositePoint(closest.PlanetLongitude), sfe.Pos1Lon)
+				// Would this event match if we accepted 180° opposite?
+				if oppositeErr < 0.1 {
+					potentialFix++
+					// Also diagnose: what's the time difference?
+					// t.Logf("    %s: 180° fix would work, but time diff %.1fs", sfe.P1, minDiff)
+				}
+			}
+		}
+	}
+	t.Logf("  Events with 180° position fix + 0.1° tolerance: %d (%.1f%% potential)", potentialFix, 100*float64(potentialFix)/float64(len(filtered)))
+	t.Logf("  (Actual recovery depends on time window - many likely >60s off)")
+
 	// Compare strategies
 	t.Logf("\nTC2 Matching Strategy Summary:")
 	t.Logf("  Baseline (60s uniform): %d matches (30.5%%)", result.matched)
 	t.Logf("  Uniform 300s Tr-Na: %d matches (43.4%%)", resultOptimal.matched)
 	t.Logf("  Per-planet p90 windows: %d matches (50.8%%)", rPerPlanet.matched)
 	t.Logf("  Per-planet max windows: %d matches (54.6%%) ← OPTIMAL FOR ACCURACY", rPerPlanetMax.matched)
+	t.Logf("  With 180° fix (estimate): %d matches (%.1f%%)", rPerPlanetMax.matched+potentialFix, 100*float64(rPerPlanetMax.matched+potentialFix)/float64(len(filtered)))
 	t.Logf("  Improvement: +%d matches from baseline, +2.86x match rate increase", rPerPlanetMax.matched-result.matched)
 
 	// Debug: Analyze progression event structure
