@@ -1990,6 +1990,122 @@ func matchSFEventsWithPerPlanetTrNaWindow(sfEvents []sfEvent, ourEvents []models
 	}
 }
 
+// matchSFEventsWithPerPlanetAspectWindows applies planet-specific aspect boosts.
+// Different planets (moving points) have different timing distributions per aspect.
+// Example: Moon might have tighter distributions, Saturn might need wider windows
+func matchSFEventsWithPerPlanetAspectWindows(sfEvents []sfEvent, ourEvents []models.TransitEvent,
+	baseTrNaWindow, otherChartWindow float64,
+	planetWindows map[models.PlanetID]float64,
+	planetAspectBoosts map[models.PlanetID]map[string]float64) matchResult {
+
+	sortedSF := make([]sfEvent, len(sfEvents))
+	copy(sortedSF, sfEvents)
+	sort.Slice(sortedSF, func(i, j int) bool { return sortedSF[i].SFJD < sortedSF[j].SFJD })
+
+	sortedOur := make([]models.TransitEvent, len(ourEvents))
+	copy(sortedOur, ourEvents)
+	sort.Slice(sortedOur, func(i, j int) bool { return sortedOur[i].JD < sortedOur[j].JD })
+
+	usedOurs := make([]bool, len(sortedOur))
+	var deviations []float64
+	matched := 0
+
+	getWindowForPlanetAspect := func(planetID models.PlanetID, aspect string) float64 {
+		baseWindow := baseTrNaWindow
+		if w, ok := planetWindows[planetID]; ok {
+			baseWindow = w
+		}
+
+		// Apply planet-specific aspect boost if available
+		if boosts, ok := planetAspectBoosts[planetID]; ok {
+			if boost, ok := boosts[aspect]; ok {
+				return baseWindow * boost
+			}
+		}
+
+		// Fallback to base window if no specific boost
+		return baseWindow
+	}
+
+	for _, sfe := range sortedSF {
+		sfPID, planetOK := sfPlanetMap[sfe.P1]
+		tcCorr := 0.0
+		if sfIsTransitBody(sfe.ChartType) {
+			tcCorr = tcDaysDE431
+		}
+
+		// Determine window based on chart type, planet, and aspect
+		windowSec := otherChartWindow
+		if sfe.ChartType == "Tr-Na" && planetOK {
+			windowSec = getWindowForPlanetAspect(sfPID, sfe.Aspect)
+		}
+
+		for i, ours := range sortedOur {
+			if usedOurs[i] {
+				continue
+			}
+
+			if planetOK && ours.Planet != sfPID {
+				continue
+			}
+
+			isStationOrIngress := sfe.EventType == "Retrograde" || sfe.EventType == "Direct" ||
+				sfe.EventType == "SignIngress" || sfe.EventType == "HouseChange"
+			if !isStationOrIngress {
+				if sfP2ID, ok := sfPlanetMap[sfe.P2]; ok && ours.Target != "" {
+					if string(sfP2ID) != ours.Target {
+						continue
+					}
+				}
+			}
+
+			if sfe.Pos1Lon > 0 && lonDiff(ours.PlanetLongitude, sfe.Pos1Lon) > 0.1 {
+				continue
+			}
+
+			if !isStationOrIngress && sfe.Pos2Lon > 0 && ours.TargetLongitude > 0 {
+				if lonDiff(ours.TargetLongitude, sfe.Pos2Lon) > 0.2 {
+					continue
+				}
+			}
+
+			corrJDDiff := math.Abs((ours.JD - sfe.SFJD - tcCorr) * 86400)
+			if corrJDDiff > windowSec {
+				continue
+			}
+
+			if !isStationOrIngress {
+				exactMatch := chartTypeMatches(string(ours.ChartType), string(ours.TargetChartType), sfe.ChartType)
+				if !exactMatch {
+					posErr := lonDiff(ours.PlanetLongitude, sfe.Pos1Lon)
+					if !(posErr < 0.1 && corrJDDiff < 2.0) {
+						continue
+					}
+				}
+			}
+
+			usedOurs[i] = true
+			matched++
+			deviations = append(deviations, (ours.JD-sfe.SFJD-tcCorr)*86400)
+			break
+		}
+	}
+
+	spurious := 0
+	for _, used := range usedOurs {
+		if !used {
+			spurious++
+		}
+	}
+
+	return matchResult{
+		matched:    matched,
+		missed:     len(sfEvents) - matched,
+		spurious:   spurious,
+		deviations: deviations,
+	}
+}
+
 // matchSFEventsWithAspectSpecificWindow extends per-planet matching with aspect-type-specific windows.
 // Attempts to exploit the discovered correlation: aspect type affects timing offsets.
 // Example: Opposition events cluster at ~13831s, Conjunction at ~5874s
@@ -3385,6 +3501,87 @@ func TestSolarFireCSV_TC2_DoubleChart(t *testing.T) {
 		resultAspectSpec.matched, len(filtered), 100*float64(resultAspectSpec.matched)/float64(len(filtered)))
 	t.Logf("  Improvement: +%d matches vs per-planet base (54.6%% to 58.9%%)",
 		resultAspectSpec.matched-rPerPlanetMax.matched)
+
+	// INVESTIGATION: Can chart-type-specific boosts push further?
+	// Sp-Na/Sp-Sp events have larger offsets (36k-82k seconds) vs Tr-Na (0-1900s)
+	// Hypothesis: Sp-Na/Sp-Sp might benefit from significantly wider boosts
+	t.Logf("\nTC2 Testing chart-type-specific aspect boosts (do Sp-Na/Sp-Sp need wider multipliers?):")
+
+	// For demonstration, test with slightly more aggressive Sp-Na boosts in addition to Tr-Na boosts
+	// This would require modifying the matching function to be chart-type-aware
+	// For now, just document the hypothesis
+	// TEST: Per-planet aspect-specific boosts
+	// Fast planets (Moon, Mercury) might have tighter distributions
+	// Slow planets (Jupiter, Saturn) might need wider distributions
+	t.Logf("\n  TEST: Per-planet aspect-specific windows (different planets, different boost profiles):")
+
+	// Moon: Fast moving, might have tighter distributions for all aspects
+	moonBoosts := map[string]float64{
+		"Conjunction":     1.0,
+		"Trine":           1.3, // Tighter than general optimal
+		"Sextile":         1.4,
+		"Quincunx":        1.5,
+		"Semi-Square":     1.3,
+		"Sesquiquadrate":  1.6,
+		"Square":          1.7,
+		"Opposition":      1.9, // Much tighter than general optimal (2.8x)
+	}
+
+	// Jupiter/Saturn: Slow planets, might need wider distributions
+	slowPlanetBoosts := map[string]float64{
+		"Conjunction":     1.0,
+		"Trine":           2.0, // Wider than general optimal
+		"Sextile":         2.1,
+		"Quincunx":        2.2,
+		"Semi-Square":     2.0,
+		"Sesquiquadrate":  2.4,
+		"Square":          2.6,
+		"Opposition":      3.2, // Much wider than general optimal
+	}
+
+	// Mercury: Medium speed, use general profile
+	mediumBoosts := map[string]float64{
+		"Conjunction":     1.0,
+		"Trine":           1.7,
+		"Sextile":         1.8,
+		"Quincunx":        1.9,
+		"Semi-Square":     1.7,
+		"Sesquiquadrate":  2.1,
+		"Square":          2.3,
+		"Opposition":      2.8,
+	}
+
+	// Build per-planet boost map
+	perPlanetBoosts := make(map[models.PlanetID]map[string]float64)
+
+	// Fast planets
+	perPlanetBoosts[models.PlanetMoon] = moonBoosts
+
+	// Medium planets
+	perPlanetBoosts[models.PlanetMercury] = mediumBoosts
+	perPlanetBoosts[models.PlanetVenus] = mediumBoosts
+	perPlanetBoosts[models.PlanetSun] = mediumBoosts
+
+	// Slow planets
+	perPlanetBoosts[models.PlanetMars] = slowPlanetBoosts
+	perPlanetBoosts[models.PlanetJupiter] = slowPlanetBoosts
+	perPlanetBoosts[models.PlanetSaturn] = slowPlanetBoosts
+	perPlanetBoosts[models.PlanetUranus] = slowPlanetBoosts
+	perPlanetBoosts[models.PlanetNeptune] = slowPlanetBoosts
+	perPlanetBoosts[models.PlanetPluto] = slowPlanetBoosts
+	perPlanetBoosts[models.PlanetChiron] = slowPlanetBoosts
+	perPlanetBoosts[models.PlanetNorthNodeMean] = slowPlanetBoosts
+
+	resultPerPlanetAspect := matchSFEventsWithPerPlanetAspectWindows(filtered, exactOurEvents, 300.0, 120.0,
+		planetWindowMapMax, perPlanetBoosts)
+
+	t.Logf("    Per-planet aspect boosts: Moon (tight), Medium (balanced), Slow planets (wide)")
+	t.Logf("  Result: matched=%d/%d (%.1f%%)",
+		resultPerPlanetAspect.matched, len(filtered), 100*float64(resultPerPlanetAspect.matched)/float64(len(filtered)))
+	t.Logf("  Improvement: +%d vs per-planet base, +%d vs global aspect boosts",
+		resultPerPlanetAspect.matched-rPerPlanetMax.matched,
+		resultPerPlanetAspect.matched-resultAspectSpec.matched)
+
 
 	// Investigate Sp-Na/Sp-Sp timing offsets to see if there's a pattern
 	t.Logf("\nTC2 Analyze Sp-Na/Sp-Sp timing offset patterns (attempting formula reverse-engineering):")
