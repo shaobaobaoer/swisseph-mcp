@@ -3061,13 +3061,62 @@ func TestSolarFireCSV_TC2_DoubleChart(t *testing.T) {
 		}
 	}
 
+	// Analyze Jupiter/Saturn/Chiron: they have tight position matches but some are timing-constrained
+	t.Logf("\nTC2 Jupiter/Saturn/Chiron tight-match analysis:")
+	tightMatchCount := 0
+	fastPlanets := []string{"Jupiter", "Saturn", "Chiron"}
+	for _, planet := range fastPlanets {
+		planetTight := 0
+		planetTotal := 0
+		for _, sfe := range filtered {
+			if sfe.P1 != planet {
+				continue
+			}
+			sfPID, ok := sfPlanetMap[sfe.P1]
+			if !ok {
+				continue
+			}
+
+			tcCorr := 0.0
+			if sfIsTransitBody(sfe.ChartType) {
+				tcCorr = tcDaysDE431
+			}
+
+			var closest *models.TransitEvent
+			minDiff := math.MaxFloat64
+			for _, ours := range exactOurEvents {
+				if ours.Planet != sfPID {
+					continue
+				}
+				diff := math.Abs((ours.JD - sfe.SFJD - tcCorr) * 86400)
+				if diff < minDiff {
+					minDiff = diff
+					ours := ours
+					closest = &ours
+				}
+			}
+
+			planetTotal++
+			if closest != nil {
+				posErr := lonDiff(closest.PlanetLongitude, sfe.Pos1Lon)
+				if posErr < 5.0 { // Tight position match
+					planetTight++
+					tightMatchCount++
+				}
+			}
+		}
+		if planetTotal > 0 {
+			t.Logf("  %s: %d/%d events (%.1f%%) have tight position match (<5°)", planet, planetTight, planetTotal, 100*float64(planetTight)/float64(planetTotal))
+		}
+	}
+	t.Logf("  Total tight Jupiter/Saturn/Chiron: %d events (many likely in our computed set but timing-constrained)", tightMatchCount)
+
 	// Compare strategies
 	t.Logf("\nTC2 Matching Strategy Summary:")
 	t.Logf("  Baseline (60s uniform): %d matches (30.5%%)", result.matched)
 	t.Logf("  Uniform 300s Tr-Na: %d matches (43.4%%)", resultOptimal.matched)
 	t.Logf("  Per-planet p90 windows: %d matches (50.8%%)", rPerPlanet.matched)
 	t.Logf("  Per-planet max windows: %d matches (54.6%%) ← OPTIMAL FOR ACCURACY", rPerPlanetMax.matched)
-	t.Logf("  With 180° fix (estimate): %d matches (%.1f%%)", rPerPlanetMax.matched+potentialFix, 100*float64(rPerPlanetMax.matched+potentialFix)/float64(len(filtered)))
 	t.Logf("  Improvement: +%d matches from baseline, +2.86x match rate increase", rPerPlanetMax.matched-result.matched)
 
 	// Debug: Analyze progression event structure
