@@ -1748,6 +1748,118 @@ func matchSFEvents(sfEvents []sfEvent, ourEvents []models.TransitEvent, windowSe
 	}
 }
 
+// matchSFEventsWithPerBodyWindow applies per-body time windows to handle systematic ephemeris differences.
+// Chiron and NorthNode have ~60+ arcsecond offsets vs Solar Fire due to DE431 vs DE200/DE406 differences,
+// so they need wider time windows to match their events.
+func matchSFEventsWithPerBodyWindow(sfEvents []sfEvent, ourEvents []models.TransitEvent) matchResult {
+	// Sort both lists by JD for better matching performance
+	sortedSF := make([]sfEvent, len(sfEvents))
+	copy(sortedSF, sfEvents)
+	sort.Slice(sortedSF, func(i, j int) bool { return sortedSF[i].SFJD < sortedSF[j].SFJD })
+
+	sortedOur := make([]models.TransitEvent, len(ourEvents))
+	copy(sortedOur, ourEvents)
+	sort.Slice(sortedOur, func(i, j int) bool { return sortedOur[i].JD < sortedOur[j].JD })
+
+	usedOurs := make([]bool, len(sortedOur))
+	var deviations []float64
+	matched := 0
+
+	// Per-body window function: Chiron and NorthNode get 120s, others get 60s
+	getWindowForBody := func(planetID models.PlanetID) float64 {
+		if planetID == models.PlanetChiron || planetID == models.PlanetNorthNodeMean {
+			return 120.0 // Wider window for bodies with systematic ephemeris differences
+		}
+		return 60.0 // Standard window for classical planets
+	}
+
+	for _, sfe := range sortedSF {
+		sfPID, planetOK := sfPlanetMap[sfe.P1]
+		// Determine if we should apply ΔT correction for this chart type
+		tcCorr := 0.0
+		if sfIsTransitBody(sfe.ChartType) {
+			tcCorr = tcDaysDE431
+		}
+
+		// Get the window for this body
+		windowSec := 60.0
+		if planetOK {
+			windowSec = getWindowForBody(sfPID)
+		}
+
+		for i, ours := range sortedOur {
+			if usedOurs[i] {
+				continue
+			}
+
+			// 1. Planet match: P1 must be the same planet
+			if planetOK && ours.Planet != sfPID {
+				continue
+			}
+
+			// 1b. For aspect events, also check target planet (P2) to avoid matching wrong aspects
+			isStationOrIngress := sfe.EventType == "Retrograde" || sfe.EventType == "Direct" ||
+				sfe.EventType == "SignIngress" || sfe.EventType == "HouseChange"
+			if !isStationOrIngress {
+				if sfP2ID, ok := sfPlanetMap[sfe.P2]; ok && ours.Target != "" {
+					if string(sfP2ID) != ours.Target {
+						continue
+					}
+				}
+			}
+
+			// 2. P1 position match: within 0.1° (wrap-aware comparison)
+			if sfe.Pos1Lon > 0 && lonDiff(ours.PlanetLongitude, sfe.Pos1Lon) > 0.1 {
+				continue
+			}
+
+			// 2b. For aspect events, also check P2 position
+			if !isStationOrIngress && sfe.Pos2Lon > 0 && ours.TargetLongitude > 0 {
+				if lonDiff(ours.TargetLongitude, sfe.Pos2Lon) > 0.2 {
+					continue
+				}
+			}
+
+			// 3. Corrected time match: within per-body window after ΔT correction
+			corrJDDiff := math.Abs((ours.JD - sfe.SFJD - tcCorr) * 86400)
+			if corrJDDiff > windowSec {
+				continue
+			}
+
+			// 4. Chart type match
+			if !isStationOrIngress {
+				exactMatch := chartTypeMatches(string(ours.ChartType), string(ours.TargetChartType), sfe.ChartType)
+				if !exactMatch {
+					posErr := lonDiff(ours.PlanetLongitude, sfe.Pos1Lon)
+					if !(posErr < 0.1 && corrJDDiff < 2.0) {
+						continue
+					}
+				}
+			}
+
+			// All criteria matched
+			usedOurs[i] = true
+			matched++
+			deviations = append(deviations, (ours.JD-sfe.SFJD-tcCorr)*86400)
+			break
+		}
+	}
+
+	spurious := 0
+	for _, used := range usedOurs {
+		if !used {
+			spurious++
+		}
+	}
+
+	return matchResult{
+		matched:    matched,
+		missed:     len(sfEvents) - matched,
+		spurious:   spurious,
+		deviations: deviations,
+	}
+}
+
 // chartTypeMatches checks if our ChartType and TargetChartType match the SF chart type.
 // SF uses: "Tr-Tr", "Tr-Na", "Tr-Sp", "Sp-Na", etc. for double-chart events
 // and "Tr", "Sp", "Sa" etc. for single-chart events (station, ingress)
@@ -2425,6 +2537,10 @@ func TestSolarFireCSV_TC2_DoubleChart(t *testing.T) {
 	// Result: same as uniform, indicating Tr-Na is the bottleneck, not Sp events
 	resultDiff := matchSFEventsWithDifferentiatedTolerance(filtered, exactOurEvents)
 
+	// Test per-body windows (Chiron/NorthNode 120s, others 60s)
+	// These bodies have systematic ~60+ arcsecond ephemeris differences vs Solar Fire
+	resultPerBody := matchSFEventsWithPerBodyWindow(filtered, exactOurEvents)
+
 	// NOTE: TC1's diagnostic windows (Tr-Na 5s, Tr-Sp/Sa 600s, Sp-Na 4000s) perform poorly on TC2 (18 matches)
 	// This reveals that diagnostic windows are dataset-specific, not universal:
 	// - TC1 Tr-Na events work at 5.0s (different location, time range)
@@ -2433,7 +2549,7 @@ func TestSolarFireCSV_TC2_DoubleChart(t *testing.T) {
 
 	t.Logf("TC2 DoubleChart (60s uniform): matched=%d, missed=%d, spurious=%d", result.matched, result.missed, result.spurious)
 	t.Logf("TC2 DoubleChart (differentiated: Tr-Na 60s, Sp 120s): matched=%d, missed=%d, spurious=%d", resultDiff.matched, resultDiff.missed, resultDiff.spurious)
-	t.Logf("TC2 Note: Diagnostic windows from TC1 hurt performance (18 matches), confirming window values are dataset-specific")
+	t.Logf("TC2 DoubleChart (per-body windows: Chiron/NorthNode 120s, others 60s): matched=%d, missed=%d, spurious=%d", resultPerBody.matched, resultPerBody.missed, resultPerBody.spurious)
 
 	// Debug: Analyze progression event structure
 	if len(exactOurEvents) > 0 {
