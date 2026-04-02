@@ -1860,6 +1860,115 @@ func matchSFEventsWithPerBodyWindow(sfEvents []sfEvent, ourEvents []models.Trans
 	}
 }
 
+// matchSFEventsWithChartTypeWindow allows different time windows by chart type combination.
+// Useful for discovering optimal windows for each chart type pairing.
+func matchSFEventsWithChartTypeWindow(sfEvents []sfEvent, ourEvents []models.TransitEvent,
+	trNaWindow, trSpWindow, spNaWindow, spSpWindow float64) matchResult {
+
+	// Sort both lists by JD for better matching performance
+	sortedSF := make([]sfEvent, len(sfEvents))
+	copy(sortedSF, sfEvents)
+	sort.Slice(sortedSF, func(i, j int) bool { return sortedSF[i].SFJD < sortedSF[j].SFJD })
+
+	sortedOur := make([]models.TransitEvent, len(ourEvents))
+	copy(sortedOur, ourEvents)
+	sort.Slice(sortedOur, func(i, j int) bool { return sortedOur[i].JD < sortedOur[j].JD })
+
+	usedOurs := make([]bool, len(sortedOur))
+	var deviations []float64
+	matched := 0
+
+	// Get window size by chart type
+	getWindow := func(chartType string) float64 {
+		switch chartType {
+		case "Tr-Na":
+			return trNaWindow
+		case "Tr-Sp":
+			return trSpWindow
+		case "Sp-Na":
+			return spNaWindow
+		case "Sp-Sp":
+			return spSpWindow
+		default:
+			return 60.0 // Default fallback
+		}
+	}
+
+	for _, sfe := range sortedSF {
+		sfPID, planetOK := sfPlanetMap[sfe.P1]
+		tcCorr := 0.0
+		if sfIsTransitBody(sfe.ChartType) {
+			tcCorr = tcDaysDE431
+		}
+
+		windowSec := getWindow(sfe.ChartType)
+
+		for i, ours := range sortedOur {
+			if usedOurs[i] {
+				continue
+			}
+
+			if planetOK && ours.Planet != sfPID {
+				continue
+			}
+
+			isStationOrIngress := sfe.EventType == "Retrograde" || sfe.EventType == "Direct" ||
+				sfe.EventType == "SignIngress" || sfe.EventType == "HouseChange"
+			if !isStationOrIngress {
+				if sfP2ID, ok := sfPlanetMap[sfe.P2]; ok && ours.Target != "" {
+					if string(sfP2ID) != ours.Target {
+						continue
+					}
+				}
+			}
+
+			if sfe.Pos1Lon > 0 && lonDiff(ours.PlanetLongitude, sfe.Pos1Lon) > 0.1 {
+				continue
+			}
+
+			if !isStationOrIngress && sfe.Pos2Lon > 0 && ours.TargetLongitude > 0 {
+				if lonDiff(ours.TargetLongitude, sfe.Pos2Lon) > 0.2 {
+					continue
+				}
+			}
+
+			corrJDDiff := math.Abs((ours.JD - sfe.SFJD - tcCorr) * 86400)
+			if corrJDDiff > windowSec {
+				continue
+			}
+
+			if !isStationOrIngress {
+				exactMatch := chartTypeMatches(string(ours.ChartType), string(ours.TargetChartType), sfe.ChartType)
+				if !exactMatch {
+					posErr := lonDiff(ours.PlanetLongitude, sfe.Pos1Lon)
+					if !(posErr < 0.1 && corrJDDiff < 2.0) {
+						continue
+					}
+				}
+			}
+
+			usedOurs[i] = true
+			matched++
+			deviations = append(deviations, (ours.JD-sfe.SFJD-tcCorr)*86400)
+			break
+		}
+	}
+
+	spurious := 0
+	for _, used := range usedOurs {
+		if !used {
+			spurious++
+		}
+	}
+
+	return matchResult{
+		matched:    matched,
+		missed:     len(sfEvents) - matched,
+		spurious:   spurious,
+		deviations: deviations,
+	}
+}
+
 // chartTypeMatches checks if our ChartType and TargetChartType match the SF chart type.
 // SF uses: "Tr-Tr", "Tr-Na", "Tr-Sp", "Sp-Na", etc. for double-chart events
 // and "Tr", "Sp", "Sa" etc. for single-chart events (station, ingress)
@@ -2531,15 +2640,9 @@ func TestSolarFireCSV_TC2_DoubleChart(t *testing.T) {
 	// - 15.0s: 78 matches (7.8%)
 	// - 20.0s: ? matches (testing upper bound)
 	// Trade-off: wider window = more matches but less time accuracy
-	result := matchSFEvents(filtered, exactOurEvents, 60.0)
-
-	// Also test differentiated tolerances (Tr-Na: 60s, Sp-Na/Sp-Sp: 120s)
-	// Result: same as uniform, indicating Tr-Na is the bottleneck, not Sp events
-	resultDiff := matchSFEventsWithDifferentiatedTolerance(filtered, exactOurEvents)
-
-	// Test per-body windows (Chiron/NorthNode 120s, others 60s)
-	// These bodies have systematic ~60+ arcsecond ephemeris differences vs Solar Fire
-	resultPerBody := matchSFEventsWithPerBodyWindow(filtered, exactOurEvents)
+	// Test different matching strategies for TC2
+	result := matchSFEvents(filtered, exactOurEvents, 60.0)                         // Baseline: 60s uniform
+	resultOptimal := matchSFEventsWithChartTypeWindow(filtered, exactOurEvents, 300.0, 120.0, 120.0, 120.0) // Optimal: 300s Tr-Na
 
 	// NOTE: TC1's diagnostic windows (Tr-Na 5s, Tr-Sp/Sa 600s, Sp-Na 4000s) perform poorly on TC2 (18 matches)
 	// This reveals that diagnostic windows are dataset-specific, not universal:
@@ -2547,9 +2650,19 @@ func TestSolarFireCSV_TC2_DoubleChart(t *testing.T) {
 	// - TC2 Tr-Na events need 60.0s
 	// Diagnostic windows optimization cannot transfer between datasets without recalibration.
 
-	t.Logf("TC2 DoubleChart (60s uniform): matched=%d, missed=%d, spurious=%d", result.matched, result.missed, result.spurious)
-	t.Logf("TC2 DoubleChart (differentiated: Tr-Na 60s, Sp 120s): matched=%d, missed=%d, spurious=%d", resultDiff.matched, resultDiff.missed, resultDiff.spurious)
-	t.Logf("TC2 DoubleChart (per-body windows: Chiron/NorthNode 120s, others 60s): matched=%d, missed=%d, spurious=%d", resultPerBody.matched, resultPerBody.missed, resultPerBody.spurious)
+	t.Logf("TC2 DoubleChart (60s uniform baseline): matched=%d, missed=%d, spurious=%d", result.matched, result.missed, result.spurious)
+	t.Logf("TC2 DoubleChart (300s Tr-Na optimal): matched=%d, missed=%d, spurious=%d", resultOptimal.matched, resultOptimal.missed, resultOptimal.spurious)
+
+	// Test chart-type-specific windows: find optimal Tr-Na window
+	t.Logf("\nTC2 Tr-Na window optimization (varying Tr-Na, others 120s fixed):")
+	windowSizes := []float64{60, 120, 180, 240, 300, 360, 420, 480, 540, 600, 720, 840, 960, 1080, 1200, 1500, 1800, 2100, 2400}
+	prevMatched := 0
+	for _, trNaWindow := range windowSizes {
+		r := matchSFEventsWithChartTypeWindow(filtered, exactOurEvents, trNaWindow, 120.0, 120.0, 120.0)
+		delta := r.matched - prevMatched
+		t.Logf("  Tr-Na window %7.0fs: matched=%d (%.1f%%) [+%d]", trNaWindow, r.matched, 100*float64(r.matched)/float64(len(filtered)), delta)
+		prevMatched = r.matched
+	}
 
 	// Debug: Analyze progression event structure
 	if len(exactOurEvents) > 0 {
