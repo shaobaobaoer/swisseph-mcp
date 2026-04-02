@@ -2363,9 +2363,22 @@ func TestSolarFireCSV_TC1_DoubleChart(t *testing.T) {
 		testResults[fmt.Sprintf("%.0fs", spNaWindow)] = result
 	}
 
+	// Test if TC2's per-planet max windows work for TC1 (dataset-specific window hypothesis)
+	tc2PerPlanetWindows := make(map[models.PlanetID]float64)
+	tc2PerPlanetWindows[models.PlanetJupiter] = 960
+	tc2PerPlanetWindows[models.PlanetSaturn] = 988
+	tc2PerPlanetWindows[models.PlanetChiron] = 958
+	tc2PerPlanetWindows[models.PlanetMoon] = 128
+	tc2PerPlanetWindows[models.PlanetMercury] = 300
+	resultTC2Windows := matchSFEventsWithPerPlanetTrNaWindow(filtered, ourEvents, 300.0, 120.0, tc2PerPlanetWindows)
+
 	t.Logf("TC1 DoubleChart (uniform 5.0s): matched=%d, missed=%d, spurious=%d", result.matched, result.missed, result.spurious)
-	t.Logf("TC1 DoubleChart (diagnostic windows): matched=%d, missed=%d, spurious=%d", resultOptimized.matched, resultOptimized.missed, resultOptimized.spurious)
+	t.Logf("TC1 DoubleChart (diagnostic windows - TC1 optimized): matched=%d, missed=%d, spurious=%d", resultOptimized.matched, resultOptimized.missed, resultOptimized.spurious)
 	t.Logf("TC1 DoubleChart (per-planet Sp-Na windows): matched=%d, missed=%d, spurious=%d", resultPerPlanet.matched, resultPerPlanet.missed, resultPerPlanet.spurious)
+	t.Logf("TC1 DoubleChart (TC2's per-planet max windows - cross-dataset test): matched=%d, missed=%d, spurious=%d",
+		resultTC2Windows.matched, resultTC2Windows.missed, resultTC2Windows.spurious)
+	t.Logf("\n→ Window generalization test: TC2 windows on TC1 = %d matches vs TC1 diagnostic = %d matches",
+		resultTC2Windows.matched, resultOptimized.matched)
 	t.Logf("\nOptimizing Sp-Na window (Tr-Na:5s, Tr-Sp/Sa:600s, Sp-Na:?s):")
 	for _, window := range []string{"1000s", "2000s", "3000s", "4000s"} {
 		if r, ok := testResults[window]; ok {
