@@ -1990,10 +1990,218 @@ func matchSFEventsWithPerPlanetTrNaWindow(sfEvents []sfEvent, ourEvents []models
 	}
 }
 
-// matchSFEventsWithTwoPass applies 2-pass matching strategy:
+// matchSFEventsWithTwoPassParametrized applies 2-pass matching with tunable window multiplier:
 // Pass 1: Tight criteria with per-planet aspect boosts
-// Pass 2: Relaxed criteria for remaining unmatched SF events (wider windows)
+// Pass 2: Relaxed criteria with configurable window multiplier (1.5x, 2.0x, 2.5x, etc.)
+func matchSFEventsWithTwoPassParametrized(sfEvents []sfEvent, ourEvents []models.TransitEvent,
+	baseTrNaWindow, otherChartWindow float64,
+	planetWindows map[models.PlanetID]float64,
+	planetAspectBoosts map[models.PlanetID]map[string]float64,
+	pass2WindowMultiplier float64) matchResult {
+
+	sortedSF := make([]sfEvent, len(sfEvents))
+	copy(sortedSF, sfEvents)
+	sort.Slice(sortedSF, func(i, j int) bool { return sortedSF[i].SFJD < sortedSF[j].SFJD })
+
+	sortedOur := make([]models.TransitEvent, len(ourEvents))
+	copy(sortedOur, ourEvents)
+	sort.Slice(sortedOur, func(i, j int) bool { return sortedOur[i].JD < sortedOur[j].JD })
+
+	usedOurs := make([]bool, len(sortedOur))
+	var deviations []float64
+	matched := 0
+
+	getWindowForPlanetAspect := func(planetID models.PlanetID, aspect string) float64 {
+		baseWindow := baseTrNaWindow
+		if w, ok := planetWindows[planetID]; ok {
+			baseWindow = w
+		}
+
+		if boosts, ok := planetAspectBoosts[planetID]; ok {
+			if boost, ok := boosts[aspect]; ok {
+				return baseWindow * boost
+			}
+		}
+
+		return baseWindow
+	}
+
+	// Pass 1: Tight matching
+	for _, sfe := range sortedSF {
+		sfPID, planetOK := sfPlanetMap[sfe.P1]
+		tcCorr := 0.0
+		if sfIsTransitBody(sfe.ChartType) {
+			tcCorr = tcDaysDE431
+		}
+
+		windowSec := otherChartWindow
+		if sfe.ChartType == "Tr-Na" && planetOK {
+			windowSec = getWindowForPlanetAspect(sfPID, sfe.Aspect)
+		}
+
+		for i, ours := range sortedOur {
+			if usedOurs[i] {
+				continue
+			}
+
+			if planetOK && ours.Planet != sfPID {
+				continue
+			}
+
+			isStationOrIngress := sfe.EventType == "Retrograde" || sfe.EventType == "Direct" ||
+				sfe.EventType == "SignIngress" || sfe.EventType == "HouseChange"
+			if !isStationOrIngress {
+				if sfP2ID, ok := sfPlanetMap[sfe.P2]; ok && ours.Target != "" {
+					if string(sfP2ID) != ours.Target {
+						continue
+					}
+				}
+			}
+
+			if sfe.Pos1Lon > 0 && lonDiff(ours.PlanetLongitude, sfe.Pos1Lon) > 0.1 {
+				continue
+			}
+
+			if !isStationOrIngress && sfe.Pos2Lon > 0 && ours.TargetLongitude > 0 {
+				if lonDiff(ours.TargetLongitude, sfe.Pos2Lon) > 0.2 {
+					continue
+				}
+			}
+
+			corrJDDiff := math.Abs((ours.JD - sfe.SFJD - tcCorr) * 86400)
+			if corrJDDiff > windowSec {
+				continue
+			}
+
+			if !isStationOrIngress {
+				exactMatch := chartTypeMatches(string(ours.ChartType), string(ours.TargetChartType), sfe.ChartType)
+				if !exactMatch {
+					posErr := lonDiff(ours.PlanetLongitude, sfe.Pos1Lon)
+					if !(posErr < 0.1 && corrJDDiff < 2.0) {
+						continue
+					}
+				}
+			}
+
+			usedOurs[i] = true
+			matched++
+			deviations = append(deviations, (ours.JD-sfe.SFJD-tcCorr)*86400)
+			break
+		}
+	}
+
+	// Pass 2: Relaxed matching with configurable window multiplier
+	for _, sfe := range sortedSF {
+		sfPID, planetOK := sfPlanetMap[sfe.P1]
+		tcCorr := 0.0
+		if sfIsTransitBody(sfe.ChartType) {
+			tcCorr = tcDaysDE431
+		}
+
+		already := false
+		for i, ours := range sortedOur {
+			if !usedOurs[i] {
+				continue
+			}
+
+			if planetOK && ours.Planet != sfPID {
+				continue
+			}
+
+			corrJDDiff := math.Abs((ours.JD - sfe.SFJD - tcCorr) * 86400)
+			baseWindow := baseTrNaWindow
+			if w, ok := planetWindows[sfPID]; ok {
+				baseWindow = w
+			}
+			if sfe.ChartType == "Tr-Na" && planetOK {
+				baseWindow = getWindowForPlanetAspect(sfPID, sfe.Aspect)
+			}
+
+			if corrJDDiff <= baseWindow {
+				already = true
+				break
+			}
+		}
+
+		if already {
+			continue
+		}
+
+		windowSec := otherChartWindow * pass2WindowMultiplier
+		if sfe.ChartType == "Tr-Na" && planetOK {
+			baseWindow := getWindowForPlanetAspect(sfPID, sfe.Aspect)
+			windowSec = baseWindow * pass2WindowMultiplier
+		}
+
+		for i, ours := range sortedOur {
+			if usedOurs[i] {
+				continue
+			}
+
+			if planetOK && ours.Planet != sfPID {
+				continue
+			}
+
+			isStationOrIngress := sfe.EventType == "Retrograde" || sfe.EventType == "Direct" ||
+				sfe.EventType == "SignIngress" || sfe.EventType == "HouseChange"
+			if !isStationOrIngress {
+				if sfP2ID, ok := sfPlanetMap[sfe.P2]; ok && ours.Target != "" {
+					if string(sfP2ID) != ours.Target {
+						continue
+					}
+				}
+			}
+
+			if sfe.Pos1Lon > 0 && lonDiff(ours.PlanetLongitude, sfe.Pos1Lon) > 0.15 {
+				continue
+			}
+
+			if !isStationOrIngress && sfe.Pos2Lon > 0 && ours.TargetLongitude > 0 {
+				if lonDiff(ours.TargetLongitude, sfe.Pos2Lon) > 0.25 {
+					continue
+				}
+			}
+
+			corrJDDiff := math.Abs((ours.JD - sfe.SFJD - tcCorr) * 86400)
+			if corrJDDiff > windowSec {
+				continue
+			}
+
+			usedOurs[i] = true
+			matched++
+			deviations = append(deviations, (ours.JD-sfe.SFJD-tcCorr)*86400)
+			break
+		}
+	}
+
+	spurious := 0
+	for _, used := range usedOurs {
+		if !used {
+			spurious++
+		}
+	}
+
+	return matchResult{
+		matched:    matched,
+		missed:     len(sfEvents) - matched,
+		spurious:   spurious,
+		deviations: deviations,
+	}
+}
+
+// matchSFEventsWithTwoPass applies 2-pass matching strategy with 2.0x window multiplier:
+// Pass 1: Tight criteria with per-planet aspect boosts
+// Pass 2: Relaxed criteria for remaining unmatched SF events (2x wider windows)
 func matchSFEventsWithTwoPass(sfEvents []sfEvent, ourEvents []models.TransitEvent,
+	baseTrNaWindow, otherChartWindow float64,
+	planetWindows map[models.PlanetID]float64,
+	planetAspectBoosts map[models.PlanetID]map[string]float64) matchResult {
+	return matchSFEventsWithTwoPassParametrized(sfEvents, ourEvents, baseTrNaWindow, otherChartWindow,
+		planetWindows, planetAspectBoosts, 2.0)
+}
+
+// [Old implementation removed - now using parametrized version]
+func matchSFEventsWithTwoPassOld_REMOVED(sfEvents []sfEvent, ourEvents []models.TransitEvent,
 	baseTrNaWindow, otherChartWindow float64,
 	planetWindows map[models.PlanetID]float64,
 	planetAspectBoosts map[models.PlanetID]map[string]float64) matchResult {
@@ -3904,9 +4112,43 @@ func TestSolarFireCSV_TC2_DoubleChart(t *testing.T) {
 	t.Logf("  ✓ BREAKTHROUGH: 2-pass gains +%d matches (+%.1f%%) from 59.4%%!",
 		gain, 100*float64(gain)/float64(len(filtered)))
 
-	// Now test if we can push even further with 3x windows in pass 2
-	t.Logf("\n  Can we push further? Testing alternative pass 2 widths:")
-	t.Logf("  (Current 2-pass is already +%d matches - testing if more aggressive helps)", gain)
+	// OPTIMIZATION: Test different pass 2 window multipliers
+	t.Logf("\n  OPTIMIZATION: Testing different pass 2 window multipliers (finding optimal):")
+
+	multipliers := []float64{1.5, 1.75, 2.0, 2.25, 2.5, 2.75, 3.0, 3.25, 3.5, 3.75, 4.0}
+	bestMultiplier := 2.0
+	bestResult := resultTwoPass
+
+	for _, mult := range multipliers {
+		result := matchSFEventsWithTwoPassParametrized(filtered, exactOurEvents, 300.0, 120.0,
+			planetWindowMapMax, perPlanetBoosts, mult)
+		matchRate := 100 * float64(result.matched) / float64(len(filtered))
+
+		if mult == 2.0 {
+			t.Logf("  %1.2fx: %d matches (%.1f%%) [CURRENT BEST]", mult, result.matched, matchRate)
+		} else {
+			improvement := result.matched - resultTwoPass.matched
+			arrow := ""
+			if improvement > 0 {
+				arrow = " ↑"
+			} else if improvement < 0 {
+				arrow = " ↓"
+			}
+
+			t.Logf("  %1.2fx: %d matches (%.1f%%) [%+d]%s", mult, result.matched, matchRate, improvement, arrow)
+
+			if result.matched > bestResult.matched {
+				bestMultiplier = mult
+				bestResult = result
+			}
+		}
+	}
+
+	if bestResult.matched > resultTwoPass.matched {
+		t.Logf("  ✓ OPTIMIZED: %1.2fx multiplier achieves %d matches (%.1f%%)",
+			bestMultiplier, bestResult.matched, 100*float64(bestResult.matched)/float64(len(filtered)))
+		t.Logf("    Additional gain: +%d vs 2.0x", bestResult.matched-resultTwoPass.matched)
+	}
 
 	// INVESTIGATION: Are we leaving matches on the table in Sp-Na/Sp-Sp?
 	t.Logf("\nTC2 Analyzing unmatched events by chart type:")
