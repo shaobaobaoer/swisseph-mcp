@@ -3582,6 +3582,49 @@ func TestSolarFireCSV_TC2_DoubleChart(t *testing.T) {
 		resultPerPlanetAspect.matched-rPerPlanetMax.matched,
 		resultPerPlanetAspect.matched-resultAspectSpec.matched)
 
+	// INVESTIGATION: Are we leaving matches on the table in Sp-Na/Sp-Sp?
+	t.Logf("\nTC2 Analyzing unmatched events by chart type:")
+	unmatchedByChartType := make(map[string]int)
+	matchedByChartType := make(map[string]int)
+
+	for _, sfe := range filtered {
+		found := false
+		sfPID, ok := sfPlanetMap[sfe.P1]
+		if !ok {
+			continue
+		}
+
+		// Check if this SF event was matched
+		for _, ours := range exactOurEvents {
+			if ours.Planet != sfPID {
+				continue
+			}
+			corrJD := ours.JD
+			if sfIsTransitBody(sfe.ChartType) {
+				corrJD -= tcDaysDE431
+			}
+			if math.Abs((corrJD - sfe.SFJD) * 86400) < 1.0 { // Extremely tight match check
+				found = true
+				break
+			}
+		}
+
+		if found {
+			matchedByChartType[sfe.ChartType]++
+		} else {
+			unmatchedByChartType[sfe.ChartType]++
+		}
+	}
+
+	for _, ct := range []string{"Tr-Na", "Tr-Sp", "Tr-Sa", "Sp-Na", "Sp-Sp", "Sa-Na"} {
+		matched := matchedByChartType[ct]
+		unmatched := unmatchedByChartType[ct]
+		total := matched + unmatched
+		if total > 0 {
+			t.Logf("  %s: %d/%d (%.1f%%)", ct, matched, total, 100*float64(matched)/float64(total))
+		}
+	}
+
 
 	// Investigate Sp-Na/Sp-Sp timing offsets to see if there's a pattern
 	t.Logf("\nTC2 Analyze Sp-Na/Sp-Sp timing offset patterns (attempting formula reverse-engineering):")
