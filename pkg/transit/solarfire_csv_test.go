@@ -2969,6 +2969,98 @@ func TestSolarFireCSV_TC2_DoubleChart(t *testing.T) {
 	t.Logf("  Events with 180° position fix + 0.1° tolerance: %d (%.1f%% potential)", potentialFix, 100*float64(potentialFix)/float64(len(filtered)))
 	t.Logf("  (Actual recovery depends on time window - many likely >60s off)")
 
+	// CRITICAL: Analyze time differences for tight position matches on Jupiter/Saturn/Chiron
+	// These planets have excellent position accuracy (<5°) but are being rejected for TIMING
+	t.Logf("\nTC2 Time distribution for tight position matches (Jupiter/Saturn/Chiron):")
+	tightMatchPlanets := map[string]bool{"Jupiter": true, "Saturn": true, "Chiron": true}
+	tightPositionTimings := make(map[string][]float64) // planet -> list of time diffs
+
+	for _, sfe := range filtered {
+		if !tightMatchPlanets[sfe.P1] {
+			continue
+		}
+
+		sfPID, ok := sfPlanetMap[sfe.P1]
+		if !ok {
+			continue
+		}
+
+		tcCorr := 0.0
+		if sfIsTransitBody(sfe.ChartType) {
+			tcCorr = tcDaysDE431
+		}
+
+		// Find closest our-event
+		var closest *models.TransitEvent
+		minDiff := math.MaxFloat64
+
+		for _, ours := range exactOurEvents {
+			if ours.Planet != sfPID {
+				continue
+			}
+			diff := math.Abs((ours.JD - sfe.SFJD - tcCorr) * 86400)
+			if diff < minDiff {
+				minDiff = diff
+				ours := ours
+				closest = &ours
+			}
+		}
+
+		if closest != nil {
+			posErr := lonDiff(closest.PlanetLongitude, sfe.Pos1Lon)
+			// Only look at tight position matches
+			if posErr < 5.0 {
+				tightPositionTimings[sfe.P1] = append(tightPositionTimings[sfe.P1], minDiff)
+			}
+		}
+	}
+
+	// Analyze time clustering for tight position matches
+	for planet, timings := range tightPositionTimings {
+		if len(timings) > 0 {
+			sort.Float64s(timings)
+
+			// Find percentiles
+			p25 := timings[len(timings)/4]
+			p50 := timings[len(timings)/2]
+			p75 := timings[3*len(timings)/4]
+			p90 := timings[9*len(timings)/10]
+			maxTime := timings[len(timings)-1]
+
+			// Count how many are <60s (already matched) vs >60s (could be recovered)
+			within60 := 0
+			within300 := 0
+			within600 := 0
+			beyond600 := 0
+
+			for _, t := range timings {
+				if t <= 60.0 {
+					within60++
+				} else if t <= 300.0 {
+					within300++
+				} else if t <= 600.0 {
+					within600++
+				} else {
+					beyond600++
+				}
+			}
+
+			t.Logf("  %s: %d tight position matches", planet, len(timings))
+			t.Logf("    Timing distribution: p25=%.0fs, p50=%.0fs, p75=%.0fs, p90=%.0fs, max=%.0fs",
+				p25, p50, p75, p90, maxTime)
+			t.Logf("    Within 60s: %d, 60-300s: %d, 300-600s: %d, >600s: %d",
+				within60, within300, within600, beyond600)
+
+			// Suggest optimal window
+			suggestedWindow := p90
+			if p90 > 600.0 {
+				suggestedWindow = 600.0 // Cap at 600s
+			}
+			recoverable := within300 + within600
+			t.Logf("    → Suggested window: %.0fs (would recover %d more matches)", suggestedWindow, recoverable)
+		}
+	}
+
 	// Compare strategies
 	t.Logf("\nTC2 Matching Strategy Summary:")
 	t.Logf("  Baseline (60s uniform): %d matches (30.5%%)", result.matched)
