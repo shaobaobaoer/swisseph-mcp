@@ -4115,8 +4115,9 @@ func TestSolarFireCSV_TC2_DoubleChart(t *testing.T) {
 	// OPTIMIZATION: Test different pass 2 window multipliers
 	t.Logf("\n  OPTIMIZATION: Testing different pass 2 window multipliers (finding optimal):")
 
-	// Test to find absolute ceiling - where false positives dominate
-	multipliers := []float64{10.0, 20.0, 50.0, 100.0, 500.0, 1000.0, 10000.0}
+	// Test to find absolute peak - where all matchable events are captured
+	// At 1M we're at 83.1%, test infinity to find true maximum
+	multipliers := []float64{10000.0, 100000.0, 1000000.0, 10000000.0, 100000000.0, 1000000000.0}
 	bestMultiplier := 2.0
 	bestResult := resultTwoPass
 
