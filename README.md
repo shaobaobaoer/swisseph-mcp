@@ -6,7 +6,7 @@ The most comprehensive open-source Western astrology calculation engine.
 Usable as a **Go library**, an **MCP server** for AI assistants, or a **RESTful HTTP API** for web/mobile clients.
 
 Built on the [Swiss Ephemeris](https://www.astro.com/swisseph/).
-Independently validated at **100% accuracy** (247/247 transit events against Solar Fire 9).
+Independently validated: **100% accuracy on single-chart transits** (247/247 events), **83.1% on double-chart progressions** (833/1002 events) against Solar Fire 9.
 
 > [中文文档 →](README.zh.md)
 
