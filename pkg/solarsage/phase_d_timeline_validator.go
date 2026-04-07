@@ -84,6 +84,33 @@ type TimelineDateStats struct {
 	Divergences int
 }
 
+// getSignStartDegree returns the zodiac degree where a sign starts (0-359°)
+// Aries=0°, Taurus=30°, Gemini=60°, ..., Pisces=330°
+func getSignStartDegree(signName string) (float64, bool) {
+	signs := map[string]float64{
+		"Aries":       0.0,
+		"Taurus":      30.0,
+		"Gemini":      60.0,
+		"Cancer":      90.0,
+		"Leo":         120.0,
+		"Virgo":       150.0,
+		"Libra":       180.0,
+		"Scorpio":     210.0,
+		"Sagittarius": 240.0,
+		"Capricorn":   270.0,
+		"Aquarius":    300.0,
+		"Pisces":      330.0,
+	}
+
+	// Case-insensitive lookup
+	for sign, degree := range signs {
+		if strings.EqualFold(sign, signName) {
+			return degree, true
+		}
+	}
+	return 0, false
+}
+
 // getOrbToleranceForPair returns the orb tolerance for a given planet pair
 // Outer planets (Saturn, Uranus, Neptune, Pluto, Chiron) get ±3.0°
 // Inner planets and special points get ±1.5°
@@ -2097,11 +2124,21 @@ func ValidateTimelineSignIngress(sfRecords []SFAspectRecord, natalJD, natalLat, 
 				continue
 			}
 
-			// Check if planet is near sign boundary (entering new sign)
-			// Tolerance expanded: 0-8° (entering) or 24-30° (leaving previous sign)
-			// This captures more ingress moments where planet has recently crossed boundary
-			posInSign := math.Mod(planetLon, 30.0)
-			isNearIngress := posInSign < 8.0 || posInSign > 24.0
+			// Check if planet is near the START of the specific sign (entering that sign)
+			// Get the zodiac degree where the sign starts
+			// E.g., if sign starts at 120° (Leo), check if planet is in 120-128°
+						// Get the zodiac degree where the sign starts
+			signStartDeg, validSign := getSignStartDegree(sfRec.P2)
+			if !validSign {
+				continue
+			}
+
+			// Calculate distance from sign start (normalized to 0-30° range)
+			// E.g., if sign starts at 120° (Leo), check if planet is in 120-128°
+			normLon := math.Mod(planetLon, 360.0)
+			distFromSignStart := math.Mod(normLon - signStartDeg + 360.0, 360.0)
+						// Planet is "entering" the sign if it's within 8° of the sign start
+			isNearIngress := distFromSignStart < 8.0
 
 			if isNearIngress {
 				report.TotalMatches++
