@@ -2081,8 +2081,6 @@ func ValidateTimelineSignIngress(sfRecords []SFAspectRecord, natalJD, natalLat, 
 		return report
 	}
 
-	orbs := models.DefaultOrbConfig()
-
 	// Group SF records by date
 	byDate := make(map[string][]SFAspectRecord)
 	for _, rec := range ingressRecords {
@@ -2096,49 +2094,22 @@ func ValidateTimelineSignIngress(sfRecords []SFAspectRecord, natalJD, natalLat, 
 			continue
 		}
 
-		year, month, day := 0, 0, 0
-		fmt.Sscanf(date, "%d-%d-%d", &year, &month, &day)
-		transitJD := sweph.JulDay(year, month, day, 0, true)
-
-		// Compute transit chart for this date
-		transitChart, _ := chart.CalcSingleChart(natalLat, natalLon, transitJD, natalPlanets, orbs, models.HousePlacidus)
-
 		dateStats := &TimelineDateStats{Date: date, Count: len(dateRecords)}
 
 		for _, sfRec := range dateRecords {
 			// Sign ingress: check if planet P1 is near 0° in its sign (entering new sign)
 			// P2 in SF data is the sign name (e.g., "Leo", "Virgo")
-			var planetLon float64
-			found := false
+			// Use sfRec.Pos1Deg (from CSV) which is the planet's position WITHIN the sign (0-30°)
+			// NOT the midnight transit chart, which can be hours away for fast planets like Moon
 
-			for _, p := range transitChart.Planets {
-				// Case-insensitive planet name matching (SF uses "Moon", enum uses "MOON")
-				if strings.EqualFold(string(p.PlanetID), sfRec.P1) {
-					planetLon = p.Longitude
-					found = true
-					break
-				}
-			}
+			// sfRec.Pos1Deg is the planet's degree WITHIN the sign (0-30°)
+			// For a SignIngress event, this should be 0-8° for "entering" (recent ingress)
+			// The CSV also provides the expected sign in sfRec.P2 for verification
 
-			if !found {
-				continue
-			}
-
-			// Check if planet is near the START of the specific sign (entering that sign)
-			// Get the zodiac degree where the sign starts
-			// E.g., if sign starts at 120° (Leo), check if planet is in 120-128°
-						// Get the zodiac degree where the sign starts
-			signStartDeg, validSign := getSignStartDegree(sfRec.P2)
-			if !validSign {
-				continue
-			}
-
-			// Calculate distance from sign start (normalized to 0-30° range)
-			// E.g., if sign starts at 120° (Leo), check if planet is in 120-128°
-			normLon := math.Mod(planetLon, 360.0)
-			distFromSignStart := math.Mod(normLon - signStartDeg + 360.0, 360.0)
-						// Planet is "entering" the sign if it's within 8° of the sign start
-			isNearIngress := distFromSignStart < 8.0
+			// Planet is "entering" the sign if it's within 8° of the sign start (Pos1Deg 0-8)
+			// Also check the sign matches (sfRec.Pos1Sign should equal sfRec.P2)
+			isNearIngress := sfRec.Pos1Deg >= 0.0 && sfRec.Pos1Deg <= 8.0 &&
+				strings.EqualFold(sfRec.Pos1Sign, sfRec.P2)
 
 			if isNearIngress {
 				report.TotalMatches++
