@@ -145,6 +145,20 @@ func ValidateTimelineTrNa(sfRecords []SFAspectRecord, natalJD, natalLat, natalLo
 			{ID: string(models.PointASC), Longitude: transitChart.Angles.ASC},
 			{ID: string(models.PointMC), Longitude: transitChart.Angles.MC},
 		}
+
+		// Add NorthNode to special bodies for cross-aspect matching
+		for _, p := range natalChart.Planets {
+			if p.PlanetID == models.PlanetNorthNodeMean || p.PlanetID == models.PlanetNorthNodeTrue {
+				innerSpecial = append(innerSpecial, aspect.Body{ID: string(p.PlanetID), Longitude: p.Longitude})
+				break
+			}
+		}
+		for _, p := range transitChart.Planets {
+			if p.PlanetID == models.PlanetNorthNodeMean || p.PlanetID == models.PlanetNorthNodeTrue {
+				outerSpecial = append(outerSpecial, aspect.Body{ID: string(p.PlanetID), Longitude: p.Longitude})
+				break
+			}
+		}
 		crossAspects = append(crossAspects, aspect.FindCrossAspects(
 			innerSpecial, outerSpecial, orbs)...)
 
@@ -363,6 +377,14 @@ func ValidateTimelineSpNa(sfRecords []SFAspectRecord, natalJD, natalLat, natalLo
 			aspect.Body{ID: string(models.PointMC), Longitude: natalChart.Angles.MC},
 		)
 
+		// Add natal NorthNode for cross-aspect matching
+		for _, p := range natalChart.Planets {
+			if p.PlanetID == models.PlanetNorthNodeMean || p.PlanetID == models.PlanetNorthNodeTrue {
+				innerBodies = append(innerBodies, aspect.Body{ID: string(p.PlanetID), Longitude: p.Longitude})
+				break
+			}
+		}
+
 		// Build progressed bodies (outer ring)
 		var outerBodies []aspect.Body
 		for _, pid := range natalPlanets {
@@ -384,6 +406,11 @@ func ValidateTimelineSpNa(sfRecords []SFAspectRecord, natalJD, natalLat, natalLo
 			aspect.Body{ID: string(models.PointASC), Longitude: spASC},
 			aspect.Body{ID: string(models.PointMC), Longitude: spMC},
 		)
+
+		// Add progressed NorthNode for cross-aspect matching
+		if progNorthNode, _, err := CalcProgressedLongitude(models.PlanetNorthNodeMean, natalJD, transitJD); err == nil {
+			outerBodies = append(outerBodies, aspect.Body{ID: string(models.PlanetNorthNodeMean), Longitude: progNorthNode})
+		}
 
 		// Find cross-aspects
 		crossAspects := aspect.FindCrossAspects(innerBodies, outerBodies, orbs)
@@ -591,6 +618,14 @@ func ValidateTimelineSaNa(sfRecords []SFAspectRecord, natalJD, natalLat, natalLo
 			aspect.Body{ID: string(models.PointMC), Longitude: natalChart.Angles.MC},
 		)
 
+		// Add natal NorthNode for cross-aspect matching
+		for _, p := range natalChart.Planets {
+			if p.PlanetID == models.PlanetNorthNodeMean || p.PlanetID == models.PlanetNorthNodeTrue {
+				innerBodies = append(innerBodies, aspect.Body{ID: string(p.PlanetID), Longitude: p.Longitude})
+				break
+			}
+		}
+
 		// Get solar arc offset
 		saOffset, _ := CalcSolarArcOffset(natalJD, transitJD)
 
@@ -615,6 +650,11 @@ func ValidateTimelineSaNa(sfRecords []SFAspectRecord, natalJD, natalLat, natalLo
 			aspect.Body{ID: string(models.PointASC), Longitude: saASC},
 			aspect.Body{ID: string(models.PointMC), Longitude: saMC},
 		)
+
+		// Add solar arc NorthNode for cross-aspect matching
+		if saNorthNode, _, err := CalcSolarArcLongitude(models.PlanetNorthNodeMean, natalJD, transitJD); err == nil {
+			outerBodies = append(outerBodies, aspect.Body{ID: string(models.PlanetNorthNodeMean), Longitude: saNorthNode})
+		}
 
 		// Find cross-aspects
 		crossAspects := aspect.FindCrossAspects(innerBodies, outerBodies, orbs)
