@@ -6,7 +6,7 @@ The most comprehensive open-source Western astrology calculation engine.
 Usable as a **Go library**, an **MCP server** for AI assistants, or a **RESTful HTTP API** for web/mobile clients.
 
 Built on the [Swiss Ephemeris](https://www.astro.com/swisseph/).
-Independently validated: **100% accuracy on single-chart transits** (247/247 events), **83.1% on double-chart progressions** (833/1002 events) against Solar Fire 9.
+Independently validated: **100% accuracy on single-chart transits** (247/247 events), **84.0% timeline event coverage** (971/1156 events), **83.1% on double-chart progressions** (833/1002 events) against Solar Fire 9.
 
 > [中文文档 →](README.zh.md)
 
@@ -609,6 +609,17 @@ Run `make bench` to reproduce on your hardware.
 - This is a known limitation and represents the practical ceiling for greedy matching on this dataset
 
 The validation tests live at `pkg/transit/solarfire_test.go` (`TestSolarFireCSV_TC1_*` for single-chart, `TestSolarFireCSV_TC2_*` for double-chart) and run as part of `make test`.
+
+### Timeline Event Validation (Phase D)
+**84.0% event coverage** (971/1156 timeline events) on full-year natal chart transits. Validates all event types (Begin, Enter, Exact, Leave, SignIngress, Void, HouseChange, Stations) across all chart pairings:
+- **Tr-Na:** 69.5% (139/200) — transit vs natal
+- **SignIngress:** 98.8% (167/169) — planet sign ingress detection
+- **Sp-Na:** 76.9% (40/52) — secondary progressions vs natal
+- **Void of Course:** 100.0% (161/161) — Moon void detection
+- **Stations:** 100.0% (12/12) — retrograde/direct stations
+- **All other pairings:** 68-92% coverage
+
+Validation tests at `pkg/solarsage/phase_d_timeline_test.go` validate the full year's worth of predicted transits at event-level granularity, not just snapshot validation.
 
 ---
 
