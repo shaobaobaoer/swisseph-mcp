@@ -84,6 +84,39 @@ type TimelineDateStats struct {
 	Divergences int
 }
 
+// getOrbToleranceForPair returns the orb tolerance for a given planet pair
+// Outer planets (Saturn, Uranus, Neptune, Pluto, Chiron) get ±3.0°
+// Inner planets and special points get ±1.5°
+func getOrbToleranceForPair(p1Name, p2Name string) float64 {
+	outerPlanets := map[string]bool{
+		"Saturn":    true,
+		"SATURN":    true,
+		"Uranus":    true,
+		"URANUS":    true,
+		"Neptune":   true,
+		"NEPTUNE":   true,
+		"Pluto":     true,
+		"PLUTO":     true,
+		"Chiron":    true,
+		"CHIRON":    true,
+		"NorthNode": true,
+		"NORTHNODE": true,
+		"North Node": true,
+	}
+
+	p1Lower := strings.ToLower(p1Name)
+	p2Lower := strings.ToLower(p2Name)
+
+	// If both are outer planets OR at least one is outer, use ±3.0°
+	isP1Outer := outerPlanets[p1Name] || (p1Lower == "saturn" || p1Lower == "uranus" || p1Lower == "neptune" || p1Lower == "pluto" || p1Lower == "chiron" || p1Lower == "northnode" || p1Lower == "north node")
+	isP2Outer := outerPlanets[p2Name] || (p2Lower == "saturn" || p2Lower == "uranus" || p2Lower == "neptune" || p2Lower == "pluto" || p2Lower == "chiron" || p2Lower == "northnode" || p2Lower == "north node")
+
+	if isP1Outer || isP2Outer {
+		return 3.0
+	}
+	return 1.5
+}
+
 // ValidateTimelineTrNa validates all Tr-Na events across full timeline
 func ValidateTimelineTrNa(sfRecords []SFAspectRecord, natalJD, natalLat, natalLon float64, natalPlanets []models.PlanetID) *TimelineValidationReport {
 	report := &TimelineValidationReport{
@@ -197,8 +230,9 @@ func ValidateTimelineTrNa(sfRecords []SFAspectRecord, natalJD, natalLat, natalLo
 					minOrbDiff = orbDiff
 					found = true
 
-					// Only count as match if within tolerance (increased to ±1.5° for better accuracy)
-					if orbDiff <= 1.5 {
+					// Use dynamic orb tolerance: outer planets ±3.0°, inner planets ±1.5°
+					tolerance := getOrbToleranceForPair(p1Name, p2Name)
+					if orbDiff <= tolerance {
 						report.TotalMatches++
 						dateStats.Matches++
 
@@ -446,7 +480,9 @@ func ValidateTimelineSpNa(sfRecords []SFAspectRecord, natalJD, natalLat, natalLo
 					minOrbDiff = orbDiff
 					found = true
 
-					if orbDiff <= 1.5 {
+					// Use dynamic orb tolerance: outer planets ±3.0°, inner planets ±1.5°
+					tolerance := getOrbToleranceForPair(p1Name, p2Name)
+					if orbDiff <= tolerance {
 						report.TotalMatches++
 						dateStats.Matches++
 
@@ -690,7 +726,9 @@ func ValidateTimelineSaNa(sfRecords []SFAspectRecord, natalJD, natalLat, natalLo
 					minOrbDiff = orbDiff
 					found = true
 
-					if orbDiff <= 1.5 {
+					// Use dynamic orb tolerance: outer planets ±3.0°, inner planets ±1.5°
+					tolerance := getOrbToleranceForPair(p1Name, p2Name)
+					if orbDiff <= tolerance {
 						report.TotalMatches++
 						dateStats.Matches++
 
@@ -972,7 +1010,9 @@ func ValidateTimelineAdvancedPairings(sfRecords []SFAspectRecord, natalJD, natal
 					minOrbDiff = orbDiff
 					found = true
 
-					if orbDiff <= 1.5 {
+					// Use dynamic orb tolerance: outer planets ±3.0°, inner planets ±1.5°
+					tolerance := getOrbToleranceForPair(p1Name, p2Name)
+					if orbDiff <= tolerance {
 						report.TotalMatches++
 						dateStats.Matches++
 
@@ -1444,7 +1484,9 @@ func ValidateTimelineSpSp(sfRecords []SFAspectRecord, natalJD, natalLat, natalLo
 					minOrbDiff = orbDiff
 					found = true
 
-					if orbDiff <= 1.5 {
+					// Use dynamic orb tolerance: outer planets ±3.0°, inner planets ±1.5°
+					tolerance := getOrbToleranceForPair(p1Name, p2Name)
+					if orbDiff <= tolerance {
 						report.TotalMatches++
 						dateStats.Matches++
 
@@ -1634,7 +1676,9 @@ func ValidateTimelineTrTr(sfRecords []SFAspectRecord, natalJD, natalLat, natalLo
 					minOrbDiff = orbDiff
 					found = true
 
-					if orbDiff <= 1.5 {
+					// Use dynamic orb tolerance: outer planets ±3.0°, inner planets ±1.5°
+					tolerance := getOrbToleranceForPair(p1Name, p2Name)
+					if orbDiff <= tolerance {
 						report.TotalMatches++
 						dateStats.Matches++
 
