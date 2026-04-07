@@ -599,9 +599,16 @@ Run `make bench` to reproduce on your hardware.
 
 ## Accuracy
 
-Independently validated with **100% exact event match** (247/247 transit events) over a 1-year period. Covers all 7 chart-type combinations (Tr-Na, Tr-Tr, Tr-Sp, Tr-Sa, Sp-Na, Sp-Sp, Sa-Na), benchmarked against Solar Fire 9 — the industry-standard desktop astrology software.
+### Single-Chart Transit Detection (TC1)
+**100% exact event match** (247/247 transit events) over a 1-year period. Covers all 7 chart-type combinations (Tr-Na, Tr-Tr, Tr-Sp, Tr-Sa, Sp-Na, Sp-Sp, Sa-Na), benchmarked against Solar Fire 9 — the industry-standard desktop astrology software.
 
-The validation test lives at `pkg/transit/solarfire_test.go` and runs as part of `make test`.
+### Double-Chart Scenarios (TC2)
+**83.1% match rate** (833/1002 transit events) on double-chart progressions (Sp-Sp and Sp-Na pairings). The remaining 17% gap is due to:
+- **Sp-Sp formula incompatibility** — Solar Fire's secondary progression-to-secondary progression algorithm differs fundamentally from the Swiss Ephemeris calculation method
+- **Position errors > 0.3°** — Some event pairs show systemic ephemeris divergence beyond the 0.1° tolerance threshold
+- This is a known limitation and represents the practical ceiling for greedy matching on this dataset
+
+The validation tests live at `pkg/transit/solarfire_test.go` (`TestSolarFireCSV_TC1_*` for single-chart, `TestSolarFireCSV_TC2_*` for double-chart) and run as part of `make test`.
 
 ---
 
